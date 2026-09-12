@@ -1,6 +1,6 @@
 # DEQACC RTL 接入与验证
 
-本次按审查意见优先补齐DEQACC。W_Loader/MXU功能结构不改，tag.bank暂保留兼容，不参与DEQACC目的选择。Attention调度器的完成信号、alpha代际和PBUF/SBUF端口问题没有被本次修改自动解决。
+DEQACC算术保持上一轮实现；新版接口删除tag.bank与tag.blk，Tag58bit、Dest13bit。MXU现有独立Dest流水，QK顶层接入正式Sequencer；详见QK_Job接口与验证.md。Attention调度器的完成信号、alpha代际和PBUF/SBUF端口问题尚未解决。
 
 ## 模块分工
 
@@ -17,7 +17,7 @@ FP32固定为IEEE binary32，E8M0固定8bit。TILE/地址/tag等沿用package参
 
 MXU现有psum、e_stat、rsp_e_stream、rsp_tag组成mxu_rsp_t，连req；rsp_valid连req_valid。不增加输出FIFO或Psum阵列。结构体只是总线组织方式，不自动增加寄存器。
 
-Matrix Sequencer需要为每个事务提供deq_dest_t：acc_sel、acc_addr、acc_clear。此描述符必须与该事务一起推进。测试台使用响应tag产生确定性的FACC映射，仅用于验证，不是完整生产Sequencer。
+QK Sequencer为每个事务提供deq_dest_t：acc_sel、acc_addr、acc_clear。该描述符经同步QOZ读旁带、DEQ_DEST_REG和dest_q[1:5]到rsp_dest，再直接进入DEQACC，不在输出端根据Tag重建。
 
 mem_rd_en/sel/addr连接选中存储的一拍同步读端口，mem_rd_data返回512bit。mem_wr_en/sel/addr/lane_en/data连接同步写端口，写请求不可被丢弃或反压。L4即实际写入沿，commit_valid在该沿之后报告提交，不需要下游再额外寄存一次写请求。
 
@@ -53,4 +53,4 @@ tb_dea8_mxu增加实际DEQACC与累加存储连接：HBM输入两block、32Tile�
 
 XSim通过只能证明所测行为，不证明单周期FP32加法满足目标时钟。尚无本次目标器件的综合、布局布线、时序和资源报告。若L3需要增加物理流水，必须统一修改数据/tag、读响应对齐、commit与RAW间距，不能只更换算术IP。
 
-尚未完成：真实QOZ同步读/Matrix Sequencer、Attention完成握手、VPU/SFU数值实现、OACC与VPU交接、alpha防覆盖和完整Attention端到端验证。
+尚未完成：PV/Linear Sequencer、Attention完成握手、VPU/SFU数值实现、OACC与VPU交接、alpha防覆盖和完整Attention端到端验证。QK-only Sequencer和同步QOZ已实现。

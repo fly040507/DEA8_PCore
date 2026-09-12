@@ -42,6 +42,7 @@ class MxuRequest:
     e_stream: int
     e_stat: tuple[int, ...]
     tag: Any
+    dest: Any
 
 
 @dataclass(frozen=True)
@@ -50,6 +51,7 @@ class MxuResponse:
     e_stream: int
     e_stat: tuple[int, ...]
     tag: Any
+    dest: Any
 
 
 class MxuCycleModel:
@@ -75,6 +77,7 @@ class MxuCycleModel:
                 e_stream=request.e_stream & 0xFF,
                 e_stat=tuple(v & 0xFF for v in request.e_stat),
                 tag=request.tag,
+                dest=request.dest,
             )
         self._pipe.appendleft(issued)
         return self._pipe[-1]

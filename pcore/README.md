@@ -1,13 +1,14 @@
 # DEA-8 PCore / Attention
 
 当前依据：用户2026-09-12版README，整理见 [冻结规格](docs/冻结规格_2026-09-12.md)。
+本轮新版接口与QK执行链见 [QK Job接口与验证](docs/QK_Job接口与验证.md)：58bit Tag、13bit Dest、同步QOZ读取与最后commit屏障。
 实现状态见 [状态清单](docs/IMPLEMENTATION_STATUS.md)。本工程不是完整Attention签核版本。
 
 ## 当前已实现并仿真的通路
 
 HBM -> dea8_w_loader（Fetch、WFIFO、Bank Load与状态） -> dea8_mxu -> Psum + sideband[5]。
 
-新增 dea8_deqacc + dea8_accumulator_storage：真实FP32反量化、FACC归约/OACC+PV及五级实际写回。tb_dea8_mxu已接入DEQACC与FACC，逐项比较整条链的位精确输出；这仍是测试台连接，不代表生产级Matrix Sequencer/Attention Top已经完成。
+新增dea8_qk_engine：QK Sequencer驱动真实同步QOZ/E_QOZ，连接W_Loader、MXU、DEQACC及唯一一份累加存储。已不依赖测试台在MXU输出端生成Dest。当前仅支持QK Job，不代表完整Attention Top已经完成。
 接线、时序和运行方式见 [DEQACC接入说明](docs/DEQACC_RTL接入说明.md)。
 
 - 256bit HBM、8数据beat+1低128bit有效scale beat。

@@ -14,6 +14,7 @@ module dea8_mxu (
   input  logic signed [TILE-1:0][ACT_BITS-1:0] activation,
   input  logic        [SCALE_BITS-1:0]         e_stream,
   input  pipe_tag_t                    req_tag,
+  input  deq_dest_t                    req_dest,
   input  logic                         load_valid,
   input  logic                         load_bank,
   input  logic [TILE_IDX_BITS-1:0]    load_weight_idx,
@@ -25,13 +26,15 @@ module dea8_mxu (
   output logic signed [TILE-1:0][PSUM_BITS-1:0] psum,
   output logic        [TILE-1:0][SCALE_BITS-1:0] e_stat,
   output logic        [SCALE_BITS-1:0]            rsp_e_stream,
-  output pipe_tag_t                    rsp_tag
+  output pipe_tag_t                    rsp_tag,
+  output deq_dest_t                    rsp_dest
 );
 
   logic [TILE-1:0][SCALE_BITS-1:0] E_STAT_BANK [0:BANK_COUNT-1];
   logic [TILE-1:0][SCALE_BITS-1:0] E_STAT_ACTIVE_REG;
   logic [SCALE_BITS-1:0] E_STREAM_REG;
   pipe_tag_t ACT_TAG_REG;
+  deq_dest_t DEQ_DEST_REG;
   logic ACT_VALID_REG;
   logic signed [ACT_BITS-1:0] Q_ACT_REG [0:TILE-1];
   logic signed [PRODUCT_BITS-1:0] product_q [0:TILE-1][0:TILE-1];
@@ -41,6 +44,7 @@ module dea8_mxu (
   logic signed [PSUM_BITS-1:0] Psum_out_reg [0:TILE-1];
   logic valid_q [1:MXU_STAGES-1];
   pipe_tag_t tag_q [1:MXU_STAGES-1];
+  deq_dest_t dest_q [1:MXU_STAGES-1];
   logic [SCALE_BITS-1:0] stream_q [1:MXU_STAGES-1];
   logic [TILE-1:0][SCALE_BITS-1:0] estat_q [1:MXU_STAGES-1];
   logic [ROW_BITS-1:0] expected_row_q;
@@ -51,6 +55,7 @@ module dea8_mxu (
   assign req_fire = req_valid && req_ready;
   assign rsp_valid = valid_q[MXU_STAGES-1];
   assign rsp_tag = tag_q[MXU_STAGES-1];
+  assign rsp_dest = dest_q[MXU_STAGES-1];
   assign rsp_e_stream = stream_q[MXU_STAGES-1];
   assign e_stat = estat_q[MXU_STAGES-1];
 
@@ -86,12 +91,14 @@ module dea8_mxu (
     if (!rst_n) begin
       ACT_VALID_REG <= 1'b0;
       ACT_TAG_REG <= '0;
+      DEQ_DEST_REG <= '0;
       E_STREAM_REG <= '0;
       E_STAT_ACTIVE_REG <= '0;
       expected_row_q <= '0;
       for (level=1; level<MXU_STAGES; level++) begin
         valid_q[level] <= 1'b0;
         tag_q[level] <= '0;
+        dest_q[level] <= '0;
         stream_q[level] <= '0;
         estat_q[level] <= '0;
       end
@@ -109,10 +116,12 @@ module dea8_mxu (
         for (k=0; k<TILE; k++) Q_ACT_REG[k] <= activation[k];
         E_STREAM_REG <= e_stream;
         ACT_TAG_REG <= req_tag;
+        DEQ_DEST_REG <= req_dest;
       end
       valid_q[1] <= mul_valid;
       if (mul_valid) begin
         tag_q[1] <= ACT_TAG_REG;
+        dest_q[1] <= DEQ_DEST_REG;
         stream_q[1] <= E_STREAM_REG;
         estat_q[1] <= E_STAT_ACTIVE_REG;
         expected_row_q <= tile_last_mul_fire ? '0 : expected_row_q + 1'b1;
@@ -120,6 +129,7 @@ module dea8_mxu (
       for (level=2; level<MXU_STAGES; level++) begin
         valid_q[level] <= valid_q[level-1];
         tag_q[level] <= tag_q[level-1];
+        dest_q[level] <= dest_q[level-1];
         stream_q[level] <= stream_q[level-1];
         estat_q[level] <= estat_q[level-1];
       end
@@ -155,6 +165,8 @@ module dea8_mxu (
     if (load_valid && active_valid && load_bank == active_bank) $fatal(1, "Write ACTIVE bank");
   end
   initial begin
+    if ($bits(pipe_tag_t) != 58 || $bits(deq_dest_t) != 13)
+      $fatal(1, "Frozen transaction widths require Tag=58, Dest=13");
     if (TILE != 16 || MXU_STAGES != 6) $fatal(1, "Tree requires TILE=16, MXU_STAGES=6");
   end
 endmodule

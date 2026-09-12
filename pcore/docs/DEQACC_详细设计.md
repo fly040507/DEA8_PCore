@@ -16,7 +16,7 @@ PV：kt 只有一块，但仍需要把 PV 部分和加到已经由 VPU 缩放好
 
 ## 2. 物理结构与画图
 
-左侧四组线：PSUM[511:0]、E_STAT[127:0]、E_STREAM[7:0]、TAG[67:0]，另画 valid 控制线。它们同沿采样，不增加合包 RAM 或16×16 Psum 暂存阵列。
+左侧五组线：PSUM[511:0]、E_STAT[127:0]、E_STREAM[7:0]、TAG[57:0]、DEST[12:0]，另画valid控制线。它们同沿采样，不增加合包RAM或16×16 Psum暂存阵列。
 
 PSUM 按每32bit固定切片送入16个 lane；E_STAT 按每8bit固定切片送入对应 lane；E_STREAM 广播给16个 lane；TAG 送共享控制流水。不是16根单比特线，也不是所有 lane 动态读取一条总线。
 
@@ -33,13 +33,13 @@ L3_RESULT_REG 的512bit结果经写使能译码写回三个存储之一；L4是�
 | mxu_rsp.psum | 16×32=512bit，lane n 为 [32n+:32] |
 | mxu_rsp.e_stat | 16×8=128bit，lane n 为 [8n+:8] |
 | mxu_rsp.e_stream | 8bit，共享的A组指数编码 |
-| mxu_rsp.tag | 当前 pipe_tag_t 为68bit；RTL必须用 $bits(pipe_tag_t) 推导 |
+| mxu_rsp.tag | 当前pipe_tag_t为58bit，无bank/blk；RTL用$bits(pipe_tag_t)推导 |
 | valid | 1bit，同一事务的四路有效 |
 | acc_sel | 2bit，FACC_A/FACC_B/OACC；SBUF编码在本接口非法 |
 | acc_addr | 当前10bit，FACC仅0～50，OACC仅0～815 |
 | acc_clear | 1bit，忽略旧存储、使用+0；不能由 kt==0无条件推导 |
 
-四路 MXU 有效载荷合计716bit，加 valid 为717bit。目的描述符另有13bit，必须由 Matrix Sequencer 与 MXU 同步推进，禁止从“当前最新命令”现场组合得到旧事务目的地。建议扩展响应旁带加入 deq descriptor，而不是在 DEQACC 临时按 blk 猜目标。
+四路Psum/Scale/Tag有效载荷706bit，目的描述符另有13bit，合计719bit，另加valid。目的描述符已由Sequencer经DEQ_DEST_REG和dest_q[1:5]与MXU数据同步推进，禁止从“当前最新命令”现场组合旧事务目的地。
 
 当前固定方案：QK 的目的为分配给当前 block 的 FACC bank，地址=row；第一个有效 kt 设置 acc_clear。PV 的目的为 OACC，地址=nt×SUFFIX_LEN+row，nt 是0～15的输出列组编号；只有初始 PV0 可按初始化策略设置 acc_clear，后续块必须读缩放后的 OACC。普通 Linear/FFN 也使用按输出列组排程的 FACC，逐 kt 归约后交给 VPU，下一个输出列组覆盖前必须等旧结果消费结束。
 
@@ -103,9 +103,9 @@ L1 对非零 magnitude 做32bit LZC。p=31-LZC，normalized=magnitude<<(31-p)，
 | L1每lane | normalized32、合并后的unbiased_exp10、sign1、zero1、bad_scale1，共45bit；16lane共720bit。p只在L1组合逻辑使用，不另存寄存器。 |
 | L2每lane | partial32、old32，共64bit；16lane共1024bit。 |
 | L3每lane | result32；16lane共512bit。 |
-| 共享控制 | E0～E3四组tag68+descriptor13+valid1，共328bit；E4另有commit_valid和commit_tag等报告寄存器。 |
+| 共享控制 | E0～E3四组tag58+descriptor13+valid1，共288bit；E4另有commit_valid和commit_tag等报告寄存器。 |
 
-上述数据寄存器共2960bit，顶层控制按当前字段为328bit，不包括commit报告、每lane本地valid/clear延迟、存储输出寄存器、综合复制和FP算术内部附加资源。lane_mask在tag内，不再另算一份。不存在额外256个INT32 Psum暂存寄存器，也不存在存全部kt部分和的RAM。
+上述数据寄存器共2960bit，顶层控制按当前字段为288bit，不包括commit报告、每lane本地valid/clear延迟、存储输出寄存器、综合复制和FP算术内部附加资源。lane_mask在tag内，不再另算一份。不存在额外256个INT32 Psum暂存寄存器，也不存在存全部kt部分和的RAM。
 
 宽512bit只是逻辑字宽；物理BRAM数量取决于目标器件端口宽深、按32bit lane写使能的映射与拼接。不能用有效容量简单除BRAM容量就声称是最终资源占用。
 
@@ -115,7 +115,7 @@ L1 对非零 magnitude 做32bit LZC。p=31-LZC，normalized=magnitude<<(31-p)，
 
 | 路径 | 宽度和用途 |
 | --- | --- |
-| MXU→DEQACC | 四组载荷716bit，加valid1；若目的描述符并入则载荷729bit。 |
+| MXU→DEQACC | Psum/Scale/Tag706bit，另有Dest13bit，载荷719bit，加valid1。 |
 | L2→16加法器 | partial总512bit、old总512bit；每lane两条32bit输入。 |
 | 16加法器→L3寄存器 | 每lane32bit，共512bit。 |
 | 每个累加RAM读口 | rd_en1、rd_addr10（FACC可缩为6）、rdata512。 |

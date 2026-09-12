@@ -100,7 +100,6 @@ module tb_dea8_deqacc;
       req.tag.row = ROW_BITS'(raw_addr % SUFFIX_LEN);
       req.tag.kt = TOKEN_BITS'(accepted / SUFFIX_LEN);
       req.tag.nt = TOKEN_BITS'(raw_addr / SUFFIX_LEN);
-      req.tag.blk = BLOCK_BITS'(accepted / OACC_WORDS);
       req.tag.epoch = EPOCH_BITS'(accepted);
       req.tag.exp_fold = EXP_FOLD_BITS'(raw_fold);
       req.tag.lane_mask = TILE'(raw_mask);

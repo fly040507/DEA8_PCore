@@ -23,6 +23,8 @@ module tb_dea8_mxu;
   int cycle=0, previous_mul=-1, first_load=-1, load_cycles=0;
   int accept_cycle [0:TOTAL_TILES*SUFFIX_LEN-1];
   pipe_tag_t expected_tag [0:TOTAL_TILES*SUFFIX_LEN-1];
+  deq_dest_t req_dest, rsp_dest;
+  deq_dest_t expected_dest [0:TOTAL_TILES*SUFFIX_LEN-1];
   int dot_expected;
   bit streaming, inject_bubble;
   mxu_rsp_t deq_req;
@@ -55,8 +57,7 @@ module tb_dea8_mxu;
   dea8_w_loader loader (.*);
   dea8_mxu dut (.*);
   assign deq_req = '{psum:psum, e_stat:e_stat, e_stream:rsp_e_stream, tag:rsp_tag};
-  assign deq_dest = '{acc_sel:(rsp_tag.blk[0] ? ACC_FACC_B : ACC_FACC_A),
-                      acc_addr:ACC_ADDR_BITS'(rsp_tag.row), acc_clear:(rsp_tag.kt==0)};
+  assign deq_dest = rsp_dest;
   dea8_deqacc deq (
     .clk, .rst_n, .req_valid(rsp_valid), .req(deq_req), .req_dest(deq_dest),
     .mem_rd_en(deq_rd_en), .mem_rd_sel(deq_rd_sel), .mem_rd_addr(deq_rd_addr), .mem_rd_data(deq_rd_data),
@@ -78,12 +79,15 @@ module tb_dea8_mxu;
     req_tag='0;
     req_tag.row=sent%SUFFIX_LEN;
     req_tag.kt=(sent/SUFFIX_LEN)%HEAD_TILES;
-    req_tag.blk=(sent/SUFFIX_LEN)/HEAD_TILES;
-    req_tag.nt=(sent/SUFFIX_LEN)%HEAD_TILES;
-    req_tag.last=(sent%SUFFIX_LEN==SUFFIX_LEN-1);
+    req_tag.nt=0;
+    req_tag.last=(req_tag.kt==HEAD_TILES-1) && (sent%SUFFIX_LEN==SUFFIX_LEN-1);
+    req_tag.exp_fold=QK_EXP_FOLD;
     req_tag.final_k=(req_tag.kt==HEAD_TILES-1);
     req_tag.epoch=3;
     req_tag.lane_mask='1;
+    req_dest.acc_sel = sent < HEAD_TILES*SUFFIX_LEN ? ACC_FACC_A : ACC_FACC_B;
+    req_dest.acc_addr = ACC_ADDR_BITS'(sent%SUFFIX_LEN);
+    req_dest.acc_clear = req_tag.kt==0;
     e_stream=ea(sent/SUFFIX_LEN,sent%SUFFIX_LEN);
     for(int k=0;k<TILE;k++) activation[k]=a(sent/SUFFIX_LEN,sent%SUFFIX_LEN,k);
   end
@@ -105,6 +109,7 @@ module tb_dea8_mxu;
       if(req_valid && req_ready) begin
         accept_cycle[sent]=cycle;
         expected_tag[sent]=req_tag;
+        expected_dest[sent]=req_dest;
         // Every block's first activation is captured on its final load edge.
         if(sent%(HEAD_TILES*SUFFIX_LEN)==0 && !load_tile_complete)
           $fatal(1,"First activation did not coincide with load16");
@@ -128,6 +133,7 @@ module tb_dea8_mxu;
       if(retired>=sent) $fatal(1,"Unexpected output");
       if(cycle-accept_cycle[retired]!=MXU_STAGES-1) $fatal(1,"Stage latency mismatch");
       if(rsp_tag!==expected_tag[retired]) $fatal(1,"Tag mismatch at %0d",retired);
+      if(rsp_dest!==expected_dest[retired]) $fatal(1,"Dest mismatch at %0d",retired);
       if(rsp_e_stream!=ea(retired/SUFFIX_LEN,retired%SUFFIX_LEN))
         $fatal(1,"E_stream mismatch");
       for(int n=0;n<TILE;n++) begin
@@ -143,6 +149,7 @@ module tb_dea8_mxu;
     end
     if(rst_n && commit_valid) begin
       if(commit_tag!==expected_tag[committed]) $fatal(1,"Chain commit tag mismatch");
+      if(commit_dest!==expected_dest[committed]) $fatal(1,"Chain commit dest mismatch");
       if(cycle-accept_cycle[committed]!=MXU_STAGES+DEQACC_LAT-1)
         $fatal(1,"HBM-to-FACC commit latency mismatch");
       committed++;

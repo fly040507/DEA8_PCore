@@ -34,7 +34,6 @@ package dea8_pcore_pkg;
   parameter int unsigned BANK_IDX_BITS =
       (BANK_COUNT <= 1) ? 1 : $clog2(BANK_COUNT);
   parameter int unsigned EXP_FOLD_BITS = 6;
-  parameter int unsigned BANK_ID_BITS  = 4;
   parameter int unsigned ROW_BITS      = 6;
   parameter int unsigned TOKEN_BITS    = 8;
   parameter int unsigned HEAD_BITS     = 3;
@@ -79,7 +78,9 @@ package dea8_pcore_pkg;
   parameter int unsigned DW_CNET      = TILE * FP_BITS;
   parameter int unsigned N_LANE       = TILE;
 
-  parameter int unsigned QOZ_WORDS    = 1632;
+  parameter int unsigned QOZ_TILES    = 32;
+  parameter int unsigned QOZ_WORDS    = SUFFIX_LEN * QOZ_TILES;
+  parameter int unsigned QOZ_ADDR_BITS = $clog2(QOZ_WORDS);
   parameter int unsigned OACC_WORDS   = 816;
   parameter int unsigned FACC_WORDS   = 51;
   parameter int unsigned WFIFO_DEPTH  = 512;
@@ -111,12 +112,10 @@ package dea8_pcore_pkg;
   } acc_sel_e;
 
   typedef struct packed {
-    logic [BANK_ID_BITS-1:0] bank;
     logic [ROW_BITS-1:0]     row;
     logic [TOKEN_BITS-1:0]   nt;
     logic [TOKEN_BITS-1:0]   kt;
     logic [HEAD_BITS-1:0]    head;
-    logic [BLOCK_BITS-1:0]   blk;
     logic [TILE-1:0] lane_mask;
     logic [POST_OP_BITS-1:0] post_op;
     logic signed [EXP_FOLD_BITS-1:0] exp_fold;

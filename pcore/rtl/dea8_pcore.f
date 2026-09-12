@@ -9,6 +9,9 @@ dea8_mxu.sv
 dea8_deqacc_lane.sv
 dea8_deqacc.sv
 dea8_accumulator_storage.sv
+dea8_qoz_buffer.sv
+dea8_qk_sequencer.sv
+dea8_qk_engine.sv
 dea8_attention_mask.sv
 dea8_attention_ctrl.sv
 dea8_attention_storage.sv

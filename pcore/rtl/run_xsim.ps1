@@ -1,7 +1,7 @@
 param(
   [string]$VivadoRoot = "D:\Xilinx\Vivado\2022.2",
   [string]$PythonExecutable = "python",
-  [ValidateSet("all", "mxu", "attention", "deqacc")]
+  [ValidateSet("all", "mxu", "attention", "deqacc", "qk")]
   [string]$Test = "all"
 )
 $ErrorActionPreference = "Stop"
@@ -13,7 +13,8 @@ $tests = @()
 if ($Test -in @("all", "mxu")) { $tests += "tb_dea8_mxu" }
 if ($Test -in @("all", "attention")) { $tests += "tb_dea8_attention_ctrl" }
 if ($Test -in @("all", "deqacc")) { $tests += "tb_dea8_deqacc" }
-if ($Test -in @("all", "deqacc", "mxu")) {
+if ($Test -in @("all", "qk")) { $tests += "tb_dea8_qk_engine" }
+if ($Test -in @("all", "deqacc", "mxu", "qk")) {
   Push-Location (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent)
   try {
     & $PythonExecutable -m pcore.tests.generate_deqacc_vectors
@@ -40,12 +41,18 @@ function Invoke-Simulation([string]$Top, [string]$Mode, [string]$ExpectedFailure
 }
 Push-Location $PSScriptRoot
 try {
-  & $xvlog -sv -f dea8_pcore.f ..\tb\tb_dea8_mxu.sv ..\tb\tb_dea8_attention_ctrl.sv ..\tb\tb_dea8_deqacc.sv
+  & $xvlog -sv -f dea8_pcore.f ..\tb\tb_dea8_mxu.sv ..\tb\tb_dea8_attention_ctrl.sv ..\tb\tb_dea8_deqacc.sv ..\tb\tb_dea8_qk_engine.sv
   if ($LASTEXITCODE -ne 0) { throw "xvlog failed" }
   foreach ($top in $tests) {
     & $xelab $top -s "${top}_sim" -timescale 1ns/1ps
     if ($LASTEXITCODE -ne 0) { throw "xelab failed for $top" }
     Invoke-Simulation $top "default" ""
+    if ($top -eq "tb_dea8_qk_engine") {
+      Invoke-Simulation $top "STREAMING" ""
+      Invoke-Simulation $top "STARVE" ""
+      Invoke-Simulation $top "RESET_JOB" ""
+      Invoke-Simulation $top "QOZ_CONFLICT" "Fatal: QOZ write during reserved QK job"
+    }
     if ($top -eq "tb_dea8_mxu") {
       Invoke-Simulation $top "STREAMING" ""
       Invoke-Simulation $top "INJECT_BUBBLE" "Fatal: Local stall inside tile"

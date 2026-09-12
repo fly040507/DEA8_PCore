@@ -35,6 +35,7 @@ class MxuReferenceTest(unittest.TestCase):
             e_stream=0x81,
             e_stat=tuple(range(TILE)),
             tag={"row": 7, "kt": 3},
+            dest=(1, 7, False),
         )
 
         self.assertIsNone(model.step(req))
@@ -47,12 +48,13 @@ class MxuReferenceTest(unittest.TestCase):
         self.assertEqual(rsp.e_stream, req.e_stream)
         self.assertEqual(rsp.e_stat, req.e_stat)
         self.assertEqual(rsp.tag, req.tag)
+        self.assertEqual(rsp.dest, req.dest)
 
     def test_continuous_rows_preserve_unique_tags(self):
         model = MxuCycleModel([[2] * TILE for _ in range(TILE)])
         outputs = []
         for row in range(51):
-            rsp = model.step(MxuRequest((row,) * TILE, 100+row, (120,) * TILE, row))
+            rsp = model.step(MxuRequest((row,) * TILE, 100+row, (120,) * TILE, row, (row%2, row, row==0)))
             if rsp is not None:
                 outputs.append(rsp)
         for _ in range(MXU_LAT-1):
@@ -60,6 +62,7 @@ class MxuReferenceTest(unittest.TestCase):
             if rsp is not None:
                 outputs.append(rsp)
         self.assertEqual([x.tag for x in outputs], list(range(51)))
+        self.assertEqual([x.dest for x in outputs], [(r%2, r, r==0) for r in range(51)])
         self.assertEqual([x.psum[0] for x in outputs], [32*r for r in range(51)])
 
 
