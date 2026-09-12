@@ -74,8 +74,22 @@ def main():
                         psum += a*w
                     acc[row][lane] = accumulate_bits(psum, 110+(tile+row) % 80,
                                                     100+(tile+lane) % 90, acc[row][lane],
-                                                    clear=tile % 16 == 0)
+                                                    fold=-4, clear=tile % 16 == 0)
                 f.write(f'{packed(acc[row],32):0128x}\n')
+    # Q is reused across KV blocks; QOZ address is row*32 + kt.
+    acc = [[0]*16 for _ in range(51)]
+    with (out / 'qk_job.txt').open('w', encoding='ascii') as f:
+        for job in range(2):
+            for kt in range(16):
+                tile = job*16+kt
+                for row in range(51):
+                    for lane in range(16):
+                        psum = sum((((row*3+kt*13+k*17) % 256)-128) *
+                                   (((tile*37+k*11+lane*7) % 256)-128) for k in range(16))
+                        acc[row][lane] = accumulate_bits(psum, 110+(kt+row) % 80,
+                                                        100+(tile+lane) % 90, acc[row][lane],
+                                                        fold=-4, clear=kt == 0)
+                    f.write(f'{packed(acc[row],32):0128x}\n')
 
 
 if __name__ == '__main__':
