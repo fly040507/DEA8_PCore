@@ -1,5 +1,6 @@
 """Render the current Markdown baseline and implementation status as a PDF."""
 from pathlib import Path
+import argparse
 from xml.sax.saxutils import escape
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
@@ -36,8 +37,12 @@ def footer(canvas, doc):
     canvas.drawString(42,22,'DEA-8 / 2026-09-12 / README baseline')
     canvas.drawRightString(A4[0]-42,22,str(doc.page))
 
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--source', nargs='+', default=['冻结规格_2026-09-12.md', 'IMPLEMENTATION_STATUS.md'])
+parser.add_argument('--output', default='VLA_PCore_Attention_v5_20260912.pdf')
+args = parser.parse_args()
 story=[]
-for index, filename in enumerate(['冻结规格_2026-09-12.md','IMPLEMENTATION_STATUS.md']):
+for index, filename in enumerate(args.source):
     if index:
         story.append(PageBreak())
     rows=[]
@@ -55,7 +60,7 @@ for index, filename in enumerate(['冻结规格_2026-09-12.md','IMPLEMENTATION_S
         elif line.startswith('## '): story.append(para(line[3:],h2))
         else: story.append(para(line))
     append_table(rows,story)
-output=ROOT/'output'/'pdf'/'VLA_PCore_Attention_v5_20260912.pdf'
+output=ROOT/'output'/'pdf'/args.output
 output.parent.mkdir(parents=True,exist_ok=True)
 SimpleDocTemplate(str(output),pagesize=A4,leftMargin=42,rightMargin=42,
                   topMargin=38,bottomMargin=38).build(story,onFirstPage=footer,onLaterPages=footer)
