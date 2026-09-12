@@ -1,6 +1,7 @@
 param(
   [string]$VivadoRoot = "D:\Xilinx\Vivado\2022.2",
-  [ValidateSet("all", "mxu", "attention")]
+  [string]$PythonExecutable = "python",
+  [ValidateSet("all", "mxu", "attention", "deqacc")]
   [string]$Test = "all"
 )
 $ErrorActionPreference = "Stop"
@@ -11,6 +12,14 @@ if (!(Test-Path $xvlog)) { throw "Vivado xvlog not found under $VivadoRoot" }
 $tests = @()
 if ($Test -in @("all", "mxu")) { $tests += "tb_dea8_mxu" }
 if ($Test -in @("all", "attention")) { $tests += "tb_dea8_attention_ctrl" }
+if ($Test -in @("all", "deqacc")) { $tests += "tb_dea8_deqacc" }
+if ($Test -in @("all", "deqacc", "mxu")) {
+  Push-Location (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent)
+  try {
+    & $PythonExecutable -m pcore.tests.generate_deqacc_vectors
+    if ($LASTEXITCODE -ne 0) { throw "DEQACC vector generation failed" }
+  } finally { Pop-Location }
+}
 
 function Invoke-Simulation([string]$Top, [string]$Mode, [string]$ExpectedFailure) {
   $simArgs = @("${Top}_sim", "-runall", "-log", "${Top}_${Mode}.log")
@@ -31,7 +40,7 @@ function Invoke-Simulation([string]$Top, [string]$Mode, [string]$ExpectedFailure
 }
 Push-Location $PSScriptRoot
 try {
-  & $xvlog -sv -f dea8_pcore.f ..\tb\tb_dea8_mxu.sv ..\tb\tb_dea8_attention_ctrl.sv
+  & $xvlog -sv -f dea8_pcore.f ..\tb\tb_dea8_mxu.sv ..\tb\tb_dea8_attention_ctrl.sv ..\tb\tb_dea8_deqacc.sv
   if ($LASTEXITCODE -ne 0) { throw "xvlog failed" }
   foreach ($top in $tests) {
     & $xelab $top -s "${top}_sim" -timescale 1ns/1ps
@@ -40,6 +49,13 @@ try {
     if ($top -eq "tb_dea8_mxu") {
       Invoke-Simulation $top "STREAMING" ""
       Invoke-Simulation $top "INJECT_BUBBLE" "Fatal: Local stall inside tile"
+    }
+    if ($top -eq "tb_dea8_deqacc") {
+      Invoke-Simulation $top "BUBBLES" ""
+      Invoke-Simulation $top "RAW_HAZARD" "Fatal: DEQACC accumulator RAW hazard"
+      Invoke-Simulation $top "RAW_GAP3" "Fatal: DEQACC accumulator RAW hazard"
+      Invoke-Simulation $top "BAD_DEST" "Fatal: Invalid DEQACC SBUF target"
+      Invoke-Simulation $top "BAD_ADDR" "Fatal: DEQACC address out of range"
     }
   }
 } finally {

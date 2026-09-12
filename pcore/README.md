@@ -7,6 +7,9 @@
 
 HBM -> dea8_w_loader（Fetch、WFIFO、Bank Load与状态） -> dea8_mxu -> Psum + sideband[5]。
 
+新增 dea8_deqacc + dea8_accumulator_storage：真实FP32反量化、FACC归约/OACC+PV及五级实际写回。tb_dea8_mxu已接入DEQACC与FACC，逐项比较整条链的位精确输出；这仍是测试台连接，不代表生产级Matrix Sequencer/Attention Top已经完成。
+接线、时序和运行方式见 [DEQACC接入说明](docs/DEQACC_RTL接入说明.md)。
+
 - 256bit HBM、8数据beat+1低128bit有效scale beat。
 - 完整Tile预留后16拍装载，scale首拍同步写入。
 - W_Loader独占四种bank状态；首Tile末加载沿激活，中间Tile末乘法沿切换。
@@ -25,8 +28,10 @@ HBM -> dea8_w_loader（Fetch、WFIFO、Bank Load与状态） -> dea8_mxu -> Psum
 Vivado默认路径D:/Xilinx/Vivado/2022.2：
 powershell -ExecutionPolicy Bypass -File pcore/rtl/run_xsim.ps1 -Test all
 
+脚本默认调用python生成DEQACC向量；使用其他Python路径时传 -PythonExecutable。生成的test_vectors目录不提交Git。
+
 主MXU测试实际连接W_Loader、FIFO和PE；验证2个block、32个Tile、1632行和26112个输出lane，
 包含负数/极值、逐lane scale、完整tag、首拍启动、READY保持、中间切换、block间16拍加载。
 额外测试流式HBM及延迟scale、Tile内断流必须报错。
 
-DEQACC真实FP32、Attention任务执行器和VPU/SFU仍未完整实现。控制器计数PASS不表示数值与提交依赖验证通过。
+DEQACC已通过RTL数值仿真，尚未完成目标器件综合时序签核；Attention任务执行器和VPU/SFU仍未完整实现。控制器计数PASS不表示Attention数值与提交依赖验证通过。

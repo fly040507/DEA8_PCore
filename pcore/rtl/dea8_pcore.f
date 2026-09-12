@@ -1,4 +1,5 @@
 dea8_pcore_pkg.sv
+dea8_fp32_pkg.sv
 dea8_pe.sv
 dea8_dualwrite_fifo.sv
 dea8_stream_fifo.sv
@@ -6,6 +7,8 @@ dea8_hbm_tile_unpack.sv
 dea8_w_loader.sv
 dea8_mxu.sv
 dea8_deqacc_lane.sv
+dea8_deqacc.sv
+dea8_accumulator_storage.sv
 dea8_attention_mask.sv
 dea8_attention_ctrl.sv
 dea8_attention_storage.sv

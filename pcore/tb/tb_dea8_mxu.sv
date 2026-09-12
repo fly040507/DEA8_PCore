@@ -25,6 +25,16 @@ module tb_dea8_mxu;
   pipe_tag_t expected_tag [0:TOTAL_TILES*SUFFIX_LEN-1];
   int dot_expected;
   bit streaming, inject_bubble;
+  mxu_rsp_t deq_req;
+  deq_dest_t deq_dest, commit_dest;
+  logic deq_rd_en, deq_wr_en, commit_valid;
+  acc_sel_e deq_rd_sel, deq_wr_sel;
+  logic [ACC_ADDR_BITS-1:0] deq_rd_addr, deq_wr_addr;
+  logic [DW_VEC-1:0] deq_rd_data, deq_wr_data;
+  logic [TILE-1:0] deq_lane_en;
+  pipe_tag_t commit_tag;
+  logic [DW_VEC-1:0] chain_expected [0:TOTAL_TILES*SUFFIX_LEN-1];
+  int committed=0;
 
   function automatic int w(int t,int k,int n);
     if(t==0) return -128;
@@ -44,6 +54,20 @@ module tb_dea8_mxu;
 
   dea8_w_loader loader (.*);
   dea8_mxu dut (.*);
+  assign deq_req = '{psum:psum, e_stat:e_stat, e_stream:rsp_e_stream, tag:rsp_tag};
+  assign deq_dest = '{acc_sel:(rsp_tag.blk[0] ? ACC_FACC_B : ACC_FACC_A),
+                      acc_addr:ACC_ADDR_BITS'(rsp_tag.row), acc_clear:(rsp_tag.kt==0)};
+  dea8_deqacc deq (
+    .clk, .rst_n, .req_valid(rsp_valid), .req(deq_req), .req_dest(deq_dest),
+    .mem_rd_en(deq_rd_en), .mem_rd_sel(deq_rd_sel), .mem_rd_addr(deq_rd_addr), .mem_rd_data(deq_rd_data),
+    .mem_wr_en(deq_wr_en), .mem_wr_sel(deq_wr_sel), .mem_wr_addr(deq_wr_addr),
+    .mem_wr_lane_en(deq_lane_en), .mem_wr_data(deq_wr_data), .commit_valid, .commit_tag, .commit_dest
+  );
+  dea8_accumulator_storage accum (
+    .clk, .rd_en(deq_rd_en), .rd_sel(deq_rd_sel), .rd_addr(deq_rd_addr), .rd_data(deq_rd_data),
+    .wr_en(deq_wr_en), .wr_sel(deq_wr_sel), .wr_addr(deq_wr_addr),
+    .wr_lane_en(deq_lane_en), .wr_data(deq_wr_data)
+  );
 
   always_comb begin
     // Two separate blocks: no Bank Load for block 1 until block 0 retires.
@@ -96,6 +120,8 @@ module tb_dea8_mxu;
         mul_count=mul_count+1;
       end
       if(tile_last_mul_fire) completed_tiles<=completed_tiles+1;
+      if(deq_wr_en && deq_wr_data!==chain_expected[committed])
+        $fatal(1,"HBM-to-FACC FP32 mismatch at %0d",committed);
     end
     #1;
     if(rst_n && rsp_valid) begin
@@ -114,13 +140,21 @@ module tb_dea8_mxu;
           $fatal(1,"Wrong E_stat generation at row %0d lane %0d",retired,n);
       end
       retired=retired+1;
-      if(retired==TOTAL_TILES*SUFFIX_LEN) begin
-        $display("tb_dea8_mxu PASS: 2 blocks, 32 tiles, 1632 rows, exact scales/tags, 832-cycle windows");
+    end
+    if(rst_n && commit_valid) begin
+      if(commit_tag!==expected_tag[committed]) $fatal(1,"Chain commit tag mismatch");
+      if(cycle-accept_cycle[committed]!=MXU_STAGES+DEQACC_LAT-1)
+        $fatal(1,"HBM-to-FACC commit latency mismatch");
+      committed++;
+      if(committed==TOTAL_TILES*SUFFIX_LEN) begin
+        if(retired!=committed) $fatal(1,"Chain count mismatch");
+        $display("tb_dea8_mxu PASS: 2 blocks, 32 tiles, 1632 rows, 832-cycle windows, bit-exact HBM-to-FACC commits");
         $finish;
       end
     end
   end
   initial begin
+    $readmemh("test_vectors/mxu_chain.txt", chain_expected);
     streaming=$test$plusargs("STREAMING");
     inject_bubble=$test$plusargs("INJECT_BUBBLE");
     repeat(3) @(negedge clk);

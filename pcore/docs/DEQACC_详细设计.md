@@ -1,6 +1,6 @@
 # DEQACC 详细设计
 
-设计日期：2026-09-12。依据当前 README 冻结规格，保持 MXU 权重驻留、激活广播、旁带 pipe[1:5]，DEQACC 为 L0～L4。本文完成微架构设计，不表示旧 dea8_deqacc_lane 已实现本文全部算术。新增的舍入、异常和端口规则是本次设计决策，不冒充原 README 条款。
+设计日期：2026-09-12。依据当前 README 冻结规格，保持 MXU 权重驻留、激活广播、旁带 pipe[1:5]，DEQACC 为 L0～L4。当前已补充真实算术RTL与XSim验证，尚未完成目标器件综合时序和完整Attention集成。新增的舍入、异常和端口规则是本次设计决策，不冒充原 README 条款。
 
 ## 1. 边界与职责
 
@@ -100,12 +100,12 @@ L1 对非零 magnitude 做32bit LZC。p=31-LZC，normalized=magnitude<<(31-p)，
 | FACC_A、FACC_B | 两个逻辑bank，各512bit×51，共6528Byte；每bank独立读地址、写地址、1R1W。保存未加Mask的FP32部分和/最终和。 |
 | OACC | 一个512bit×816，52224Byte，独立1R1W；保存当前在线softmax分子，缩放后阶段保存alpha×旧分子。 |
 | L0每lane | magnitude32、sign1、scale_exp10、bad_scale1，共44bit；16lane共704bit。 |
-| L1每lane | normalized32、p5、scale_exp10、sign1、zero1、bad_scale1，共50bit；16lane共800bit。 |
+| L1每lane | normalized32、合并后的unbiased_exp10、sign1、zero1、bad_scale1，共45bit；16lane共720bit。p只在L1组合逻辑使用，不另存寄存器。 |
 | L2每lane | partial32、old32，共64bit；16lane共1024bit。 |
 | L3每lane | result32；16lane共512bit。 |
 | 共享控制 | E0～E3四组tag68+descriptor13+valid1，共328bit；E4另有commit_valid和commit_tag等报告寄存器。 |
 
-上述数据寄存器共3040bit，控制按当前字段为328bit，不包括commit报告、存储输出寄存器、综合复制和FP算术内部附加资源。lane_mask在tag内，不再另算一份。不存在额外256个INT32 Psum暂存寄存器，也不存在存全部kt部分和的RAM。
+上述数据寄存器共2960bit，顶层控制按当前字段为328bit，不包括commit报告、每lane本地valid/clear延迟、存储输出寄存器、综合复制和FP算术内部附加资源。lane_mask在tag内，不再另算一份。不存在额外256个INT32 Psum暂存寄存器，也不存在存全部kt部分和的RAM。
 
 宽512bit只是逻辑字宽；物理BRAM数量取决于目标器件端口宽深、按32bit lane写使能的映射与拼接。不能用有效容量简单除BRAM容量就声称是最终资源占用。
 
@@ -156,6 +156,6 @@ commit_valid在L4实际写入时产生，携带原tag、目标、地址、lane_m
 
 ## 13. RTL落实清单与当前状态
 
-现有dea8_deqacc_lane.sv仍为占位，不应继续用它宣称五级功能通过。本次设计要求替换为L0～L3的lane算术，并新增共享控制/目的描述符、16lane顶层和L4存储写回模块；同步改造FACC端口。不要在旧lane外重复再放五级寄存器。
+现有dea8_deqacc_lane.sv已实现L0～L3；dea8_deqacc.sv提供共享控制、16lane顶层、目的描述符与L4提交。dea8_accumulator_storage.sv提供分离读写地址的FACC/OACC实现。目前旧Attention storage仍保留作为未集成原型，新存储在DEQACC及整链测试中使用；后续Top应以新实现替换旧累加存储，而不是额外增加一套。
 
-本次附带deqacc_bitexact.py与测试，定义反量化和FP32加法的位精确预期。它们是验证模型，不是可综合算术实现。下一实现关口是FP32加法器RTL或IP配置与目标频率评估，再把这份时序契约落到Vivado仿真和综合报告。
+deqacc_bitexact.py为独立整数参考模型；dea8_fp32_pkg.sv为实际组合算术RTL，不调用real/shortreal或Python。XSim已覆盖边界、随机数值及写回时序，详见DEQACC_RTL接入说明.md。下一关口是目标器件综合、FP32加法器目标频率评估和Attention执行器集成。

@@ -132,6 +132,12 @@ package dea8_pcore_pkg;
   } deq_tag_t;
 
   typedef struct packed {
+    acc_sel_e acc_sel;
+    logic [ACC_ADDR_BITS-1:0] acc_addr;
+    logic acc_clear;
+  } deq_dest_t;
+
+  typedef struct packed {
     logic signed [TILE-1:0][PSUM_BITS-1:0]   psum;
     logic        [TILE-1:0][SCALE_BITS-1:0]  e_stat;
     logic        [SCALE_BITS-1:0]            e_stream;
