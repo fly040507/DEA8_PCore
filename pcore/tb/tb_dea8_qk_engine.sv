@@ -135,6 +135,18 @@ module tb_dea8_qk_engine;
       job_block_id=55; job_head=7; job_epoch=15; job_facc_bank=~job_facc_bank;
       repeat(5) @(negedge clk);
       job_valid=0;
+      if (j == 1) begin
+        // QK accumulates into B while VPU-style reads drain completed A.
+        for(int row=0;row<SUFFIX_LEN;row++) begin
+          @(negedge clk);
+          facc_rd_en=1; facc_rd_bank=0; facc_rd_addr=ROW_BITS'(row);
+          @(posedge clk); #2;
+          if(!job_busy || !facc_rd_valid ||
+             facc_rd_data!==golden[(HEAD_TILES-1)*SUFFIX_LEN+row])
+            $fatal(1,"Concurrent FACC A read during QK B mismatch");
+        end
+        @(negedge clk); facc_rd_en=0;
+      end
       wait(job_done);
       @(negedge clk);
       if(current_block_id!=(j==0 ? 3 : 17)) $fatal(1,"Done block id mismatch");

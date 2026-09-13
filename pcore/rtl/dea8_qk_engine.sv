@@ -50,6 +50,8 @@ module dea8_qk_engine (
   logic [ACC_ADDR_BITS-1:0] mem_rd_addr, mem_wr_addr;
   logic [DW_VEC-1:0] mem_rd_data, mem_wr_data;
   logic [TILE-1:0] mem_wr_lane_en;
+  logic facc_rd_ready;
+  logic [2:0] deq_reserved;
 
   dea8_qk_sequencer sequencer (.*);
   dea8_w_loader loader (.*);
@@ -66,21 +68,24 @@ module dea8_qk_engine (
     .mem_wr_en, .mem_wr_sel, .mem_wr_addr, .mem_wr_lane_en, .mem_wr_data,
     .commit_valid, .commit_tag, .commit_dest
   );
-  dea8_accumulator_storage accum (
-    .clk, .rd_en(job_busy ? mem_rd_en : facc_rd_en),
-    .rd_sel(job_busy ? mem_rd_sel : (facc_rd_bank ? ACC_FACC_B : ACC_FACC_A)),
-    .rd_addr(job_busy ? mem_rd_addr : ACC_ADDR_BITS'(facc_rd_addr)), .rd_data(mem_rd_data),
-    .wr_en(mem_wr_en), .wr_sel(mem_wr_sel), .wr_addr(mem_wr_addr),
-    .wr_lane_en(mem_wr_lane_en), .wr_data(mem_wr_data)
+  assign deq_reserved = job_busy ? (current_facc_bank ? 3'b010 : 3'b001) : 3'b000;
+  dea8_accumulator_fabric accum (
+    .clk, .rst_n, .deq_reserved,
+    .deq_rd_en(mem_rd_en), .deq_rd_sel(mem_rd_sel),
+    .deq_rd_addr(mem_rd_addr), .deq_rd_data(mem_rd_data),
+    .deq_wr_en(mem_wr_en), .deq_wr_sel(mem_wr_sel), .deq_wr_addr(mem_wr_addr),
+    .deq_wr_lane_en(mem_wr_lane_en), .deq_wr_data(mem_wr_data),
+    .vpu_rd_valid(facc_rd_en), .vpu_rd_ready(facc_rd_ready),
+    .vpu_rd_sel(facc_rd_bank ? ACC_FACC_B : ACC_FACC_A),
+    .vpu_rd_addr(ACC_ADDR_BITS'(facc_rd_addr)),
+    .vpu_rsp_valid(facc_rd_valid), .vpu_rsp_data(facc_rd_data),
+    .vpu_wr_valid(1'b0), .vpu_wr_ready(), .vpu_wr_sel(ACC_FACC_A),
+    .vpu_wr_addr('0), .vpu_wr_lane_en('0), .vpu_wr_data('0)
   );
-  assign facc_rd_data = mem_rd_data;
-  always_ff @(posedge clk or negedge rst_n)
-    if (!rst_n) facc_rd_valid <= 0;
-    else facc_rd_valid <= !job_busy && facc_rd_en;
   // synthesis translate_off
   always @(posedge clk) if (rst_n) begin
     if (job_busy && qoz_wr_en) $fatal(1, "QOZ write during reserved QK job");
-    if (job_busy && facc_rd_en) $fatal(1, "FACC read during reserved QK job");
+    if (facc_rd_en && !facc_rd_ready) $fatal(1, "FACC read of reserved bank");
   end
   // synthesis translate_on
 endmodule

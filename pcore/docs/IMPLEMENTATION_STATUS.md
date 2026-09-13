@@ -1,4 +1,18 @@
-# 实现状态（2026-09-12）
+# 实现状态
+
+## 2026-09-13：第六轮进行中
+
+最新 PCore 依据为桌面 README.docx。第六轮当前改动详见 [R6_进度与接口边界.md](R6_进度与接口边界.md)。
+已抽出共享 Stationary Loader，QK Engine 改接独立 Bank 的 Accumulator Fabric，
+新增双地址 SBUF/PBUF 和完成驱动 Attention Scheduler；第二阶段已接实际 QK/PV Matrix Engine，
+并在 Attention Core 中贯通 55 对矩阵 Job 与外部测试客户端，PV 含独立位精确验证。
+第三阶段已加入标量 RF/alpha 代际保护和 SFU->VPU P 流，并抽出四个独立仿真壳。
+VPU/SFU 壳只提供固定输入联调行为，不是正式算术；GCore/HBM 壳仅独立验证传输。
+正式 KVB Adapter、XBC/CNET 接入及完整 PCore Top 仍未完成。
+当前 B 入口是规范化列流，不应当标为已冻结 GCore KVB。详见 R6 文档第二阶段更新。
+下面保留第五轮验证记录，不能把其中旧 Attention 原型当作第六轮主链。
+
+## 2026-09-12：第五轮基线记录
 
 DEQACC已从占位原型替换为实际RTL：L0～L3算术、L4同步RAM提交；详见 DEQACC_详细设计.md 和 DEQACC_RTL接入说明.md。Python整数位精确模型用于生成独立XSim预期值。本次完成数值与周期仿真，不等于完成目标器件综合、时序或完整Attention验证。
 
