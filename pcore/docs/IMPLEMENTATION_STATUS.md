@@ -1,5 +1,13 @@
 # 实现状态
 
+## 2026-09-14：第六轮 Frontend 增量
+
+新增 KVB Adapter（完整事务 KVFIFO、Expected Context、协议检查、KV_MASK）和 XBC Adapter（原始 XFIFO、两路拆分）。
+Attention Core 可选接正式 KVB 接口，QK_POST 提供独立的有效 key mask。
+详见 [Frontend 接口与验证](R6_Frontend_接口与验证.md)。以下 09-13 段落是历史状态。
+V Payload/量化方向已明确；V 的 key_lane 编码仍保留显式确认开关。
+未完成部分仍包括 Projection、CNET、完整 PCore Top 和真实 VPU/SFU 算术。
+
 ## 2026-09-13：第六轮进行中
 
 最新 PCore 依据为桌面 README.docx。第六轮当前改动详见 [R6_进度与接口边界.md](R6_进度与接口边界.md)。

@@ -4,7 +4,11 @@ import dea8_job_pkg::*;
 // Attention integration boundary. VPU/SFU are external clients here so their
 // implementation can be supplied by the owners without changing the matrix
 // path. This is NOT yet the full PCore (XBC/CNET/private projections are absent).
-module dea8_attention_core (
+module dea8_attention_core #(
+  parameter bit USE_KVB = 0,
+  parameter bit V_KEY_LANE_IS_COLUMN = 0,
+  parameter int KVFIFO_DEPTH = 512
+) (
   input logic clk,rst_n,
   input logic start_valid,resources_ready,
   output logic start_ready,busy,done_valid,
@@ -17,6 +21,19 @@ module dea8_attention_core (
   output logic b_ready,
   input logic [DW_ACT-1:0] b_data,
   input logic [SCALE_BITS-1:0] b_scale,
+  input logic kvb_valid,
+  output logic kvb_ready,
+  input logic [DW_ACT-1:0] kvb_q,
+  input logic [SCALE_BITS-1:0] kvb_e,
+  input logic kvb_kind,
+  input logic [BLOCK_BITS-1:0] kvb_blk_id,
+  input logic [TILE_IDX_BITS-1:0] kvb_key_lane,kvb_feat_blk,
+  input logic [TILE-1:0] kvb_valid_mask,
+  input logic kvb_last,
+  input logic [EPOCH_BITS-1:0] kvb_epoch,
+  output logic vpu_key_mask_valid,
+  output logic [TILE-1:0] vpu_key_mask,
+  output logic kvb_protocol_error,
   input logic qoz_wr_en,
   input logic [QOZ_ADDR_BITS-1:0] qoz_wr_addr,
   input logic [DW_ACT-1:0] qoz_wr_data,
@@ -127,6 +144,32 @@ module dea8_attention_core (
   logic recip_begin,recip_end;
   logic [BANK_COUNT-1:0] alpha_ready;
   job_context_t alpha_begin_ctx,alpha_done_ctx,vpu_alpha_rd_ctx;
+  logic frontend_valid,frontend_ready,frontend_expect_ready;
+  logic [DW_ACT-1:0] frontend_data;
+  logic [SCALE_BITS-1:0] frontend_scale;
+  if (USE_KVB) begin : g_kvb
+    dea8_kvb_adapter #(.FIFO_DEPTH(KVFIFO_DEPTH),
+      .V_KEY_LANE_IS_COLUMN(V_KEY_LANE_IS_COLUMN)) frontend (
+      .expect_valid(matrix_valid && matrix_ready),.expect_ready(frontend_expect_ready),
+      .expect_job(matrix_cmd),.b_valid(frontend_valid),.b_ready(frontend_ready),
+      .b_data(frontend_data),.b_scale(frontend_scale),
+      .mask_block(vpu_cmd.ctx.block_id),.mask_epoch(vpu_cmd.ctx.epoch),
+      .mask_valid(vpu_key_mask_valid),.mask_data(vpu_key_mask),
+      .protocol_error(kvb_protocol_error),.*
+    );
+    assign b_ready=0;
+  end else begin : g_normalized
+    assign frontend_valid=b_valid;
+    assign frontend_data=b_data;
+    assign frontend_scale=b_scale;
+    assign b_ready=frontend_ready;
+    assign kvb_ready=0;
+    assign kvb_protocol_error=0;
+    assign frontend_expect_ready=1;
+    // Legacy normalized test input does not supply a mask context.
+    assign vpu_key_mask_valid=0;
+    assign vpu_key_mask='0;
+  end
 
   assign init=start_valid && start_ready;
   assign alpha_begin=sfu_valid && sfu_ready && sfu_cmd.op==SFU_ALPHA_EXP;
@@ -158,6 +201,8 @@ module dea8_attention_core (
   dea8_attention_scheduler scheduler (.*);
   assign matrix_done=current_job;
   dea8_matrix_engine matrix (
+    .b_valid(frontend_valid),.b_ready(frontend_ready),
+    .b_data(frontend_data),.b_scale(frontend_scale),
     .job_valid(matrix_valid),.job_ready(matrix_ready),.job_busy(matrix_busy),
     .job_done_valid(matrix_done_valid),.job_done_ready(matrix_done_ready),.job(matrix_cmd),.*
   );
@@ -199,6 +244,10 @@ module dea8_attention_core (
   end
   // synthesis translate_off
   always @(posedge clk) if(rst_n) begin
+    if(USE_KVB && matrix_valid && matrix_ready && !frontend_expect_ready)
+      $fatal(1,"KVB expected context not released");
+    if(USE_KVB && vpu_valid && vpu_ready && vpu_cmd.op==VPU_QK_POST && !vpu_key_mask_valid)
+      $fatal(1,"QK_POST missing KV mask context");
     if(vpu_alpha_rd_en && (!vpu_active ||
        (vpu_active_job.op!=VPU_P_POST && vpu_active_job.op!=VPU_OACC_SCALE) ||
        vpu_alpha_rd_bank!=vpu_active_job.alpha_bank)) $fatal(1,"Alpha read outside owning VPU job");

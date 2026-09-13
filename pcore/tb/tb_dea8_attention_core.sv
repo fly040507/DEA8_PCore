@@ -10,6 +10,14 @@ module tb_dea8_attention_core;
   logic b_valid=1,b_ready;
   logic [DW_ACT-1:0] b_data={TILE{8'd1}};
   logic [SCALE_BITS-1:0] b_scale=133;
+  logic kvb_valid=0,kvb_ready,kvb_kind,kvb_last;
+  logic [DW_ACT-1:0] kvb_q={TILE{8'd1}};
+  logic [SCALE_BITS-1:0] kvb_e=133;
+  logic [BLOCK_BITS-1:0] kvb_blk_id;
+  logic [TILE_IDX_BITS-1:0] kvb_key_lane,kvb_feat_blk;
+  logic [TILE-1:0] kvb_valid_mask,vpu_key_mask;
+  logic [EPOCH_BITS-1:0] kvb_epoch;
+  logic vpu_key_mask_valid,kvb_protocol_error;
   logic qoz_wr_en=0;
   logic [QOZ_ADDR_BITS-1:0] qoz_wr_addr=0;
   logic [DW_ACT-1:0] qoz_wr_data={TILE{8'd1}};
@@ -54,7 +62,32 @@ module tb_dea8_attention_core;
   pipe_tag_t commit_tag;
   deq_dest_t commit_dest;
   int qk_commits=0,pv_commits=0,vpu_jobs,sfu_jobs;
-  dea8_attention_core dut (.*);
+  dea8_attention_core #(.USE_KVB(1),.V_KEY_LANE_IS_COLUMN(1)) dut (.*);
+  // Test producer observes local job acceptance, not a new GCore wire protocol.
+  initial forever begin
+    @(posedge clk);
+    if(rst_n && dut.matrix_valid && dut.matrix_ready) begin
+      @(negedge clk);
+      kvb_kind=current_job.op==MATRIX_PV;
+      kvb_blk_id=current_job.ctx.block_id; kvb_epoch=current_job.ctx.epoch;
+      kvb_valid_mask='0;
+      for(int k=0;k<TILE;k++)
+        kvb_valid_mask[k]=int'(kvb_blk_id)*TILE+k<LOGICAL_SEQ;
+      for(int t=0;t<HEAD_TILES;t++) for(int n=0;n<TILE;n++) begin
+        kvb_valid=1; kvb_feat_blk=TILE_IDX_BITS'(t); kvb_key_lane=TILE_IDX_BITS'(n);
+        kvb_last=t==HEAD_TILES-1 && n==TILE-1;
+        do @(posedge clk); while(!kvb_ready);
+        @(negedge clk);
+      end
+      kvb_valid=0;
+    end
+  end
+  always @(posedge clk) if(rst_n && vpu_valid && vpu_ready && vpu_cmd.op==VPU_QK_POST) begin
+    if(!vpu_key_mask_valid || kvb_protocol_error) $fatal(1,"Mask context missing");
+    for(int k=0;k<TILE;k++)
+      if(vpu_key_mask[k] !== (int'(vpu_cmd.ctx.block_id)*TILE+k<LOGICAL_SEQ))
+        $fatal(1,"VPU QK_POST mask mismatch");
+  end
   // Controlled fixture: all Q/K/V/P codes are one with scale=133.
   // VPU/SFU models move real RAM data, but do NOT implement the operators.
   // SCALE is identity and no general mask/quantization occurs. Scalar and P

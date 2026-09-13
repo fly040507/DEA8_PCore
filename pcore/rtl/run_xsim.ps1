@@ -1,7 +1,7 @@
 param(
   [string]$VivadoRoot = "D:\Xilinx\Vivado\2022.2",
   [string]$PythonExecutable = "python",
-  [ValidateSet("all", "mxu", "attention", "deqacc", "qk", "r6", "matrix", "state")]
+  [ValidateSet("all", "mxu", "attention", "deqacc", "qk", "r6", "matrix", "state", "frontend")]
   [string]$Test = "all"
 )
 $ErrorActionPreference = "Stop"
@@ -10,6 +10,7 @@ $xelab = Join-Path $VivadoRoot "bin\xelab.bat"
 $xsim = Join-Path $VivadoRoot "bin\xsim.bat"
 if (!(Test-Path $xvlog)) { throw "Vivado xvlog not found under $VivadoRoot" }
 $tests = @()
+if ($Test -in @("all", "r6", "frontend")) { $tests += "tb_dea8_kvb_adapter", "tb_dea8_xbc_adapter" }
 if ($Test -in @("all", "mxu")) { $tests += "tb_dea8_mxu" }
 if ($Test -in @("all", "attention")) { $tests += "tb_dea8_attention_ctrl" }
 if ($Test -in @("all", "deqacc")) { $tests += "tb_dea8_deqacc" }
@@ -67,7 +68,9 @@ try {
     "..\tb\tb_dea8_attention_core.sv",
     "..\tb\tb_dea8_attention_state.sv",
     "..\tb\tb_dea8_p_result_link.sv",
-    "..\tb\tb_dea8_external_stubs.sv"
+    "..\tb\tb_dea8_external_stubs.sv",
+    "..\tb\tb_dea8_kvb_adapter.sv",
+    "..\tb\tb_dea8_xbc_adapter.sv"
   )
   & $xvlog -sv -f dea8_pcore.f @testbenchFiles
   if ($LASTEXITCODE -ne 0) { throw "xvlog failed" }
@@ -75,6 +78,11 @@ try {
     & $xelab $top -s "${top}_sim" -timescale 1ns/1ps
     if ($LASTEXITCODE -ne 0) { throw "xelab failed for $top" }
     Invoke-Simulation $top "default" ""
+    if ($top -eq "tb_dea8_kvb_adapter") {
+      foreach ($mode in @("BAD_KIND", "BAD_BLOCK", "BAD_EPOCH", "BAD_COLUMN", "BAD_TILE", "EARLY_LAST", "LATE_LAST", "PADDING", "MASK_CHANGE", "V_COLUMN")) {
+        Invoke-Simulation $top $mode "Fatal: KVB protocol/context/order/mask mismatch"
+      }
+    }
     if ($top -eq "tb_dea8_external_stubs") {
       Invoke-Simulation $top "V_UNCONFIRMED" "Fatal: KVB V packing is not confirmed"
     }
@@ -88,6 +96,7 @@ try {
       Invoke-Simulation $top "WRONG_EPOCH" "Fatal: P stream context/order mismatch"
     }
     if ($top -eq "tb_dea8_matrix_engine") {
+      Invoke-Simulation $top "KVB" ""
       Invoke-Simulation $top "STARVE" ""
       Invoke-Simulation $top "RESET_JOB" ""
     }

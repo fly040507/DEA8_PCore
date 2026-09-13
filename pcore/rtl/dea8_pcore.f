@@ -4,6 +4,8 @@ dea8_fp32_pkg.sv
 dea8_pe.sv
 dea8_dualwrite_fifo.sv
 dea8_stream_fifo.sv
+dea8_kvb_adapter.sv
+dea8_xbc_adapter.sv
 dea8_hbm_tile_unpack.sv
 dea8_stationary_loader.sv
 dea8_tile_columns.sv

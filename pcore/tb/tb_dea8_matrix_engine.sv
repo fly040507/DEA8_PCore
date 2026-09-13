@@ -24,7 +24,28 @@ module tb_dea8_matrix_engine;
   logic [DW_VEC-1:0] golden[0:4*WORDS-1],scaled[0:WORDS-1];
   int j=0,accepted=0,writes=0,cycles=0,first_load=0,last_mul=-1,muls=0,load_count=0,boundary_waits=0;
   bit starve;
-  dea8_matrix_engine dut (.*);
+  logic kv_mode,engine_b_valid,engine_b_ready,adapter_ready,expect_ready,protocol_error;
+  logic [DW_ACT-1:0] engine_b_data;
+  logic [SCALE_BITS-1:0] engine_b_scale;
+  logic [TILE_IDX_BITS-1:0] kv_tile,kv_column;
+  logic kv_last,mask_valid;
+  logic [TILE-1:0] mask_data;
+  assign kv_mode=$test$plusargs("KVB");
+  assign b_ready=kv_mode ? adapter_ready : engine_b_ready;
+  dea8_kvb_adapter #(.V_KEY_LANE_IS_COLUMN(1)) frontend (
+    .clk,.rst_n,.kvb_valid(b_valid && kv_mode),.kvb_ready(adapter_ready),
+    .kvb_q(b_data),.kvb_e(b_scale),.kvb_kind(job.op==MATRIX_PV),
+    .kvb_blk_id(job.ctx.block_id),.kvb_key_lane(kv_column),.kvb_feat_blk(kv_tile),
+    .kvb_valid_mask({TILE{1'b1}}),.kvb_last(kv_last),.kvb_epoch(job.ctx.epoch),
+    .expect_valid(job_valid && job_ready && kv_mode),.expect_ready,.expect_job(job),
+    .b_valid(engine_b_valid),.b_ready(engine_b_ready && kv_mode),
+    .b_data(engine_b_data),.b_scale(engine_b_scale),
+    .mask_block(job.ctx.block_id),.mask_epoch(job.ctx.epoch),.mask_valid,.mask_data,.protocol_error
+  );
+  dea8_matrix_engine dut (
+    .b_valid(kv_mode ? engine_b_valid : b_valid),.b_ready(engine_b_ready),
+    .b_data(kv_mode ? engine_b_data : b_data),.b_scale(kv_mode ? engine_b_scale : b_scale),.*
+  );
   assign deq_reserved=job_busy ? (current_job.op==MATRIX_PV ? 3'b100 :
                                     (current_job.facc_bank ? 3'b010 : 3'b001)) : 3'b000;
   dea8_accumulator_fabric fabric (
@@ -93,6 +114,8 @@ module tb_dea8_matrix_engine;
       do @(posedge clk); while(!job_ready);
       @(negedge clk); job_valid=0;
       for(int t=0;t<HEAD_TILES;t++) for(int n=0;n<TILE;n++) begin
+        kv_tile=TILE_IDX_BITS'(t); kv_column=TILE_IDX_BITS'(n);
+        kv_last=t==HEAD_TILES-1 && n==TILE-1;
         if(starve && t==8 && n==0) begin b_valid=0; repeat(600) @(negedge clk); end
         for(int k=0;k<TILE;k++) b_data[k*ACT_BITS+:ACT_BITS]=ACT_BITS'(wv(j,t,k,n));
         b_scale=SCALE_BITS'(128+(j+t+n)%7); b_valid=1;
@@ -101,9 +124,11 @@ module tb_dea8_matrix_engine;
       end
       b_valid=0;
       wait(job_done_valid);
+      if(kv_mode && (!mask_valid || mask_data!={TILE{1'b1}} || protocol_error))
+        $fatal(1,"KVB mask/context integration failed");
       if(writes!=(j+1)*WORDS || load_count!=(j+1)*HEAD_TILES) $fatal(1,"Early completion");
       repeat(3) @(negedge clk);
-      if(!job_busy || !job_done_valid || b_ready) $fatal(1,"Job context/transport not held at done");
+      if(!job_busy || !job_done_valid || engine_b_ready) $fatal(1,"Job context/transport not held at done");
       job_done_ready=1; @(negedge clk); job_done_ready=0;
     end
     if(accepted!=4*HEAD_TILES*TILE || writes!=4*WORDS) $fatal(1,"Matrix count mismatch");
