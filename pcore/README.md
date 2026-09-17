@@ -1,9 +1,16 @@
 # DEA-8 PCore / Attention
 
-当前增量：[Q Projection端到端实现](docs/Projection_Q端到端实现_20260917.md)。
+当前增量：[Projection A双缓冲与Attention调度验收](docs/Projection_A双缓冲与调度验收_20260917.md)。
+A侧接收/计算解耦，pair在最后输入issue时释放，每个nt仍等待最终commit后才允许post。
+充分供数时Projection从87473降到55956拍，MXU有效发射占比93.330%；pair间保留2拍余量。
+Attention新增独立55-block/110-job调度检查，保持828/1656/91924拍口径。
+本轮XSim82个模式通过（43正常、39预期错误），Python25项通过；90个受测文件校验一致。
+日志和周期CSV见最新验收文档；下段77模式为优化前的历史证据。
+
+功能基础：[Q Projection端到端实现](docs/Projection_Q端到端实现_20260917.md)。
 新增真实`[51,1024]×[1024,256]`执行入口，经VPU量化行为模型写入实际QOZ数据/scale存储。
 Projection与Attention目前分别验证，尚未物理合并为共用阵列的完整PCore Top；本轮Projection不含RoPE。
-本轮77模式全量回归、25项Python测试及完整W_Loader综合结果见 [验收记录](docs/Projection与Attention验收记录_20260917.md)。
+优化前77模式全量回归、25项Python测试及完整W_Loader综合结果见 [历史验收记录](docs/Projection与Attention验收记录_20260917.md)。
 
 最新B侧实现：[B侧统一列流与接口契约](docs/B侧统一列流与接口契约_20260917.md)。
 W与KV使用两个独立的64×136bit同步读FIFO，数据与scale按列配对；HBM仍为8+1beat，内部单Tile重排。
@@ -60,6 +67,8 @@ powershell -ExecutionPolicy Bypass -File pcore/rtl/run_xsim.ps1 -Test all
 
 新增 `run_xsim.ps1 -Test bside` 检查同步读FIFO、HBM重排与KVB跨Job接收。
 `-Test projection`运行全尺寸Q投影、QOZ读回及重启/错误注入；`-Test all`包含Projection和Attention两条链。
+`-Test signoff`单独运行55-block调度验收，使用真实矩阵RTL及外部SFU/VPU行为模型。
+Projection新增随机断供、A/W长断供、READY与ACTIVE Bank同时clear检查，并统计等待及有效发射占比。
 Python旧Loader测试保留为历史参考，不代表新B侧逐拍实现；新路径由RTL测试覆盖。
 单FIFO的BRAM综合检查可运行 `check_b_fifo_synth.tcl`，不等于整个PCore时序签核。
 本次67模式全量回归、20项Python测试与单FIFO综合结果见 [B侧验证记录](docs/B侧统一列流验证记录_20260917.md)。

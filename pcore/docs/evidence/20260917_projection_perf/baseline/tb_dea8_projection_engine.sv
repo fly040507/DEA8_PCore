@@ -43,8 +43,6 @@ module tb_dea8_projection_engine;
   int perf_total,perf_issue,perf_cold,perf_a_wait,perf_w_wait,perf_drain,perf_pair_drain,perf_post,perf_control;
   int perf_pair_gap,perf_tile_gap,perf_prev_cycle,perf_prev_nt,perf_prev_kt;
   bit perf_tracking=0,perf_seen=0,perf_final_pending=0;
-  int fill_during_compute[0:1],cross_nt_prefetch,early_releases;
-  bit throughput_mode;
   dea8_projection_engine dut (.*);
   dea8_projection_vpu_stub vpu (.*);
 
@@ -83,19 +81,9 @@ module tb_dea8_projection_engine;
     if(perf_total!=cycle-start_cycle || perf_issue!=WORDS ||
        perf_total!=perf_issue+perf_cold+perf_a_wait+perf_w_wait+perf_drain+perf_pair_drain+perf_post+perf_control)
       $fatal(1,"Projection performance accounting mismatch");
-    if(fill_during_compute[0]==0 || fill_during_compute[1]==0 || cross_nt_prefetch==0 || early_releases!=PROJ_N_TILES*PROJ_K_TILES/2)
-      $fatal(1,"Projection ping-pong overlap/prefetch/release coverage missing");
-    if(throughput_mode && (perf_total>=60000 || perf_issue*100<perf_total*80 ||
-       perf_a_wait!=0 || perf_w_wait!=0 || perf_pair_drain!=0 ||
-       perf_pair_gap!=2*PROJ_N_TILES*(PROJ_K_TILES/2-1) || perf_tile_gap!=perf_pair_gap))
-      $fatal(1,"Projection performance acceptance failed");
-    if($test$plusargs("A_STARVE") && perf_a_wait==0) $fatal(1,"A starvation not exercised");
-    if($test$plusargs("W_STARVE") && perf_w_wait==0) $fatal(1,"W starvation not exercised");
     $display("PROJECTION_PERF total=%0d issue=%0d cold=%0d a_wait=%0d w_wait=%0d final_drain=%0d pair_drain=%0d post=%0d control=%0d pair_gap=%0d tile_gap=%0d utilization_pct=%0.3f",
       perf_total,perf_issue,perf_cold,perf_a_wait,perf_w_wait,perf_drain,perf_pair_drain,perf_post,perf_control,
       perf_pair_gap,perf_tile_gap,100.0*perf_issue/perf_total);
-    $display("PROJECTION_OVERLAP fill_bank0=%0d fill_bank1=%0d next_nt_pair0=%0d release_before_commit=%0d",
-      fill_during_compute[0],fill_during_compute[1],cross_nt_prefetch,early_releases);
     $fdisplay(fd,"perf_issue,0,%0d",perf_issue);
     $fdisplay(fd,"perf_cold,0,%0d",perf_cold);
     $fdisplay(fd,"perf_a_wait,0,%0d",perf_a_wait);
@@ -118,20 +106,9 @@ module tb_dea8_projection_engine;
   function automatic int ew(input int nt,kt,n);return 125+(nt*3+kt+n*5)%9;endfunction
 
   task automatic send_hbm;
-    logic [31:0] random_w;
-    int pause_cycles;
-    random_w=32'h192cb581;
     for(int nt=0;nt<PROJ_N_TILES;nt++) for(int kt=0;kt<PROJ_K_TILES;kt++)
       for(int beat=0;beat<HBM_BEATS_PER_TILE;beat++) begin
         @(negedge clk);if(cancel_sources) return;
-        if($test$plusargs("RANDOM_STALL")) begin
-          random_w={random_w[30:0],random_w[31]^random_w[21]^random_w[1]^random_w[0]};
-          pause_cycles=int'(random_w[2:0]);hbm_valid=0;
-          repeat(pause_cycles) @(negedge clk);if(cancel_sources) return;
-        end
-        if($test$plusargs("W_STARVE") && nt==0 && kt==8 && beat==0) begin
-          hbm_valid=0;repeat(700) @(negedge clk);if(cancel_sources) return;
-        end
         if(stress && (kt+beat)%13==0) begin
           hbm_valid=0;repeat(9) @(negedge clk);if(cancel_sources) return;
         end
@@ -147,20 +124,9 @@ module tb_dea8_projection_engine;
     @(negedge clk);hbm_valid=0;
   endtask
   task automatic send_xbc;
-    logic [31:0] random_a;
-    int pause_cycles;
-    random_a=32'h513a03bc;
     for(int nt=0;nt<PROJ_N_TILES;nt++) for(int pair=0;pair<PROJ_K_TILES;pair+=2)
       for(int row=0;row<SUFFIX_LEN;row++) begin
         @(negedge clk);if(cancel_sources) return;
-        if($test$plusargs("RANDOM_STALL")) begin
-          random_a={random_a[30:0],random_a[31]^random_a[21]^random_a[1]^random_a[0]};
-          pause_cycles=int'(random_a[1:0]);xbc_valid=0;
-          repeat(pause_cycles) @(negedge clk);if(cancel_sources) return;
-        end
-        if($test$plusargs("A_STARVE") && nt==0 && pair==4 && row==0) begin
-          xbc_valid=0;repeat(500) @(negedge clk);if(cancel_sources) return;
-        end
         if(stress && row%11==0) begin
           xbc_valid=0;repeat(7) @(negedge clk);if(cancel_sources) return;
         end
@@ -183,26 +149,13 @@ module tb_dea8_projection_engine;
     if(!rst_n || clear) begin
       issued=0;responses=0;writes=0;commits=0;qwrites=0;post_jobs=0;
       hbm_beats=0;xbc_beats=0;mul_count=0;boundary_waits=0;
-      fill_during_compute[0]=0;fill_during_compute[1]=0;cross_nt_prefetch=0;early_releases=0;
     end else begin
       if(job_valid && job_ready) begin
         issued=0;responses=0;writes=0;commits=0;qwrites=0;post_jobs=0;
         hbm_beats=0;xbc_beats=0;mul_count=0;boundary_waits=0;start_cycle=cycle;
-        fill_during_compute[0]=0;fill_during_compute[1]=0;cross_nt_prefetch=0;early_releases=0;
       end
       if(hbm_valid && hbm_ready) hbm_beats++;
       if(xbc_valid && xbc_ready) xbc_beats++;
-      if(dut.input_pair.rx_fire) begin
-        if(dut.input_pair.bank_state[!dut.input_pair.rx_bank_q]==dut.input_pair.ACTIVE && dut.req_valid)
-          fill_during_compute[dut.input_pair.rx_bank_q]++;
-        if(dut.input_pair.rx_nt_q>dut.nt_q && dut.input_pair.rx_pair_q==0 && xbc_row==SUFFIX_LEN-1)
-          cross_nt_prefetch++;
-      end
-      if(dut.pair_release) begin
-        if(!dut.req_valid || !dut.req_ready || dut.req_tag.row!=SUFFIX_LEN-1 || !dut.req_tag.kt[0] ||
-           commits>=issued+1) $fatal(1,"Projection pair not released at final input acceptance");
-        early_releases++;
-      end
       if(dut.req_valid) begin
         row=issued%SUFFIX_LEN;kt=(issued/SUFFIX_LEN)%PROJ_K_TILES;nt=issued/(SUFFIX_LEN*PROJ_K_TILES);
         if(!dut.req_ready || dut.req_tag.row!=row || dut.req_tag.kt!=kt || dut.req_tag.nt!=nt)
@@ -267,15 +220,9 @@ module tb_dea8_projection_engine;
       begin
         if(abort_job) begin
           if($test$plusargs("CLEAR_POST")) wait(qwrites>=10);
-          else if($test$plusargs("CLEAR_READY")) wait(
-            (dut.input_pair.bank_state[0]==dut.input_pair.ACTIVE && dut.input_pair.bank_state[1]==dut.input_pair.READY) ||
-            (dut.input_pair.bank_state[1]==dut.input_pair.ACTIVE && dut.input_pair.bank_state[0]==dut.input_pair.READY));
           else wait(writes>=15);
           @(negedge clk);cancel_sources=1;clear=1;hbm_valid=0;xbc_valid=0;
           @(negedge clk);clear=0;
-          if(dut.input_pair.bank_state[0]!=dut.input_pair.EMPTY || dut.input_pair.bank_state[1]!=dut.input_pair.EMPTY ||
-             dut.input_pair.rx_row_q!=0 || dut.input_pair.rx_nt_q!=0 || dut.input_pair.rx_pair_q!=0)
-            $fatal(1,"Projection clear left stale ping-pong state");
           while(!job_ready) begin
             @(negedge clk);
             if(commit_valid || dut.accum.deq_wr_en || dut.qoz_write || job_done_valid || qoz_valid)
@@ -309,28 +256,21 @@ module tb_dea8_projection_engine;
     end
   endtask
   initial begin
-    string timing_file;
     stress=$test$plusargs("STALL");
-    throughput_mode=!stress && !$test$plusargs("RANDOM_STALL") && !$test$plusargs("A_STARVE") && !$test$plusargs("W_STARVE");
-    timing_file="projection_cycles.csv";
-    if(stress) timing_file="projection_stall_cycles.csv";
-    if($test$plusargs("RANDOM_STALL")) timing_file="projection_random_cycles.csv";
-    if($test$plusargs("A_STARVE")) timing_file="projection_astarve_cycles.csv";
-    if($test$plusargs("W_STARVE")) timing_file="projection_wstarve_cycles.csv";
-    if($test$plusargs("CLEAR_RESTART")) timing_file="projection_restart_cycles.csv";
-    if($test$plusargs("CLEAR_POST")) timing_file="projection_clear_post_cycles.csv";
-    if($test$plusargs("CLEAR_READY")) timing_file="projection_clear_ready_cycles.csv";
-    if($test$plusargs("REPEAT")) timing_file="projection_repeat_cycles.csv";
-    if($test$plusargs("BAD_XBC") || $test$plusargs("EARLY_DONE") || $test$plusargs("BAD_RESULT") || $test$plusargs("BAD_QUANT"))
-      timing_file="projection_negative_cycles.csv";
-    fd=$fopen(timing_file,"w");
+    fd=$fopen(stress ? "projection_stall_cycles.csv" :
+      ($test$plusargs("CLEAR_RESTART") ? "projection_restart_cycles.csv" :
+      ($test$plusargs("CLEAR_POST") ? "projection_clear_post_cycles.csv" :
+      ($test$plusargs("REPEAT") ? "projection_repeat_cycles.csv" :
+      (($test$plusargs("BAD_XBC") || $test$plusargs("EARLY_DONE") ||
+        $test$plusargs("BAD_RESULT") || $test$plusargs("BAD_QUANT")) ?
+        "projection_negative_cycles.csv" : "projection_cycles.csv")))),"w");
     $fdisplay(fd,"event,nt_or_run,cycle_from_job");
     $readmemh("test_vectors/projection_acc.txt",golden);
     $readmemh("test_vectors/projection_psum.txt",golden_psum);
     $readmemh("test_vectors/projection_final.txt",final_fp);
     $readmemh("test_vectors/projection_qoz.txt",final_q);
     repeat(3) @(negedge clk);rst_n=1;
-    if($test$plusargs("CLEAR_RESTART") || $test$plusargs("CLEAR_POST") || $test$plusargs("CLEAR_READY")) begin run_job(1);job_epoch=5;end
+    if($test$plusargs("CLEAR_RESTART") || $test$plusargs("CLEAR_POST")) begin run_job(1);job_epoch=5;end
     run_job(0);
     if($test$plusargs("REPEAT")) begin job_epoch=7;run_job(0);end
     if(readbacks!=completed_runs*Q_WORDS) $fatal(1,"Projection readback coverage missing");

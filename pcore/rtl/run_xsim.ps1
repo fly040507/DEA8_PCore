@@ -1,7 +1,7 @@
 param(
   [string]$VivadoRoot = "D:\Xilinx\Vivado\2022.2",
   [string]$PythonExecutable = "python",
-  [ValidateSet("all", "mxu", "attention", "deqacc", "qk", "r6", "matrix", "state", "frontend", "stream", "fullattention", "bside", "projection")]
+  [ValidateSet("all", "mxu", "attention", "deqacc", "qk", "r6", "matrix", "state", "frontend", "stream", "fullattention", "bside", "projection", "signoff")]
   [string]$Test = "all"
 )
 $ErrorActionPreference = "Stop"
@@ -20,7 +20,7 @@ if ($Test -in @("all", "projection")) {
 }
 if ($Test -in @("all", "bside")) { $tests += "tb_dea8_b_fifo", "tb_dea8_w_b_stream", "tb_dea8_kvb_stream" }
 if ($Test -eq "fullattention") { $tests += "tb_dea8_attention_core" }
-if ($Test -in @("all", "r6", "matrix", "fullattention")) {
+if ($Test -in @("all", "r6", "matrix", "fullattention", "signoff")) {
   Push-Location (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent)
   try {
     & $PythonExecutable -m pcore.tests.generate_attention_vectors
@@ -34,6 +34,7 @@ if ($Test -in @("all", "attention")) { $tests += "tb_dea8_attention_ctrl" }
 if ($Test -in @("all", "deqacc")) { $tests += "tb_dea8_deqacc" }
 if ($Test -in @("all", "qk")) { $tests += "tb_dea8_qk_engine" }
 if ($Test -in @("all", "r6", "matrix")) { $tests += "tb_dea8_matrix_engine", "tb_dea8_attention_core" }
+if ($Test -in @("all", "signoff")) { $tests += "tb_dea8_attention_schedule_signoff" }
 if ($Test -in @("all", "r6", "matrix")) {
   Push-Location (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent)
   try {
@@ -92,6 +93,7 @@ try {
     "..\tb\tb_dea8_matrix_engine.sv",
     "..\tb\tb_dea8_attention_matrix.sv",
     "..\tb\tb_dea8_attention_core.sv",
+    "..\tb\tb_dea8_attention_schedule_signoff.sv",
     "..\tb\tb_dea8_attention_state.sv",
     "..\tb\tb_dea8_p_result_link.sv",
     "..\tb\tb_dea8_external_stubs.sv",
@@ -106,8 +108,12 @@ try {
     Invoke-Simulation $top "default" ""
     if ($top -eq "tb_dea8_projection_engine") {
       Invoke-Simulation $top "STALL" ""
+      Invoke-Simulation $top "RANDOM_STALL" ""
+      Invoke-Simulation $top "A_STARVE" ""
+      Invoke-Simulation $top "W_STARVE" ""
       Invoke-Simulation $top "CLEAR_RESTART" ""
       Invoke-Simulation $top "CLEAR_POST" ""
+      Invoke-Simulation $top "CLEAR_READY" ""
       Invoke-Simulation $top "REPEAT" ""
       Invoke-Simulation $top "BAD_XBC" "Fatal: Projection XBC context/order mismatch"
       Invoke-Simulation $top "EARLY_DONE" "Fatal: Projection VPU done before all QOZ writes or wrong context"

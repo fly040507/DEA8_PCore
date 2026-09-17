@@ -1,5 +1,15 @@
 # 实现状态
 
+## 2026-09-17：Projection A双缓冲优化
+
+RX与compute解耦，两个A-pair Bank的payload共3468字节，比前版增加1734字节。
+最后一行被Q_ACT_REG接受即可释放A Bank，不再每pair等待归约尾流水；每个nt最后仍以真实commit作为post屏障。
+无断供时55956拍，52224个有效发射拍，利用率93.330%；A/W等待均为0，pair间保留2拍控制余量。
+W单Tile assembler、MXU及DEQACC算术没有修改。新增Attention独立调度验收，保持110 Job和828/1656/91924拍。
+详细计数、测试结果及边界见 [本轮说明](Projection_A双缓冲与调度验收_20260917.md)。
+最终全量XSim82个模式通过（43正常、39预期错误），Python25项通过；90个受测源码文件回归前后校验一致。
+下文87473拍与单pair为优化前历史状态。没有新增RoPE、正式VPU/SFU、共享PCore Top或FPGA时序签核。
+
 ## 2026-09-17：Q Projection端到端增量
 
 新增Projection执行入口、成对XBC暂存和后处理结果接口；真实MXU/DEQACC完成64组K归约、16组输出列块。

@@ -1,5 +1,8 @@
 # Projection与Attention验收记录
 
+> 本页是优化前77模式历史验收，证据保持不变。
+> 最新A双缓冲优化与新增Attention调度检查见 [后续验收记录](Projection_A双缓冲与调度验收_20260917.md)。
+
 对应设计：[Q Projection端到端实现](Projection_Q端到端实现_20260917.md)。
 环境：Vivado/XSim2022.2，代表综合器件XCU280；源码位于主开发目录`VLA/pcore`。
 验证范围是一个PCore的Q线性Projection，以及一个head/epoch的55-KV-Block Attention。

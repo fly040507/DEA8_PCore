@@ -2,7 +2,8 @@
 import dea8_pcore_pkg::*;
 import dea8_job_pkg::*;
 module tb_dea8_attention_core #(
-  parameter bit SOFTMAX_MODEL = 0
+  parameter bit SOFTMAX_MODEL = 0,
+  parameter bit SCHEDULE_SIGNOFF = 0
 );
   logic clk=0; always #5 clk=~clk;
   logic rst_n=0,start_valid=0,resources_ready=1,start_ready,busy,done_valid,done_ready=0,matrix_busy;
@@ -212,7 +213,7 @@ module tb_dea8_attention_core #(
     end
   end
   initial begin
-    logfd=$fopen(SOFTMAX_MODEL ? ($test$plusargs("TAIL_SLOW") ? "attention_full_slow_cycles.csv" :
+    logfd=$fopen(SCHEDULE_SIGNOFF ? "attention_signoff_clients_cycles.csv" : SOFTMAX_MODEL ? ($test$plusargs("TAIL_SLOW") ? "attention_full_slow_cycles.csv" :
       $test$plusargs("SKIP_TAIL_SCALE") ? "attention_full_negative_cycles.csv" : "attention_full_cycles.csv") :
       "attention_fixture_cycles.csv","w");
     $fdisplay(logfd,"event,op,block,cycle_from_top");
@@ -256,7 +257,8 @@ module tb_dea8_attention_core #(
       pv53_done-top_cycle,tail_scale_start-top_cycle,tail_first_write-top_cycle,tail_last_write-top_cycle,
       tail_scale_done-top_cycle,pv54_start-top_cycle,pv54_done-top_cycle,pv54_done-pv53_done);
     $fdisplay(logfd,"attention_done,0,0,%0d",cycles-top_cycle);$fclose(logfd);
-    $display("tb_dea8_attention_core PASS: 55 QK/PV real jobs, 54 OACC scales, tail slot, AFIN; behavioral_softmax=%0d",SOFTMAX_MODEL);
+    if(!SCHEDULE_SIGNOFF)
+      $display("tb_dea8_attention_core PASS: 55 QK/PV real jobs, 54 OACC scales, tail slot, AFIN; behavioral_softmax=%0d",SOFTMAX_MODEL);
     $finish;
   end
   initial begin #5000000; $fatal(1,"Attention core timeout"); end

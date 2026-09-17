@@ -1,7 +1,7 @@
 import dea8_pcore_pkg::*;
 import dea8_job_pkg::*;
 
-// Q linear projection: [51,1024] x [1024,256], ping-pong A-pair prefetch.
+// Correctness-first Q linear projection: [51,1024] x [1024,256].
 // nt -> kt -> row order, one FACC bank, external VPU requantization to QOZ.
 // This is an execution top, not the final W/KV-shared PCore top.
 module dea8_projection_engine (
@@ -51,7 +51,7 @@ module dea8_projection_engine (
   localparam int TOTAL_WORDS=TOTAL_TILES*SUFFIX_LEN;
   localparam int TOTAL_BEATS=TOTAL_TILES*HBM_BEATS_PER_TILE;
   localparam int ABORT_DRAIN=PIPE_DRAIN+2;
-  typedef enum logic [2:0] {IDLE,PAIR_RX,RUN_PAIR,NT_DRAIN,POST_CMD,POST_WAIT,DONE,ABORTING} state_e;
+  typedef enum logic [2:0] {IDLE,PAIR_RX,RUN_PAIR,POST_CMD,POST_WAIT,DONE,ABORTING} state_e;
   state_e state_q;
   logic [HEAD_BITS-1:0] head_q;
   logic [EPOCH_BITS-1:0] epoch_q;
@@ -107,13 +107,9 @@ module dea8_projection_engine (
     (load_valid && load_weight_idx==TILE-2);
   assign a_rd_en=rst_n && !clear && state_q==RUN_PAIR && !pair_issue_done &&
     (row_q!=0 || tile_available);
-  // Last synchronous A read has already completed. Release at Q_ACT_REG
-  // acceptance, not at arithmetic commit; two control clocks separate pairs.
-  assign pair_release=!clear && req_valid && req_ready && req_tag.row==SUFFIX_LEN-1 && req_tag.kt[0];
+  assign pair_release=commit_valid && commit_tag.row==SUFFIX_LEN-1 && commit_tag.kt[0];
   dea8_projection_xpair input_pair (
-    .clk,.rst_n,.clear(path_clear),
-    .enable(job_busy && state_q!=DONE && state_q!=ABORTING),.release_pair(pair_release),
-    .expected_nt(nt_q),
+    .clk,.rst_n,.clear(path_clear),.enable(state_q==PAIR_RX),.release_pair(pair_release),
     .expected_pair(PROJ_K_BITS'(kt_q & ~1)),.expected_epoch(epoch_q),
     .xbc_valid,.xbc_ready,.xbc_q,.xbc_e,.xbc_row,.xbc_blk,.xbc_lane_mask,.xbc_last,.xbc_epoch,
     .full(pair_full),.protocol_error(pair_error),.rd_en(a_rd_en),.rd_half(kt_q[0]),
@@ -140,7 +136,7 @@ module dea8_projection_engine (
   assign commit_valid=raw_commit_valid && !clear && state_q!=ABORTING;
   assign commit_tag=raw_commit_tag;
   assign commit_dest=raw_commit_dest;
-  assign deq_reserved=(state_q==PAIR_RX || state_q==RUN_PAIR || state_q==NT_DRAIN || state_q==ABORTING) ? 3'b001 : 3'b000;
+  assign deq_reserved=(state_q==PAIR_RX || state_q==RUN_PAIR || state_q==ABORTING) ? 3'b001 : 3'b000;
   dea8_accumulator_fabric accum (
     .clk,.rst_n,.deq_reserved,
     .deq_rd_en(mem_rd_en && !clear && state_q!=ABORTING),.deq_rd_sel(mem_rd_sel),
@@ -216,11 +212,8 @@ module dea8_projection_engine (
         PAIR_RX: if(pair_full) state_q<=RUN_PAIR;
         RUN_PAIR: if(pair_release) begin
           pair_issue_done<=0;
-          if(kt_q==PROJ_K_TILES-1) state_q<=NT_DRAIN;
+          if(kt_q==PROJ_K_TILES-1) begin state_q<=POST_CMD;results_q<='0;end
           else begin kt_q<=kt_q+1'b1;state_q<=PAIR_RX;end
-        end
-        NT_DRAIN: if(commit_valid && commit_tag.final_k && commit_tag.row==SUFFIX_LEN-1) begin
-          state_q<=POST_CMD;results_q<='0;
         end
         POST_CMD: if(post_cmd_ready) state_q<=POST_WAIT;
         POST_WAIT: if(post_done_valid && post_done_ready) begin
@@ -238,7 +231,7 @@ module dea8_projection_engine (
   always @(posedge clk) if(rst_n && !clear && state_q!=ABORTING) begin
     if(req_valid && !req_ready) $fatal(1,"Projection A response not accepted");
     if(commit_valid) begin
-      if(!(state_q==RUN_PAIR || state_q==PAIR_RX || state_q==NT_DRAIN) || commit_tag.row!=committed_q%SUFFIX_LEN ||
+      if(state_q!=RUN_PAIR || commit_tag.row!=committed_q%SUFFIX_LEN ||
          commit_tag.kt!=(committed_q/SUFFIX_LEN)%PROJ_K_TILES ||
          commit_tag.nt!=committed_q/(SUFFIX_LEN*PROJ_K_TILES) ||
          commit_tag.head!=head_q || commit_tag.epoch!=epoch_q || commit_tag.exp_fold!=0 ||
