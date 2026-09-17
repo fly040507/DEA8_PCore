@@ -92,11 +92,9 @@ package dea8_pcore_pkg;
   parameter int unsigned QOZ_ADDR_BITS = $clog2(QOZ_WORDS);
   parameter int unsigned OACC_WORDS   = 816;
   parameter int unsigned FACC_WORDS   = 51;
-  parameter int unsigned WFIFO_DEPTH  = 512;
-  parameter int unsigned WFIFO_DATA_DEPTH  = WFIFO_DEPTH;
-  parameter int unsigned WFIFO_SCALE_DEPTH = 32;
-  parameter int unsigned WFIFO_DATA_BITS   = WEIGHT_WORD_BITS;
-  parameter int unsigned WFIFO_SCALE_BITS  = SCALE_WORD_BITS;
+  // Historical dual-FIFO examples only; active W/KV paths use B_FIFO_DEPTH.
+  parameter int unsigned LEGACY_WFIFO_DATA_DEPTH = 512;
+  parameter int unsigned LEGACY_WFIFO_SCALE_DEPTH = 32;
   parameter int unsigned B_ENTRY_BITS = WEIGHT_WORD_BITS + SCALE_BITS;
   parameter int unsigned B_FIFO_DEPTH = 64;
   parameter int unsigned KVFIFO_DEPTH = B_FIFO_DEPTH;

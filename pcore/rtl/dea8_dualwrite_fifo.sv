@@ -4,7 +4,7 @@ import dea8_pcore_pkg::*;
 // A payload HBM beat supplies two 128-bit entries in one core cycle.
 module dea8_dualwrite_fifo #(
   parameter int unsigned WIDTH = WEIGHT_WORD_BITS,
-  parameter int unsigned DEPTH = WFIFO_DATA_DEPTH
+  parameter int unsigned DEPTH = LEGACY_WFIFO_DATA_DEPTH
 ) (
   input  logic                          clk,
   input  logic                          rst_n,

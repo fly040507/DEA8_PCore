@@ -26,6 +26,8 @@ dea8_attention_buffers.sv
 dea8_qoz_buffer.sv
 dea8_qk_sequencer.sv
 dea8_qk_engine.sv
+dea8_projection_xpair.sv
+dea8_projection_engine.sv
 dea8_matrix_sequencer.sv
 dea8_matrix_engine.sv
 dea8_attention_matrix.sv

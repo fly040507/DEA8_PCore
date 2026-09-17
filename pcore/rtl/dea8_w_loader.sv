@@ -4,7 +4,7 @@ import dea8_pcore_pkg::*;
 // bank_activate is a pre-edge event: the MXU captures the new active scales
 // at the same edge that changes active_bank.
 module dea8_w_loader (
-  input logic clk, rst_n,
+  input logic clk, rst_n, clear,
   input logic hbm_valid,
   output logic hbm_ready,
   input logic [HBM_BITS-1:0] hbm_data,
@@ -24,7 +24,7 @@ module dea8_w_loader (
   logic data_valid,data_pop;
   logic [$clog2(W_B_FIFO_DEPTH+1)-1:0] count;
   dea8_w_b_stream stream (
-    .clear(1'b0),.b_valid(data_valid),.b_ready(data_pop),.b_entry(entry),.*
+    .b_valid(data_valid),.b_ready(data_pop),.b_entry(entry),.*
   );
   dea8_stationary_loader stationary (
     .tile_available(count >= TILE), .*

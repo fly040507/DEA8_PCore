@@ -22,4 +22,8 @@ module dea8_w_b_stream #(
     .in_valid(assembled_valid),.in_ready(assembled_ready),.in_entry(assembled_entry),
     .out_valid(b_valid),.out_ready(b_ready),.out_entry(b_entry),.*
   );
+  // The W bank owner reserves a whole tile before starting its 16 loads.
+  // synthesis translate_off
+  initial if(FIFO_DEPTH<TILE) $fatal(1,"W FIFO must hold at least one tile");
+  // synthesis translate_on
 endmodule

@@ -1,9 +1,10 @@
 import dea8_pcore_pkg::*;
 
-// One-write/one-read synchronous FIFO used for the packed Scale path.
+// Register/LUT FIFO with combinational head, used by legacy/client adapters.
+// The active W/KV payload queues use dea8_b_fifo instead.
 module dea8_stream_fifo #(
   parameter int unsigned WIDTH = SCALE_WORD_BITS,
-  parameter int unsigned DEPTH = WFIFO_SCALE_DEPTH
+  parameter int unsigned DEPTH = LEGACY_WFIFO_SCALE_DEPTH
 ) (
   input  logic             clk,
   input  logic             rst_n,

@@ -1,5 +1,10 @@
 # DEA-8 PCore / Attention
 
+当前增量：[Q Projection端到端实现](docs/Projection_Q端到端实现_20260917.md)。
+新增真实`[51,1024]×[1024,256]`执行入口，经VPU量化行为模型写入实际QOZ数据/scale存储。
+Projection与Attention目前分别验证，尚未物理合并为共用阵列的完整PCore Top；本轮Projection不含RoPE。
+本轮77模式全量回归、25项Python测试及完整W_Loader综合结果见 [验收记录](docs/Projection与Attention验收记录_20260917.md)。
+
 最新B侧实现：[B侧统一列流与接口契约](docs/B侧统一列流与接口契约_20260917.md)。
 W与KV使用两个独立的64×136bit同步读FIFO，数据与scale按列配对；HBM仍为8+1beat，内部单Tile重排。
 本增量覆盖旧256项KVFIFO与HBM双WFIFO的描述，未改真实GCore/VPU/SFU。
@@ -26,6 +31,7 @@ dea8_qk_engine 保留为 QK standalone 回归入口；新版 dea8_matrix_engine 
 并由 dea8_attention_core 连接真实同步 QOZ、PBUF、DEQACC 和累加存储。
 设置 USE_KVB 使用连续 KVB 前端；K/V 均按 B-column 格式传输，key_lane 表示列号。
 正式 GCore 需遵守新列协议，完整 PCore Top 尚未完成。
+Projection测试源还要求按nt重放XHAT，详见新接口说明；尚未与真实GCore联合签核。
 接线、时序和运行方式见 [DEQACC接入说明](docs/DEQACC_RTL接入说明.md)。
 
 - 256bit HBM、8数据beat+1低128bit有效scale beat。
@@ -53,6 +59,7 @@ powershell -ExecutionPolicy Bypass -File pcore/rtl/run_xsim.ps1 -Test all
 额外测试流式HBM及延迟scale、Tile内断流必须报错。
 
 新增 `run_xsim.ps1 -Test bside` 检查同步读FIFO、HBM重排与KVB跨Job接收。
+`-Test projection`运行全尺寸Q投影、QOZ读回及重启/错误注入；`-Test all`包含Projection和Attention两条链。
 Python旧Loader测试保留为历史参考，不代表新B侧逐拍实现；新路径由RTL测试覆盖。
 单FIFO的BRAM综合检查可运行 `check_b_fifo_synth.tcl`，不等于整个PCore时序签核。
 本次67模式全量回归、20项Python测试与单FIFO综合结果见 [B侧验证记录](docs/B侧统一列流验证记录_20260917.md)。

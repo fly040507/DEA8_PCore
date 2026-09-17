@@ -85,4 +85,21 @@ package dea8_job_pkg;
     logic [SFU_LANES*FP_BITS-1:0] data;
     logic last;
   } p_result_t;
+
+  // Q linear-projection post-processing contract, separate from RoPE commands.
+  localparam int PROJ_K_TILES = D_MODEL/TILE;
+  localparam int PROJ_N_TILES = D_HEAD/TILE;
+  localparam int PROJ_K_BITS = $clog2(PROJ_K_TILES);
+  typedef struct packed {
+    logic [HEAD_BITS-1:0] head;
+    logic [EPOCH_BITS-1:0] epoch;
+    logic [TILE_IDX_BITS-1:0] nt;
+  } projection_post_job_t;
+  typedef struct packed {
+    projection_post_job_t job;
+    logic [ROW_BITS-1:0] row;
+    logic [DW_ACT-1:0] data;
+    logic [SCALE_BITS-1:0] scale;
+    logic last;
+  } projection_q_result_t;
 endpackage

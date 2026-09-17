@@ -4,7 +4,7 @@ import dea8_pcore_pkg::*;
 // tile_available reserves 16 paired column entries. After the first pop the
 // source MUST supply all remaining entries. No independent scale FIFO.
 module dea8_stationary_loader (
-  input logic clk, rst_n,
+  input logic clk, rst_n, clear,
   input logic tile_available, data_valid,
   input b_entry_t entry,
   output logic data_pop,
@@ -23,29 +23,32 @@ module dea8_stationary_loader (
   logic [TILE_IDX_BITS-1:0] load_index_q;
   assign bank_state_a = bank_state[0];
   assign bank_state_b = bank_state[1];
-  assign active_valid = bank_state[active_bank] == BANK_ACTIVE;
+  assign active_valid = rst_n && !clear && bank_state[active_bank] == BANK_ACTIVE;
   assign free_bank = bank_state[0] == BANK_NULL ? 1'b0 : 1'b1;
-  assign start_load = rst_n && bank_load_enable && !loading_q &&
+  assign start_load = rst_n && !clear && bank_load_enable && !loading_q &&
                      (bank_state[0] == BANK_NULL || bank_state[1] == BANK_NULL) && tile_available;
   assign load_bank = loading_q ? load_bank_q : free_bank;
   assign load_weight_idx = loading_q ? load_index_q : '0;
-  assign load_valid = rst_n && (loading_q || start_load) && data_valid;
+  assign load_valid = rst_n && !clear && (loading_q || start_load) && data_valid;
   assign data_pop = load_valid;
   dea8_b_column_loader columns (.*);
 
   always_comb begin
     bank_activate = 0;
     new_active_bank = active_bank;
-    if (load_tile_complete && (!active_valid || tile_last_mul_fire)) begin
+    if (rst_n && !clear && load_tile_complete && (!active_valid || tile_last_mul_fire)) begin
       bank_activate = 1;
       new_active_bank = load_bank;
-    end else if (!active_valid || tile_last_mul_fire) begin
+    end else if (rst_n && !clear && (!active_valid || tile_last_mul_fire)) begin
       if (bank_state[0] == BANK_READY) begin bank_activate = 1; new_active_bank = 0; end
       else if (bank_state[1] == BANK_READY) begin bank_activate = 1; new_active_bank = 1; end
     end
   end
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
+      loading_q <= 0; load_bank_q <= 0; load_index_q <= '0; active_bank <= 0;
+      for (int b=0; b<BANK_COUNT; b++) bank_state[b] <= BANK_NULL;
+    end else if (clear) begin
       loading_q <= 0; load_bank_q <= 0; load_index_q <= '0; active_bank <= 0;
       for (int b=0; b<BANK_COUNT; b++) bank_state[b] <= BANK_NULL;
     end else begin
@@ -67,7 +70,7 @@ module dea8_stationary_loader (
     end
   end
   // synthesis translate_off
-  always @(posedge clk) if (rst_n) begin
+  always @(posedge clk) if (rst_n && !clear) begin
     if ((loading_q || start_load) && !data_valid) $fatal(1, "Reserved tile data underflow");
     if (load_valid && bank_state[load_bank] == BANK_ACTIVE) $fatal(1, "Loader wrote ACTIVE bank");
     if (tile_last_mul_fire && !active_valid) $fatal(1, "Retire without ACTIVE bank");

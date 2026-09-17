@@ -54,8 +54,8 @@ module tb_dea8_mxu;
     return 110+(t+r)%80;
   endfunction
 
-  dea8_w_loader loader (.*);
-  dea8_mxu #(.COLUMN_LOAD(1)) dut (.*);
+  dea8_w_loader loader (.clear(1'b0),.*);
+  dea8_mxu #(.COLUMN_LOAD(1)) dut (.clear(1'b0),.*);
   assign deq_req = '{psum:psum, e_stat:e_stat, e_stream:rsp_e_stream, tag:rsp_tag};
   assign deq_dest = rsp_dest;
   dea8_deqacc deq (

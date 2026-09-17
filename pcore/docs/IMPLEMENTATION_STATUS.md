@@ -1,5 +1,16 @@
 # 实现状态
 
+## 2026-09-17：Q Projection端到端增量
+
+新增Projection执行入口、成对XBC暂存和后处理结果接口；真实MXU/DEQACC完成64组K归约、16组输出列块。
+VPU数学行为壳从实际FACC读取并量化，结果写入真实QOZ/E_QOZ；不是直接注入golden结果。
+W Loader/MXU增加同步clear，Projection取消后隔离旧DEQACC事务，再允许新任务；旧Attention调用将clear绑0，保留原复位契约。
+完整W Loader已做OOC综合；尚未合并W/KV共享PCore Top、实现RoPE或交付正式VPU/SFU。
+详见 [Q Projection实现](Projection_Q端到端实现_20260917.md) 和 [本轮验收记录](Projection与Attention验收记录_20260917.md)。
+最终XSim77个模式通过（38正常、39预期错误），Python25项通过，89个受测文件校验一致。
+全尺寸Projection正常完成87473拍；Attention含尾部矩阵91924拍、行为AFIN后92799拍。
+下文“Projection未实现”等为历史阶段状态，不能用于描述当前独立Projection执行入口。
+
 ## 2026-09-17：B侧配对列流增量
 
 W/KV各使用独立64×136bit同步读FIFO，统一BEntry与列写入数据通路；KV元数据在入队前校验，FIFO仅存payload。

@@ -50,7 +50,7 @@ module dea8_matrix_engine #(
   assign entry={b_data,b_scale};
   dea8_b_column_loader columns (.*);
   dea8_matrix_sequencer #(.ENABLE_LOOKAHEAD(ENABLE_LOOKAHEAD)) sequencer (.*);
-  dea8_mxu #(.COLUMN_LOAD(1)) mxu (.activation(a_data),.e_stream(a_scale),.rsp_ready(1'b1),.*);
+  dea8_mxu #(.COLUMN_LOAD(1)) mxu (.clear(1'b0),.activation(a_data),.e_stream(a_scale),.rsp_ready(1'b1),.*);
   assign deq_req='{psum:psum,e_stat:e_stat,e_stream:rsp_e_stream,tag:rsp_tag};
   dea8_deqacc deq (
     .clk,.rst_n,.req_valid(rsp_valid),.req(deq_req),.req_dest(rsp_dest),

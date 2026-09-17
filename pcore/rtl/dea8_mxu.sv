@@ -8,6 +8,7 @@ module dea8_mxu #(
 ) (
   input  logic                         clk,
   input  logic                         rst_n,
+  input  logic                         clear,
   input  logic                         req_valid,
   output logic                         req_ready,
   input logic active_bank, active_valid,
@@ -51,11 +52,11 @@ module dea8_mxu #(
   logic [TILE-1:0][SCALE_BITS-1:0] estat_q [1:MXU_STAGES-1];
   logic [ROW_BITS-1:0] expected_row_q;
   logic req_fire;
-  assign mul_valid = ACT_VALID_REG && active_valid;
+  assign mul_valid = !clear && ACT_VALID_REG && active_valid;
   assign tile_last_mul_fire = mul_valid && (ACT_TAG_REG.row == SUFFIX_LEN-1);
-  assign req_ready = rst_n && (bank_activate || (active_valid && !tile_last_mul_fire));
+  assign req_ready = rst_n && !clear && (bank_activate || (active_valid && !tile_last_mul_fire));
   assign req_fire = req_valid && req_ready;
-  assign rsp_valid = valid_q[MXU_STAGES-1];
+  assign rsp_valid = !clear && valid_q[MXU_STAGES-1];
   assign rsp_tag = tag_q[MXU_STAGES-1];
   assign rsp_dest = dest_q[MXU_STAGES-1];
   assign rsp_e_stream = stream_q[MXU_STAGES-1];
@@ -108,6 +109,10 @@ module dea8_mxu #(
         Q_ACT_REG[n] <= '0;
         Psum_out_reg[n] <= '0;
       end
+    end else if (clear) begin
+      ACT_VALID_REG <= 0;
+      expected_row_q <= '0;
+      for (level=1; level<MXU_STAGES; level++) valid_q[level] <= 0;
     end else begin
       if (scale_load_valid) begin
         if (COLUMN_LOAD)
@@ -168,7 +173,7 @@ module dea8_mxu #(
 
     end
   end
-  always @(posedge clk) if (rst_n) begin
+  always @(posedge clk) if (rst_n && !clear) begin
     if (ACT_VALID_REG && !active_valid) $fatal(1, "Activation without ACTIVE bank");
     if (mul_valid && ACT_TAG_REG.row != expected_row_q) $fatal(1, "Nonconsecutive row");
     if (expected_row_q != 0 && !mul_valid) $fatal(1, "Local stall inside tile");

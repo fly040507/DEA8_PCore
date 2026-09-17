@@ -1,7 +1,7 @@
 param(
   [string]$VivadoRoot = "D:\Xilinx\Vivado\2022.2",
   [string]$PythonExecutable = "python",
-  [ValidateSet("all", "mxu", "attention", "deqacc", "qk", "r6", "matrix", "state", "frontend", "stream", "fullattention", "bside")]
+  [ValidateSet("all", "mxu", "attention", "deqacc", "qk", "r6", "matrix", "state", "frontend", "stream", "fullattention", "bside", "projection")]
   [string]$Test = "all"
 )
 $ErrorActionPreference = "Stop"
@@ -10,6 +10,14 @@ $xelab = Join-Path $VivadoRoot "bin\xelab.bat"
 $xsim = Join-Path $VivadoRoot "bin\xsim.bat"
 if (!(Test-Path $xvlog)) { throw "Vivado xvlog not found under $VivadoRoot" }
 $tests = @()
+if ($Test -in @("all", "projection")) {
+  $tests += "tb_dea8_projection_engine"
+  Push-Location (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent)
+  try {
+    & $PythonExecutable -m pcore.tests.generate_projection_vectors
+    if ($LASTEXITCODE -ne 0) { throw "Projection vector generation failed" }
+  } finally { Pop-Location }
+}
 if ($Test -in @("all", "bside")) { $tests += "tb_dea8_b_fifo", "tb_dea8_w_b_stream", "tb_dea8_kvb_stream" }
 if ($Test -eq "fullattention") { $tests += "tb_dea8_attention_core" }
 if ($Test -in @("all", "r6", "matrix", "fullattention")) {
@@ -67,6 +75,9 @@ try {
     "..\tb\tb_dea8_w_b_stream.sv",
     "..\tb\tb_dea8_kvb_stream.sv",
     "..\tb\stubs\dea8_behavioral_fp_pkg.sv",
+    "..\tb\stubs\dea8_projection_vpu_stub.sv",
+    "..\tb\tb_dea8_projection_engine.sv",
+    "..\tb\tb_dea8_w_bad_depth.sv",
     "..\tb\stubs\dea8_vpu_stub.sv",
     "..\tb\stubs\dea8_sfu_stub.sv",
     "..\tb\stubs\dea8_gcore_stub.sv",
@@ -93,6 +104,16 @@ try {
     & $xelab $top -s "${top}_sim" -timescale 1ns/1ps
     if ($LASTEXITCODE -ne 0) { throw "xelab failed for $top" }
     Invoke-Simulation $top "default" ""
+    if ($top -eq "tb_dea8_projection_engine") {
+      Invoke-Simulation $top "STALL" ""
+      Invoke-Simulation $top "CLEAR_RESTART" ""
+      Invoke-Simulation $top "CLEAR_POST" ""
+      Invoke-Simulation $top "REPEAT" ""
+      Invoke-Simulation $top "BAD_XBC" "Fatal: Projection XBC context/order mismatch"
+      Invoke-Simulation $top "EARLY_DONE" "Fatal: Projection VPU done before all QOZ writes or wrong context"
+      Invoke-Simulation $top "BAD_RESULT" "Fatal: Projection VPU result context/order mismatch"
+      Invoke-Simulation $top "BAD_QUANT" "Fatal: Projection QOZ quantization oracle mismatch"
+    }
     if ($top -eq "tb_dea8_attention_core") {
       & $xelab tb_dea8_attention_core_softmax -s "${top}_sim" -timescale 1ns/1ps
       if ($LASTEXITCODE -ne 0) { throw "Behavioral Softmax elaboration failed" }
@@ -160,6 +181,11 @@ try {
       Invoke-Simulation $top "BAD_DEST" "Fatal: Invalid DEQACC SBUF target"
       Invoke-Simulation $top "BAD_ADDR" "Fatal: DEQACC address out of range"
     }
+  }
+  if ($Test -in @("all", "bside", "projection")) {
+    & $xelab tb_dea8_w_bad_depth -s "tb_dea8_w_bad_depth_sim" -timescale 1ns/1ps
+    if ($LASTEXITCODE -ne 0) { throw "Bad-depth elaboration failed" }
+    Invoke-Simulation "tb_dea8_w_bad_depth" "default" "Fatal: W FIFO must hold at least one tile"
   }
 } finally {
   Pop-Location
