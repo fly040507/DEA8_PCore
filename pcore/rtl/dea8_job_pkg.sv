@@ -16,6 +16,33 @@ package dea8_job_pkg;
     logic [EPOCH_BITS-1:0] epoch;
   } job_context_t;
 
+  // Transport/queue descriptor: physical banks are derived at execution.
+  typedef struct packed {
+    matrix_op_e op;
+    job_context_t ctx;
+  } matrix_block_job_t;
+
+  localparam int MATRIX_JOB_COUNT = 2*N_KV_BLOCK;
+  localparam int MATRIX_JOB_INDEX_BITS = $clog2(MATRIX_JOB_COUNT+1);
+
+  function automatic matrix_block_job_t attention_block_job(
+      input int index, input logic [HEAD_BITS-1:0] head,
+      input logic [EPOCH_BITS-1:0] epoch);
+    matrix_block_job_t value;
+    value='0;
+    value.ctx.head=head;
+    value.ctx.epoch=epoch;
+    if(index==0) begin value.op=MATRIX_QK; value.ctx.block_id=0; end
+    else if(index==MATRIX_JOB_COUNT-1) begin
+      value.op=MATRIX_PV; value.ctx.block_id=BLOCK_BITS'(N_KV_BLOCK-1);
+    end else if(index%2==1) begin
+      value.op=MATRIX_QK; value.ctx.block_id=BLOCK_BITS'((index+1)/2);
+    end else begin
+      value.op=MATRIX_PV; value.ctx.block_id=BLOCK_BITS'(index/2-1);
+    end
+    return value;
+  endfunction
+
   typedef struct packed {
     matrix_op_e op;
     job_context_t ctx;
@@ -23,6 +50,12 @@ package dea8_job_pkg;
     logic pbuf_bank;
     logic init_oacc;
   } matrix_job_t;
+
+  function automatic matrix_job_t expand_matrix_job(input matrix_block_job_t block_job);
+    return {block_job.op, block_job.ctx, block_job.ctx.block_id[0],
+            block_job.ctx.block_id[0],
+            (block_job.op==MATRIX_PV && block_job.ctx.block_id==0)};
+  endfunction
 
   typedef struct packed {
     vpu_op_e op;

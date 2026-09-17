@@ -3,7 +3,9 @@ import dea8_pcore_pkg::*;
 // 16x16 INT8 MXU.
 // t0: activation/E_stream/Tag enter; t1: PE MUL; t2: L1;
 // t3: L2; t4: L3; t5: L4 writes Psum_out_REG.
-module dea8_mxu (
+module dea8_mxu #(
+  parameter bit COLUMN_LOAD = 0
+) (
   input  logic                         clk,
   input  logic                         rst_n,
   input  logic                         req_valid,
@@ -70,9 +72,9 @@ module dea8_mxu (
           .rst_n       (rst_n),
           .ce          (mul_valid),
           .active_bank (active_bank),
-          .load_we     (load_valid && (load_weight_idx == k_idx)),
+          .load_we     (load_valid && (load_weight_idx == (COLUMN_LOAD ? n_idx : k_idx))),
           .load_bank   (load_bank),
-          .load_weight (load_weight_beat[n_idx]),
+          .load_weight (load_weight_beat[COLUMN_LOAD ? k_idx : n_idx]),
           .activation  (Q_ACT_REG[k_idx]),
           .product     (product_q[k_idx][n_idx])
         );
@@ -107,10 +109,19 @@ module dea8_mxu (
         Psum_out_reg[n] <= '0;
       end
     end else begin
-      if (scale_load_valid) E_STAT_BANK[load_bank] <= load_scale_word;
+      if (scale_load_valid) begin
+        if (COLUMN_LOAD)
+          E_STAT_BANK[load_bank][load_weight_idx] <= load_scale_word[0+:SCALE_BITS];
+        else E_STAT_BANK[load_bank] <= load_scale_word;
+      end
       // Activation edge: sample new bank scales. The retiring multiply and
       // pipe[1] below still use pre-edge ACTIVE scales and pre-edge weights.
-      if (bank_activate) E_STAT_ACTIVE_REG <= E_STAT_BANK[new_active_bank];
+      if (bank_activate) begin
+        E_STAT_ACTIVE_REG <= E_STAT_BANK[new_active_bank];
+        // The final column and activation may arrive on the same edge.
+        if (COLUMN_LOAD && scale_load_valid && load_bank == new_active_bank)
+          E_STAT_ACTIVE_REG[load_weight_idx] <= load_scale_word[0+:SCALE_BITS];
+      end
       ACT_VALID_REG <= req_fire;
       if (req_fire) begin
         for (k=0; k<TILE; k++) Q_ACT_REG[k] <= activation[k];

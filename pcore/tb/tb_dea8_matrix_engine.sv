@@ -5,7 +5,7 @@ module tb_dea8_matrix_engine;
   localparam int WORDS=SUFFIX_LEN*HEAD_TILES;
   logic clk=0; always #5 clk=~clk;
   logic rst_n=0,job_valid=0,resources_ready=1,job_ready,job_busy,job_done_valid,job_done_ready=0;
-  matrix_job_t job,current_job;
+  matrix_job_t job,current_job,a_read_job;
   logic b_valid=0,b_ready,a_rd_en;
   logic [DW_ACT-1:0] b_data=0,a_data;
   logic [SCALE_BITS-1:0] b_scale=0,a_scale;
@@ -43,6 +43,7 @@ module tb_dea8_matrix_engine;
     .mask_block(job.ctx.block_id),.mask_epoch(job.ctx.epoch),.mask_valid,.mask_data,.protocol_error
   );
   dea8_matrix_engine dut (
+    .next_job_valid(1'b0),.next_job('0),
     .b_valid(kv_mode ? engine_b_valid : b_valid),.b_ready(engine_b_ready),
     .b_data(kv_mode ? engine_b_data : b_data),.b_scale(kv_mode ? engine_b_scale : b_scale),.*
   );
@@ -68,9 +69,9 @@ module tb_dea8_matrix_engine;
     if(rst_n) begin
       if(a_rd_en) begin
         for(int k=0;k<TILE;k++) a_data[k*ACT_BITS+:ACT_BITS] <= ACT_BITS'(av(j,
-          current_job.op==MATRIX_QK ? a_rd_addr/QOZ_TILES : a_rd_addr,
-          current_job.op==MATRIX_QK ? a_rd_addr%QOZ_TILES : 0,k));
-        a_scale <= SCALE_BITS'(128+((current_job.op==MATRIX_QK ?
+          a_read_job.op==MATRIX_QK ? a_rd_addr/QOZ_TILES : a_rd_addr,
+          a_read_job.op==MATRIX_QK ? a_rd_addr%QOZ_TILES : 0,k));
+        a_scale <= SCALE_BITS'(128+((a_read_job.op==MATRIX_QK ?
                        a_rd_addr/QOZ_TILES+a_rd_addr%QOZ_TILES : a_rd_addr)+j)%5);
       end
       if(b_valid && b_ready) accepted++;

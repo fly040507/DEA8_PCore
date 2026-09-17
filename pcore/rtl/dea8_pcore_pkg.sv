@@ -59,12 +59,21 @@ package dea8_pcore_pkg;
   parameter int unsigned LOGICAL_SEQ  = PREFIX_CAP + SUFFIX_LEN;
   parameter int unsigned SUFFIX_BLK0  = PREFIX_CAP / TILE;
   parameter int unsigned HEAD_TILES   = D_HEAD / TILE;
-  parameter int unsigned MATRIX_BLOCK_CYCLES = TILE + SUFFIX_LEN * HEAD_TILES;
   typedef enum logic [1:0] {BANK_NULL, BANK_LOAD, BANK_READY, BANK_ACTIVE} bank_state_e;
 
   parameter int unsigned MXU_LAT      = MXU_STAGES;
   parameter int unsigned DEQACC_LAT   = 5;
   parameter int unsigned PIPE_DRAIN   = MXU_LAT + DEQACC_LAT;
+  // MATRIX_BLOCK_CYCLES remains the legacy load+compute window, not Job done.
+  parameter int unsigned MATRIX_COMPUTE_CYCLES = SUFFIX_LEN * HEAD_TILES;
+  parameter int unsigned MATRIX_BLOCK_CYCLES = TILE + MATRIX_COMPUTE_CYCLES;
+  parameter int unsigned MATRIX_SWITCH_CYCLES = 1;
+  parameter int unsigned MATRIX_FRONTEND_CYCLES = 2;
+  parameter int unsigned MATRIX_STEADY_BUDGET =
+      MATRIX_COMPUTE_CYCLES + PIPE_DRAIN + MATRIX_SWITCH_CYCLES;
+  parameter int unsigned MATRIX_COLD_BUDGET =
+      MATRIX_FRONTEND_CYCLES + TILE + MATRIX_COMPUTE_CYCLES + PIPE_DRAIN;
+  parameter int unsigned MATRIX_WATCHDOG_CYCLES = 850;
   parameter int          DOT_EXP_OFFSET = 266;
   parameter int          QK_EXP_FOLD    = -4;
 
@@ -88,7 +97,7 @@ package dea8_pcore_pkg;
   parameter int unsigned WFIFO_SCALE_DEPTH = 32;
   parameter int unsigned WFIFO_DATA_BITS   = WEIGHT_WORD_BITS;
   parameter int unsigned WFIFO_SCALE_BITS  = SCALE_WORD_BITS;
-  parameter int unsigned KVFIFO_DEPTH = 128;
+  parameter int unsigned KVFIFO_DEPTH = 256;
   parameter int unsigned XFIFO_DEPTH  = 128;
 
   typedef logic [FP_BITS-1:0] fp_t;

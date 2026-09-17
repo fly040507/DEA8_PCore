@@ -25,8 +25,8 @@ module dea8_stream_fifo #(
   logic push, pop;
 
   assign count     = count_q;
-  assign in_ready  = (count_q < DEPTH);
-  assign out_valid = (count_q != 0);
+  assign in_ready  = rst_n && ((count_q < DEPTH) || pop);
+  assign out_valid = rst_n && (count_q != 0);
   assign out_data  = mem[rd_ptr_q];
   assign push      = in_valid && in_ready;
   assign pop       = out_valid && out_ready;

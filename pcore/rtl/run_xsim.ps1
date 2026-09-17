@@ -1,7 +1,7 @@
 param(
   [string]$VivadoRoot = "D:\Xilinx\Vivado\2022.2",
   [string]$PythonExecutable = "python",
-  [ValidateSet("all", "mxu", "attention", "deqacc", "qk", "r6", "matrix", "state", "frontend")]
+  [ValidateSet("all", "mxu", "attention", "deqacc", "qk", "r6", "matrix", "state", "frontend", "stream", "fullattention")]
   [string]$Test = "all"
 )
 $ErrorActionPreference = "Stop"
@@ -10,6 +10,15 @@ $xelab = Join-Path $VivadoRoot "bin\xelab.bat"
 $xsim = Join-Path $VivadoRoot "bin\xsim.bat"
 if (!(Test-Path $xvlog)) { throw "Vivado xvlog not found under $VivadoRoot" }
 $tests = @()
+if ($Test -eq "fullattention") { $tests += "tb_dea8_attention_core" }
+if ($Test -in @("all", "r6", "matrix", "fullattention")) {
+  Push-Location (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent)
+  try {
+    & $PythonExecutable -m pcore.tests.generate_attention_vectors
+    if ($LASTEXITCODE -ne 0) { throw "Attention vector generation failed" }
+  } finally { Pop-Location }
+}
+if ($Test -in @("all", "matrix", "stream")) { $tests += "tb_dea8_attention_matrix" }
 if ($Test -in @("all", "r6", "frontend")) { $tests += "tb_dea8_kvb_adapter", "tb_dea8_xbc_adapter" }
 if ($Test -in @("all", "mxu")) { $tests += "tb_dea8_mxu" }
 if ($Test -in @("all", "attention")) { $tests += "tb_dea8_attention_ctrl" }
@@ -53,6 +62,7 @@ function Invoke-Simulation([string]$Top, [string]$Mode, [string]$ExpectedFailure
 Push-Location $PSScriptRoot
 try {
   $testbenchFiles = @(
+    "..\tb\stubs\dea8_behavioral_fp_pkg.sv",
     "..\tb\stubs\dea8_vpu_stub.sv",
     "..\tb\stubs\dea8_sfu_stub.sv",
     "..\tb\stubs\dea8_gcore_stub.sv",
@@ -65,6 +75,7 @@ try {
     "..\tb\tb_dea8_attention_scheduler.sv",
     "..\tb\tb_dea8_attention_buffers.sv",
     "..\tb\tb_dea8_matrix_engine.sv",
+    "..\tb\tb_dea8_attention_matrix.sv",
     "..\tb\tb_dea8_attention_core.sv",
     "..\tb\tb_dea8_attention_state.sv",
     "..\tb\tb_dea8_p_result_link.sv",
@@ -78,6 +89,25 @@ try {
     & $xelab $top -s "${top}_sim" -timescale 1ns/1ps
     if ($LASTEXITCODE -ne 0) { throw "xelab failed for $top" }
     Invoke-Simulation $top "default" ""
+    if ($top -eq "tb_dea8_attention_core") {
+      & $xelab tb_dea8_attention_core_softmax -s "${top}_sim" -timescale 1ns/1ps
+      if ($LASTEXITCODE -ne 0) { throw "Behavioral Softmax elaboration failed" }
+      Invoke-Simulation $top "SOFTMAX" ""
+      Invoke-Simulation $top "TAIL_SLOW" ""
+      Invoke-Simulation $top "SKIP_TAIL_SCALE" "Fatal: Softmax PV oracle mismatch"
+    }
+    if ($top -eq "tb_dea8_attention_matrix") {
+      Invoke-Simulation $top "STARVE" ""
+      Invoke-Simulation $top "DEPENDENCY_WAIT" ""
+      Invoke-Simulation $top "DONE_BACKPRESSURE" ""
+      Invoke-Simulation $top "RESET_JOB" ""
+      foreach ($mode in @("BAD_COLUMN", "BAD_EPOCH", "BAD_ORDER")) {
+        Invoke-Simulation $top $mode "Fatal: Continuous KVB protocol/order/mask mismatch"
+      }
+      & $xelab tb_dea8_attention_matrix_no_prefetch -s "${top}_sim" -timescale 1ns/1ps
+      if ($LASTEXITCODE -ne 0) { throw "No-prefetch elaboration failed" }
+      Invoke-Simulation $top "NO_PREFETCH" ""
+    }
     if ($top -eq "tb_dea8_kvb_adapter") {
       foreach ($mode in @("BAD_KIND", "BAD_BLOCK", "BAD_EPOCH", "BAD_COLUMN", "BAD_TILE", "EARLY_LAST", "LATE_LAST", "PADDING", "MASK_CHANGE", "V_COLUMN")) {
         Invoke-Simulation $top $mode "Fatal: KVB protocol/context/order/mask mismatch"

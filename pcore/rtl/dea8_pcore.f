@@ -5,6 +5,8 @@ dea8_pe.sv
 dea8_dualwrite_fifo.sv
 dea8_stream_fifo.sv
 dea8_kvb_adapter.sv
+dea8_kvb_stream.sv
+dea8_block_job_queue.sv
 dea8_xbc_adapter.sv
 dea8_hbm_tile_unpack.sv
 dea8_stationary_loader.sv
@@ -22,6 +24,7 @@ dea8_qk_sequencer.sv
 dea8_qk_engine.sv
 dea8_matrix_sequencer.sv
 dea8_matrix_engine.sv
+dea8_attention_matrix.sv
 dea8_attention_mask.sv
 dea8_attention_ctrl.sv
 dea8_attention_scheduler.sv

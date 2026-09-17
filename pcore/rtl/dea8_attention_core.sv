@@ -6,8 +6,8 @@ import dea8_job_pkg::*;
 // path. This is NOT yet the full PCore (XBC/CNET/private projections are absent).
 module dea8_attention_core #(
   parameter bit USE_KVB = 0,
-  parameter bit V_KEY_LANE_IS_COLUMN = 0,
-  parameter int KVFIFO_DEPTH = 512
+  parameter bit V_KEY_LANE_IS_COLUMN = 1,
+  parameter int KVFIFO_DEPTH = dea8_pcore_pkg::KVFIFO_DEPTH
 ) (
   input logic clk,rst_n,
   input logic start_valid,resources_ready,
@@ -123,7 +123,7 @@ module dea8_attention_core #(
   output deq_dest_t commit_dest
 );
   logic matrix_valid,matrix_ready,matrix_done_valid,matrix_done_ready;
-  matrix_job_t matrix_cmd,matrix_done;
+  matrix_job_t matrix_cmd,matrix_done,a_read_job;
   logic a_rd_en;
   logic [QOZ_ADDR_BITS-1:0] a_rd_addr;
   logic [DW_ACT-1:0] a_data,q_data,pbuf_rd_data;
@@ -144,14 +144,13 @@ module dea8_attention_core #(
   logic recip_begin,recip_end;
   logic [BANK_COUNT-1:0] alpha_ready;
   job_context_t alpha_begin_ctx,alpha_done_ctx,vpu_alpha_rd_ctx;
-  logic frontend_valid,frontend_ready,frontend_expect_ready;
+  logic frontend_valid,frontend_ready;
   logic [DW_ACT-1:0] frontend_data;
   logic [SCALE_BITS-1:0] frontend_scale;
   if (USE_KVB) begin : g_kvb
-    dea8_kvb_adapter #(.FIFO_DEPTH(KVFIFO_DEPTH),
-      .V_KEY_LANE_IS_COLUMN(V_KEY_LANE_IS_COLUMN)) frontend (
-      .expect_valid(matrix_valid && matrix_ready),.expect_ready(frontend_expect_ready),
-      .expect_job(matrix_cmd),.b_valid(frontend_valid),.b_ready(frontend_ready),
+    dea8_kvb_stream #(.FIFO_DEPTH(KVFIFO_DEPTH)) frontend (
+      .start(init),.head(start_head),.epoch(start_epoch),
+      .b_valid(frontend_valid),.b_ready(frontend_ready),
       .b_data(frontend_data),.b_scale(frontend_scale),
       .mask_block(vpu_cmd.ctx.block_id),.mask_epoch(vpu_cmd.ctx.epoch),
       .mask_valid(vpu_key_mask_valid),.mask_data(vpu_key_mask),
@@ -165,7 +164,6 @@ module dea8_attention_core #(
     assign b_ready=frontend_ready;
     assign kvb_ready=0;
     assign kvb_protocol_error=0;
-    assign frontend_expect_ready=1;
     // Legacy normalized test input does not supply a mask context.
     assign vpu_key_mask_valid=0;
     assign vpu_key_mask='0;
@@ -200,20 +198,21 @@ module dea8_attention_core #(
 
   dea8_attention_scheduler scheduler (.*);
   assign matrix_done=current_job;
-  dea8_matrix_engine matrix (
+  dea8_attention_matrix matrix (
+    .start(init),.head(start_head),.epoch(start_epoch),.matrix_done(),
     .b_valid(frontend_valid),.b_ready(frontend_ready),
     .b_data(frontend_data),.b_scale(frontend_scale),
-    .job_valid(matrix_valid),.job_ready(matrix_ready),.job_busy(matrix_busy),
-    .job_done_valid(matrix_done_valid),.job_done_ready(matrix_done_ready),.job(matrix_cmd),.*
+    .launch_valid(matrix_valid),.launch_ready(matrix_ready),.job_busy(matrix_busy),
+    .job_done_valid(matrix_done_valid),.job_done_ready(matrix_done_ready),.launch_job(matrix_cmd),.*
   );
   dea8_qoz_buffer qoz (
     .clk,.wr_en(qoz_wr_en),.wr_addr(qoz_wr_addr),.wr_data(qoz_wr_data),.wr_scale(qoz_wr_scale),
-    .rd_en(a_rd_en && current_job.op==MATRIX_QK),.rd_addr(a_rd_addr),.rd_data(q_data),.rd_scale(q_scale)
+    .rd_en(a_rd_en && a_read_job.op==MATRIX_QK),.rd_addr(a_rd_addr),.rd_data(q_data),.rd_scale(q_scale)
   );
   assign a_data=current_job.op==MATRIX_QK ? q_data : pbuf_rd_data;
   assign a_scale=current_job.op==MATRIX_QK ? q_scale : pbuf_rd_scale;
   dea8_attention_buffers buffers (
-    .pbuf_rd_en(a_rd_en && current_job.op==MATRIX_PV),.pbuf_rd_bank(current_job.pbuf_bank),
+    .pbuf_rd_en(a_rd_en && a_read_job.op==MATRIX_PV),.pbuf_rd_bank(a_read_job.pbuf_bank),
     .pbuf_rd_row(ROW_BITS'(a_rd_addr)),.*
   );
   assign deq_reserved=matrix_busy ? (current_job.op==MATRIX_PV ? 3'b100 :
@@ -243,9 +242,9 @@ module dea8_attention_core #(
     end
   end
   // synthesis translate_off
+  initial if(USE_KVB && !V_KEY_LANE_IS_COLUMN)
+    $fatal(1,"Continuous KVB requires B-column layout for both K and V");
   always @(posedge clk) if(rst_n) begin
-    if(USE_KVB && matrix_valid && matrix_ready && !frontend_expect_ready)
-      $fatal(1,"KVB expected context not released");
     if(USE_KVB && vpu_valid && vpu_ready && vpu_cmd.op==VPU_QK_POST && !vpu_key_mask_valid)
       $fatal(1,"QK_POST missing KV mask context");
     if(vpu_alpha_rd_en && (!vpu_active ||

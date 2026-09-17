@@ -1,5 +1,28 @@
 # 实现状态
 
+## 2026-09-17：完整 Attention 行为模型联调
+
+PV53后新增至少828拍尾部SCALE时隙，并要求真实VPU done后才能启动PV54；没有虚构QK55。
+Scheduler已消除普通Block多余交接拍。SFU/VPU可选仿真数学模型经实际接口产生P、缩放OACC并计算AFIN。
+正常场景矩阵Done=T91924，比纯矩阵T91096恰好多828；AFIN后的Attention Done=T92799。
+独立Python对照覆盖所有PV结果及AFIN；另测尾部慢完成和故意跳过缩放的错误注入。
+详见 [完整联调与尾部时隙](Attention_完整联调与尾部时隙_20260917.md)。
+最终XSim全量59个模式通过（30正常、29预期错误），Python20项通过；
+证据见 [尾部联调验证记录](Attention_尾部联调验证记录_20260917.md)。
+仿真数学模型不属于可综合SFU/VPU，不代表正式算术微架构已经实现。
+
+## 2026-09-17：Attention 连续矩阵调度
+
+最新矩阵侧依据改为用户本次连续 KVB / 跨 Job 预加载方案，详见
+[Attention 连续矩阵调度](Attention_连续矩阵调度_20260917.md)。
+已接入两项 Job 队列、256 项连续 KVFIFO、直接 B-column 写 PE、跨 Job tile0 预加载与最终 commit 屏障。
+Attention 主路径不再经过旧 expect_job Adapter 或 tile_columns；HBM 路径仍保留原加载格式。
+独立矩阵测试实测稳态 828 拍；该数字不包含完整 VPU/SFU 依赖与尾部 OACC 缩放。
+本次 XSim 全量 56 个模式通过（28 正常、28 预期错误），Python 20 项通过；
+原始日志、周期 CSV 和受测源码 SHA256 见 [验证记录](Attention_连续矩阵验证_20260917.md)。
+以下记录按日期保留；其中“不能跨 Block 预加载”“V column 未确认”等旧描述不适用于新 Attention 路径。
+未同步发布快照、未上传 GitHub，未做目标器件综合时序签核。
+
 ## 2026-09-14：第六轮 Frontend 增量
 
 新增 KVB Adapter（完整事务 KVFIFO、Expected Context、协议检查、KV_MASK）和 XBC Adapter（原始 XFIFO、两路拆分）。
