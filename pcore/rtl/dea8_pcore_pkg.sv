@@ -97,7 +97,14 @@ package dea8_pcore_pkg;
   parameter int unsigned WFIFO_SCALE_DEPTH = 32;
   parameter int unsigned WFIFO_DATA_BITS   = WEIGHT_WORD_BITS;
   parameter int unsigned WFIFO_SCALE_BITS  = SCALE_WORD_BITS;
-  parameter int unsigned KVFIFO_DEPTH = 256;
+  parameter int unsigned B_ENTRY_BITS = WEIGHT_WORD_BITS + SCALE_BITS;
+  parameter int unsigned B_FIFO_DEPTH = 64;
+  parameter int unsigned KVFIFO_DEPTH = B_FIFO_DEPTH;
+  parameter int unsigned W_B_FIFO_DEPTH = B_FIFO_DEPTH;
+  typedef struct packed {
+    logic [WEIGHT_WORD_BITS-1:0] data;
+    logic [SCALE_BITS-1:0] scale;
+  } b_entry_t;
   parameter int unsigned XFIFO_DEPTH  = 128;
 
   typedef logic [FP_BITS-1:0] fp_t;

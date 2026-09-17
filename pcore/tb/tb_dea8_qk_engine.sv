@@ -121,7 +121,7 @@ module tb_dea8_qk_engine;
       for(int k=0;k<TILE;k++) qoz_wr_data[k*ACT_BITS+:ACT_BITS]=ACT_BITS'(q(row,kt,k));
     end
     @(negedge clk); qoz_wr_en=0;
-    if(!stream_mode) wait(hbm_done);
+    if(!stream_mode) wait(dut.loader.count>=TILE);
     for(int j=0;j<2;j++) begin
       @(negedge clk);
       job_valid=1; resources_ready=0;

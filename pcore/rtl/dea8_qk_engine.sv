@@ -60,7 +60,7 @@ module dea8_qk_engine (
     .wr_data(qoz_wr_data), .wr_scale(qoz_wr_scale),
     .rd_en(qoz_rd_en), .rd_addr(qoz_rd_addr), .rd_data(activation), .rd_scale(e_stream)
   );
-  dea8_mxu mxu (.rsp_ready(1'b1), .*);
+  dea8_mxu #(.COLUMN_LOAD(1)) mxu (.rsp_ready(1'b1), .*);
   assign deq_req = '{psum:psum, e_stat:e_stat, e_stream:rsp_e_stream, tag:rsp_tag};
   dea8_deqacc deq (
     .clk, .rst_n, .req_valid(rsp_valid), .req(deq_req), .req_dest(rsp_dest),

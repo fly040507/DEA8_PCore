@@ -1,5 +1,9 @@
 # DEA-8 PCore / Attention
 
+最新B侧实现：[B侧统一列流与接口契约](docs/B侧统一列流与接口契约_20260917.md)。
+W与KV使用两个独立的64×136bit同步读FIFO，数据与scale按列配对；HBM仍为8+1beat，内部单Tile重排。
+本增量覆盖旧256项KVFIFO与HBM双WFIFO的描述，未改真实GCore/VPU/SFU。
+
 最新增量：[完整Attention联调与尾部828拍时隙](docs/Attention_完整联调与尾部时隙_20260917.md)。
 PV53与PV54之间保留独立SCALE槽；真实矩阵RTL配合SFU/VPU数学行为模型跑通55个Block。
 含该时隙的矩阵完成实测91924拍，不再把纯矩阵基准91096当作集成总周期。
@@ -7,7 +11,7 @@ PV53与PV54之间保留独立SCALE槽；真实矩阵RTL配合SFU/VPU数学行为
 当前依据：用户最新桌面 README.docx，第六轮改动见 [R6进度](docs/R6_进度与接口边界.md)。
 Attention 矩阵侧现以 2026-09-17 用户连续流方案覆盖旧条款，见
 [连续矩阵调度与周期说明](docs/Attention_连续矩阵调度_20260917.md)。
-已实现一次 Top Job、内部 110 个 Block Job、256 项 KVFIFO、直接列加载与跨 Job 预加载。
+已实现一次 Top Job、内部 110 个 Block Job、64 项配对 KVFIFO、直接列加载与跨 Job 预加载。
 Attention Core 已接共用 QK/PV 矩阵、标量 RF、P 流和独立 VPU/SFU 仿真壳。
 09-14 新增 KVB/XBC 前端及 KV_MASK，详见 [Frontend 接口与验证](docs/R6_Frontend_接口与验证.md)。
 接口及限制见 [标量状态与壳接口](docs/R6_标量状态与壳接口.md)。
@@ -16,7 +20,7 @@ Attention Core 已接共用 QK/PV 矩阵、标量 RF、P 流和独立 VPU/SFU �
 
 ## 当前已实现并仿真的通路
 
-HBM -> dea8_w_loader（Fetch、WFIFO、Bank Load与状态） -> dea8_mxu -> Psum + sideband[5]。
+HBM -> 单Tile Assembler -> W B-FIFO -> 列加载器/Bank状态机 -> dea8_mxu -> Psum + sideband[5]。
 
 dea8_qk_engine 保留为 QK standalone 回归入口；新版 dea8_matrix_engine 已支持 QK/PV，
 并由 dea8_attention_core 连接真实同步 QOZ、PBUF、DEQACC 和累加存储。
@@ -25,7 +29,7 @@ dea8_qk_engine 保留为 QK standalone 回归入口；新版 dea8_matrix_engine 
 接线、时序和运行方式见 [DEQACC接入说明](docs/DEQACC_RTL接入说明.md)。
 
 - 256bit HBM、8数据beat+1低128bit有效scale beat。
-- 完整Tile预留后16拍装载，scale首拍同步写入。
+- HBM路径完整Tile预留后16拍装载，每拍同步写一列数据与该列scale；不再首拍写整组scale。
 - HBM 的 Stationary Loader 与 Attention 的 Matrix Sequencer 分别拥有各自路径的 Bank 状态；不同时驱动同一阵列。
 - Q_ACT_REG / E_STREAM_REG / ACT_TAG_REG / ACT_VALID_REG输入边界。
 - E_STAT_ACTIVE_REG只在激活bank时更新，每个乘法沿复制到pipe[1]。
@@ -47,6 +51,11 @@ powershell -ExecutionPolicy Bypass -File pcore/rtl/run_xsim.ps1 -Test all
 主MXU测试实际连接W_Loader、FIFO和PE；验证2个block、32个Tile、1632行和26112个输出lane，
 包含负数/极值、逐lane scale、完整tag、首拍启动、READY保持、中间切换、block间16拍加载。
 额外测试流式HBM及延迟scale、Tile内断流必须报错。
+
+新增 `run_xsim.ps1 -Test bside` 检查同步读FIFO、HBM重排与KVB跨Job接收。
+Python旧Loader测试保留为历史参考，不代表新B侧逐拍实现；新路径由RTL测试覆盖。
+单FIFO的BRAM综合检查可运行 `check_b_fifo_synth.tcl`，不等于整个PCore时序签核。
+本次67模式全量回归、20项Python测试与单FIFO综合结果见 [B侧验证记录](docs/B侧统一列流验证记录_20260917.md)。
 
 DEQACC及Attention矩阵调度已通过RTL仿真，并完成VPU/SFU数学行为模型联调。
 VPU/SFU正式RTL与目标器件综合时序签核仍未完成；行为模型PASS不代替正式算术精度验证。

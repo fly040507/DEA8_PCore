@@ -1,7 +1,7 @@
 param(
   [string]$VivadoRoot = "D:\Xilinx\Vivado\2022.2",
   [string]$PythonExecutable = "python",
-  [ValidateSet("all", "mxu", "attention", "deqacc", "qk", "r6", "matrix", "state", "frontend", "stream", "fullattention")]
+  [ValidateSet("all", "mxu", "attention", "deqacc", "qk", "r6", "matrix", "state", "frontend", "stream", "fullattention", "bside")]
   [string]$Test = "all"
 )
 $ErrorActionPreference = "Stop"
@@ -10,6 +10,7 @@ $xelab = Join-Path $VivadoRoot "bin\xelab.bat"
 $xsim = Join-Path $VivadoRoot "bin\xsim.bat"
 if (!(Test-Path $xvlog)) { throw "Vivado xvlog not found under $VivadoRoot" }
 $tests = @()
+if ($Test -in @("all", "bside")) { $tests += "tb_dea8_b_fifo", "tb_dea8_w_b_stream", "tb_dea8_kvb_stream" }
 if ($Test -eq "fullattention") { $tests += "tb_dea8_attention_core" }
 if ($Test -in @("all", "r6", "matrix", "fullattention")) {
   Push-Location (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent)
@@ -62,6 +63,9 @@ function Invoke-Simulation([string]$Top, [string]$Mode, [string]$ExpectedFailure
 Push-Location $PSScriptRoot
 try {
   $testbenchFiles = @(
+    "..\tb\tb_dea8_b_fifo.sv",
+    "..\tb\tb_dea8_w_b_stream.sv",
+    "..\tb\tb_dea8_kvb_stream.sv",
     "..\tb\stubs\dea8_behavioral_fp_pkg.sv",
     "..\tb\stubs\dea8_vpu_stub.sv",
     "..\tb\stubs\dea8_sfu_stub.sv",
@@ -101,7 +105,7 @@ try {
       Invoke-Simulation $top "DEPENDENCY_WAIT" ""
       Invoke-Simulation $top "DONE_BACKPRESSURE" ""
       Invoke-Simulation $top "RESET_JOB" ""
-      foreach ($mode in @("BAD_COLUMN", "BAD_EPOCH", "BAD_ORDER")) {
+      foreach ($mode in @("BAD_COLUMN", "BAD_EPOCH", "BAD_ORDER", "BAD_TILE", "EARLY_LAST", "LATE_LAST", "MASK_CHANGE", "PADDING")) {
         Invoke-Simulation $top $mode "Fatal: Continuous KVB protocol/order/mask mismatch"
       }
       & $xelab tb_dea8_attention_matrix_no_prefetch -s "${top}_sim" -timescale 1ns/1ps

@@ -1,5 +1,17 @@
 # 实现状态
 
+## 2026-09-17：B侧配对列流增量
+
+W/KV各使用独立64×136bit同步读FIFO，统一BEntry与列写入数据通路；KV元数据在入队前校验，FIFO仅存payload。
+HBM保持8数据beat+1scale beat，采用一个272字节Tile Assembler完成行转列；接收与排出不重叠，依靠ready背压。
+W路径不再使用512×128数据FIFO和32×128scale FIFO，scale改为逐列同步写E_STAT。
+`start`使用同步clear清空KVFIFO，不再拼接复位。
+单FIFO在代表器件XCU280的综合中推断为2个RAMB36E2；尚未完成全PCore布局布线/时序签核。
+详见 [B侧接口契约](B侧统一列流与接口契约_20260917.md)。下文为历史阶段记录。
+最终全量XSim通过67个模式（33正常、34预期错误），Python20项通过。
+含尾部槽矩阵Done仍为91924拍，行为模型Attention Done为92799拍；
+日志、源码校验与资源报告见 [B侧验证记录](B侧统一列流验证记录_20260917.md)。
+
 ## 2026-09-17：完整 Attention 行为模型联调
 
 PV53后新增至少828拍尾部SCALE时隙，并要求真实VPU done后才能启动PV54；没有虚构QK55。

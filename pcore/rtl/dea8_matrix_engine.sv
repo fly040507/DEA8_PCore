@@ -46,10 +46,9 @@ module dea8_matrix_engine #(
   logic [TILE-1:0][SCALE_BITS-1:0] e_stat;
   logic [SCALE_BITS-1:0] rsp_e_stream;
   mxu_rsp_t deq_req;
-  assign load_weight_beat=b_data;
-  assign scale_load_valid=load_valid;
-  assign load_scale_word={{(SCALE_WORD_BITS-SCALE_BITS){1'b0}},b_scale};
-  assign load_tile_complete=load_valid && load_weight_idx==TILE-1;
+  b_entry_t entry;
+  assign entry={b_data,b_scale};
+  dea8_b_column_loader columns (.*);
   dea8_matrix_sequencer #(.ENABLE_LOOKAHEAD(ENABLE_LOOKAHEAD)) sequencer (.*);
   dea8_mxu #(.COLUMN_LOAD(1)) mxu (.activation(a_data),.e_stream(a_scale),.rsp_ready(1'b1),.*);
   assign deq_req='{psum:psum,e_stat:e_stat,e_stream:rsp_e_stream,tag:rsp_tag};

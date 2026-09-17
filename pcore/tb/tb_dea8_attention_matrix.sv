@@ -175,6 +175,11 @@ module tb_dea8_attention_matrix #(
         if($test$plusargs("BAD_COLUMN") && j==1 && t==0 && n==3) kvb_key_lane=4;
         if($test$plusargs("BAD_EPOCH") && j==1 && t==0 && n==3) kvb_epoch=epoch+1'b1;
         if($test$plusargs("BAD_ORDER") && j==1) kvb_kind=1;
+        if($test$plusargs("BAD_TILE") && j==1 && t==0 && n==3) kvb_feat_blk=1;
+        if($test$plusargs("EARLY_LAST") && j==1 && t==0 && n==3) kvb_last=1;
+        if($test$plusargs("LATE_LAST") && j==1 && t==HEAD_TILES-1 && n==TILE-1) kvb_last=0;
+        if($test$plusargs("MASK_CHANGE") && j==1 && t==0 && n==3) kvb_valid_mask[0]=0;
+        if($test$plusargs("PADDING") && int'(kvb_blk_id)==N_KV_BLOCK-1) kvb_valid_mask='1;
         do @(posedge clk); while(!kvb_ready);
         @(negedge clk);
       end
@@ -198,7 +203,9 @@ module tb_dea8_attention_matrix #(
       $test$plusargs("DEPENDENCY_WAIT") ? "attention_matrix_dependency_cycles.csv" :
       $test$plusargs("DONE_BACKPRESSURE") ? "attention_matrix_backpressure_cycles.csv" :
       $test$plusargs("RESET_JOB") ? "attention_matrix_reset_cycles.csv" :
-      ($test$plusargs("BAD_COLUMN") || $test$plusargs("BAD_EPOCH") || $test$plusargs("BAD_ORDER")) ?
+      ($test$plusargs("BAD_COLUMN") || $test$plusargs("BAD_EPOCH") || $test$plusargs("BAD_ORDER") ||
+       $test$plusargs("BAD_TILE") || $test$plusargs("EARLY_LAST") || $test$plusargs("LATE_LAST") ||
+       $test$plusargs("MASK_CHANGE") || $test$plusargs("PADDING")) ?
       "attention_matrix_error_cycles.csv" : PREFETCH ? "attention_matrix_cycles.csv" :
       "attention_matrix_noprefetch_cycles.csv","w");
     $fdisplay(logfd,"event,job,cycle_from_top");

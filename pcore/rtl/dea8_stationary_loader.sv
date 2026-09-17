@@ -1,14 +1,13 @@
 import dea8_pcore_pkg::*;
 
 // Single owner of stationary banks, independent of HBM/KVB transport.
-// tile_available reserves 16 consecutive data words and one complete scale
-// vector. After the first pop the source MUST supply all remaining words.
+// tile_available reserves 16 paired column entries. After the first pop the
+// source MUST supply all remaining entries. No independent scale FIFO.
 module dea8_stationary_loader (
   input logic clk, rst_n,
   input logic tile_available, data_valid,
-  input logic [WEIGHT_WORD_BITS-1:0] data_word,
-  input logic [SCALE_WORD_BITS-1:0] scale_word,
-  output logic data_pop, scale_pop,
+  input b_entry_t entry,
+  output logic data_pop,
   input logic bank_load_enable, tile_last_mul_fire,
   output logic active_bank, active_valid,
   output logic load_bank, load_valid,
@@ -32,11 +31,7 @@ module dea8_stationary_loader (
   assign load_weight_idx = loading_q ? load_index_q : '0;
   assign load_valid = rst_n && (loading_q || start_load) && data_valid;
   assign data_pop = load_valid;
-  assign scale_pop = start_load && load_valid;
-  assign scale_load_valid = scale_pop;
-  assign load_weight_beat = data_word;
-  assign load_scale_word = scale_word;
-  assign load_tile_complete = load_valid && load_weight_idx == TILE-1;
+  dea8_b_column_loader columns (.*);
 
   always_comb begin
     bank_activate = 0;

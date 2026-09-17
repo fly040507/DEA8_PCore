@@ -4,6 +4,10 @@ dea8_fp32_pkg.sv
 dea8_pe.sv
 dea8_dualwrite_fifo.sv
 dea8_stream_fifo.sv
+dea8_b_fifo.sv
+dea8_b_column_loader.sv
+dea8_w_tile_assembler.sv
+dea8_w_b_stream.sv
 dea8_kvb_adapter.sv
 dea8_kvb_stream.sv
 dea8_block_job_queue.sv

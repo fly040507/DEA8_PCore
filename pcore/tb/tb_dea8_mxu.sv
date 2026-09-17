@@ -55,7 +55,7 @@ module tb_dea8_mxu;
   endfunction
 
   dea8_w_loader loader (.*);
-  dea8_mxu dut (.*);
+  dea8_mxu #(.COLUMN_LOAD(1)) dut (.*);
   assign deq_req = '{psum:psum, e_stat:e_stat, e_stream:rsp_e_stream, tag:rsp_tag};
   assign deq_dest = rsp_dest;
   dea8_deqacc deq (
@@ -97,11 +97,12 @@ module tb_dea8_mxu;
     if(rst_n) begin
       if(load_valid) begin
         if(load_weight_idx==0) begin
-          if(!scale_load_valid) $fatal(1,"Scale not paired with first row");
           if(loads_started%HEAD_TILES==0) first_load=cycle;
           loads_started=loads_started+1;
           load_cycles=0;
-        end else if(scale_load_valid) $fatal(1,"Repeated scale write");
+        end
+        if(!scale_load_valid || load_scale_word[0+:SCALE_BITS]!=es(loads_started-1,load_weight_idx))
+          $fatal(1,"Scale not paired with column");
         if(load_weight_idx!=load_cycles) $fatal(1,"Noncontinuous Bank Load");
         load_cycles=load_cycles+1;
         if(load_tile_complete && load_cycles!=TILE) $fatal(1,"Load not 16 cycles");
@@ -167,7 +168,7 @@ module tb_dea8_mxu;
     repeat(3) @(negedge clk);
     rst_n=1;
     if(streaming) run=1;
-    // Prefill all tiles, including nonzero ignored high scale bytes.
+    // Prefill one tile before starting; the new FIFO holds four, not 32 tiles.
     for(int t=0;t<TOTAL_TILES;t++) begin
       for(int b=0;b<HBM_BEATS_PER_TILE;b++) begin
         @(negedge clk);
@@ -189,10 +190,15 @@ module tb_dea8_mxu;
         hbm_valid=1;
         do @(posedge clk); while(!hbm_ready);
       end
+      if(t==0 && !streaming) begin
+        @(negedge clk);hbm_valid=0;
+        repeat(TILE+2) @(negedge clk);
+        if(loads_started!=0) $fatal(1,"Loaded before enable");
+        run=1;
+      end
     end
     @(negedge clk); hbm_valid=0;
     repeat(3) @(negedge clk);
-    if(!streaming && loads_started!=0) $fatal(1,"Loaded before enable");
     run=1;
   end
   initial begin #100000; $fatal(1,"Timeout"); end
