@@ -1,0 +1,12 @@
+pcore2_pkg.sv
+dea8_pe_2row.sv
+dea8_mxu_2row.sv
+pcore2_fifo.sv
+dea8_a2_fifo.sv
+dea8_w_tile_assembler_pp.sv
+dea8_xbc_a2_adapter.sv
+dea8_b_column_loader.sv
+dea8_matrix_frontend_2row.sv
+dea8_a_pair_buffer.sv
+dea8_a_tile_reader.sv
+dea8_matrix_engine_2row.sv
