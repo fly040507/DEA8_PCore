@@ -93,7 +93,8 @@ module tb_dea8_matrix_frontend_2row;
           $fatal(1,"Frontend tag mode=%0d index=%0d",mode,job_seen);
         if(rsp_dest[r].address!==10'(model_job.dest_base+(2*(job_seen%PAIRS)+r)*model_job.dest_stride+
            (mode==2 ? job_seen/PAIRS : 0)) || rsp_dest[r].bank!==model_job.dest_bank ||
-           rsp_dest[r].zero!==(mode==2 || job_seen/PAIRS==0)) $fatal(1,"Frontend destination");
+           rsp_dest[r].zero!==(model_job.init_dest && (mode==2 || job_seen/PAIRS==0)))
+          $fatal(1,"Frontend destination");
         if(rsp_row_valid[r] && rsp_scale[r]!==8'(mode*29+(mode==2 ? 0 : job_seen/PAIRS)*7+(job_seen%PAIRS)*3+r))
           $fatal(1,"Frontend E_STREAM");
         for(int n=0;n<TILE;n++) begin
@@ -193,10 +194,26 @@ module tb_dea8_matrix_frontend_2row;
       model_job.init_dest=1;
       model_job.pbuf_bank=m==2;
       model_job.dest_base=3;model_job.dest_stride=m==2 ? TILES : 1;model_job.dest_bank=m;
-      if(m!=0) fill_memory(m);
-      @(negedge clk);job=model_job;job_valid=1;
-      do @(posedge clk);while(!job_ready);
-      @(negedge clk);job_valid=0;job='1; // Configuration must remain latched.
+      if(m==1) begin
+        @(negedge clk);job=model_job;job_valid=1;
+        repeat(3) begin
+          @(posedge clk); #1;
+          if(job_ready || protocol_error || busy)
+            $fatal(1,"Uncommitted QOZ must backpressure without error");
+        end
+        fork
+          fill_memory(m);
+          begin
+            do @(posedge clk); while(!job_ready);
+            @(negedge clk);job_valid=0;job='1;
+          end
+        join
+      end else begin
+        if(m!=0) fill_memory(m);
+        @(negedge clk);job=model_job;job_valid=1;
+        do @(posedge clk);while(!job_ready);
+        @(negedge clk);job_valid=0;job='1; // Configuration must remain latched.
+      end
       fork send_a();send_b();join
       wait(done);@(negedge clk);
       if(protocol_error || busy || job_seen!=TILES*PAIRS) $fatal(1,"Frontend job completion");
@@ -204,6 +221,17 @@ module tb_dea8_matrix_frontend_2row;
       $display("Issue window source=%0d cycles=%0d useful=%0d gaps=%0d utilization=%0.2f%%",
         m,last_issue-first_issue+1,issue_count,last_issue-first_issue+1-issue_count,
         100.0*issue_count/(last_issue-first_issue+1));
+      if(m==0 || m==2) begin
+        job_seen=0;issue_count=0;
+        model_job.tiles=1;model_job.init_dest=0;
+        @(negedge clk);job=model_job;job_valid=1;
+        do @(posedge clk);while(!job_ready);
+        @(negedge clk);job_valid=0;job='1;
+        fork send_a(1);send_b(1);join
+        wait(done);@(negedge clk);
+        if(protocol_error || busy || job_seen!=PAIRS)
+          $fatal(1,"init_dest=0 mode=%0d job failed",m);
+      end
     end
     if(overlap==0) $fatal(1,"No concurrent B load/compute");
     // A stale epoch must be rejected and require clear before a new job.
@@ -254,7 +282,7 @@ module tb_dea8_matrix_frontend_2row;
       $display("Boundary job tiles=%0d pairs=%0d issue_window=%0d gaps=%0d",
         model_job.tiles,job_seen,last_issue-first_issue+1,last_issue-first_issue+1-issue_count);
     end
-    $display("tb_dea8_matrix_frontend_2row PASS tiles=97 pairs=%0d psums=%0d load_compute_overlap=%0d",
+    $display("tb_dea8_matrix_frontend_2row PASS tiles=99 pairs=%0d psums=%0d load_compute_overlap=%0d",
       total_seen,total_seen*ROW_LANES*TILE,overlap);
     $finish;
   end

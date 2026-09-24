@@ -13,6 +13,17 @@ module dea8_pe_2row (
   logic [47:0] packed_product;
   logic signed [17:0] high_product;
   logic unpack_valid;
+  logic [29:0] dsp_acout_unused;
+  logic [17:0] dsp_bcout_unused;
+  logic dsp_carrycascout_unused;
+  logic [3:0] dsp_carryout_unused;
+  logic dsp_multsignout_unused;
+  logic dsp_overflow_unused;
+  logic [47:0] dsp_pcout_unused;
+  logic dsp_patternbdetect_unused;
+  logic dsp_patterndetect_unused;
+  logic dsp_underflow_unused;
+  logic [7:0] dsp_xorout_unused;
   assign a_port=$signed({{22{a0[7]}},a0}) <<< 18;
   assign d_port={{19{a1[7]}},a1};
   assign b_port={{10{weight_bank[active_bank][7]}},weight_bank[active_bank]};
@@ -34,6 +45,12 @@ module dea8_pe_2row (
     .ALUMODEREG(0),.CARRYINREG(0),.CARRYINSELREG(0),
     .USE_MULT("MULTIPLY"),.USE_SIMD("ONE48")
   ) dsp (
+    .ACOUT(dsp_acout_unused),.BCOUT(dsp_bcout_unused),
+    .CARRYCASCOUT(dsp_carrycascout_unused),.CARRYOUT(dsp_carryout_unused),
+    .MULTSIGNOUT(dsp_multsignout_unused),.OVERFLOW(dsp_overflow_unused),
+    .PATTERNBDETECT(dsp_patternbdetect_unused),
+    .PATTERNDETECT(dsp_patterndetect_unused),.PCOUT(dsp_pcout_unused),
+    .UNDERFLOW(dsp_underflow_unused),.XOROUT(dsp_xorout_unused),
     .CLK(clk),.A(a_port),.D(d_port),.B(b_port),.C(48'b0),
     .INMODE(5'b00100),.OPMODE(9'b000000101),.ALUMODE(4'b0),
     .CARRYINSEL(3'b0),.CARRYIN(1'b0),.CARRYCASCIN(1'b0),.MULTSIGNIN(1'b0),

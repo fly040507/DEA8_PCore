@@ -32,7 +32,8 @@ import pcore2_pkg::*;
   logic [EPOCH_BITS-1:0] qoz_epoch[0:0],pbuf_epoch[0:1];
   logic [TILE_BITS-1:0] qoz_base[0:0],pbuf_base[0:1];
   logic [TILE_BITS:0] qoz_tiles[0:0],pbuf_tiles[0:1];
-  logic qoz_region_bad,pbuf_region_bad,memory_config_bad;
+  logic qoz_region_ready,pbuf_region_ready,region_ready;
+  logic reader_owner_error,qoz_owner_busy,pbuf_owner_busy;
   wire [2:0] a_valid;
   logic [2:0] a_ready;
   a2_t a_entry[0:2];
@@ -50,22 +51,32 @@ import pcore2_pkg::*;
     int'(job.dest_base)+(ROWS-1)*int'(job.dest_stride)+(job.along_n ? int'(job.tiles)-1 : 0)>1023 ||
     int'(job.kt_base)+(job.along_n ? 0 : int'(job.tiles)-1)>255 ||
     int'(job.nt_base)+(job.along_n ? int'(job.tiles)-1 : 0)>255;
-  assign qoz_region_bad=job.a_source==A_QOZ &&
-    !(qoz_complete[0] && qoz_epoch[0]==job.epoch &&
+  assign qoz_region_ready=qoz_complete[0] && qoz_epoch[0]==job.epoch &&
       job.a_mem_base>=qoz_base[0] &&
-      job.a_mem_base+job.tiles<=qoz_base[0]+qoz_tiles[0]);
+      job.a_mem_base+job.tiles<=qoz_base[0]+qoz_tiles[0];
   // PBUF execution Tiles reuse one physical Tile, so the requested
   // physical span is one Tile even when job.tiles is larger.
-  assign pbuf_region_bad=job.a_source==A_PBUF &&
-    !(pbuf_complete[job.pbuf_bank] && pbuf_epoch[job.pbuf_bank]==job.epoch &&
-      pbuf_base[job.pbuf_bank]==0 && pbuf_tiles[job.pbuf_bank]>=1);
-  assign memory_config_bad=qoz_region_bad || pbuf_region_bad;
-  assign protocol_error=frontend_error || config_error || memory_error[1] || memory_error[2];
-  assign job_ready=frontend_ready && !config_error && !config_bad && !memory_config_bad;
+  assign pbuf_region_ready=pbuf_complete[job.pbuf_bank] &&
+    pbuf_epoch[job.pbuf_bank]==job.epoch &&
+    pbuf_base[job.pbuf_bank]==0 && pbuf_tiles[job.pbuf_bank]>=1;
+  assign region_ready=job.a_source==A_QOZ ? qoz_region_ready :
+                      job.a_source==A_PBUF ? pbuf_region_ready : 1'b1;
+  assign qoz_owner_busy=busy && source==A_QOZ;
+  assign pbuf_owner_busy=busy && source==A_PBUF && pbuf_begin.bank==rd_bank;
+  assign protocol_error=frontend_error || config_error || reader_owner_error ||
+                        memory_error[1] || memory_error[2];
+  assign job_ready=frontend_ready && !protocol_error && !config_bad && region_ready;
   assign start=job_valid && job_ready;
   always_ff @(posedge clk) begin
-    if(reset || clear) config_error<=0;
-    else if(job_valid && frontend_ready && !config_error && (config_bad || memory_config_bad)) config_error<=1;
+    if(reset || clear) begin
+      config_error<=0;
+      reader_owner_error<=0;
+    end else begin
+      if(job_valid && frontend_ready && !config_error && config_bad) config_error<=1;
+      if((qoz_begin.valid && qoz_owner_busy) ||
+         (pbuf_begin.valid && pbuf_owner_busy))
+        reader_owner_error<=1;
+    end
   end
   assign a_valid[0]=xbc_valid;
   assign a_entry[0]=xbc_entry;
@@ -73,8 +84,12 @@ import pcore2_pkg::*;
   assign xbc_ready=a_ready[0];
   assign writes[1]=qoz_write;
   assign writes[2]=pbuf_write;
-  assign begins[1]=qoz_begin;
-  assign begins[2]=pbuf_begin;
+  always_comb begin
+    begins[1]=qoz_begin;
+    begins[2]=pbuf_begin;
+    if(qoz_owner_busy) begins[1].valid=0;
+    if(pbuf_owner_busy) begins[2].valid=0;
+  end
   assign commits[1]=qoz_commit;
   assign commits[2]=pbuf_commit;
   assign rd_ready=source==A_QOZ ? memory_ready[1] :
@@ -106,7 +121,7 @@ import pcore2_pkg::*;
     .out_valid(a_valid[2]),.out_ready(a_ready[2]),.out_entry(a_entry[2]),.out_epoch(a_epoch[2])
   );
   dea8_matrix_frontend_2row frontend (
-    .clk,.reset,.clear,.job_valid(job_valid && !config_bad && !memory_config_bad && !config_error),
+    .clk,.reset,.clear,.job_valid(job_valid && !config_bad && region_ready && !protocol_error),
     .job_ready(frontend_ready),.busy,.done,.protocol_error(frontend_error),.job,
     .a_valid,.a_ready,.a_entry,.a_epoch,.hbm_valid,.hbm_ready,.hbm_data,
     .kv_valid,.kv_ready,.kv_entry,.rsp_valid,.rsp_row_valid,.psum,.rsp_scale,.rsp_e_stat,

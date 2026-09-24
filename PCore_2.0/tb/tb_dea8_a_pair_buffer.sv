@@ -31,28 +31,39 @@ module tb_dea8_a_pair_buffer;
     return 8'(bank*37+base*11+t*5+p*3+r*17+k);
   endfunction
 
-  task automatic pulse_begin(input int bank,epoch,count);
+  task automatic pulse_begin(input int bank,epoch,count,tile_base=0);
     @(negedge clk); begin_bank='0;begin_bank.valid=1;begin_bank.bank=bank;
-      begin_bank.epoch=epoch;begin_bank.tile_base=0;begin_bank.tile_count=count;
+      begin_bank.epoch=epoch;begin_bank.tile_base=tile_base;begin_bank.tile_count=count;
     @(negedge clk); begin_bank='0;
   endtask
 
-  task automatic write_tiles(input int bank,count,base);
+  task automatic write_tiles(input int bank,count,base,tile_base=0);
     for(int t=0;t<count;t++) for(int p=0;p<PAIRS;p++) begin
-      @(negedge clk); wr_bank=bank;wr_tile=t;wr_pair=p;wr_mask=row_mask(p);
+      @(negedge clk); wr_bank=bank;wr_tile=t+tile_base;wr_pair=p;wr_mask=row_mask(p);
       for(int r=0;r<ROW_LANES;r++) begin
-        wr_scale[r]=8'(base+r+t);
-        for(int k=0;k<TILE;k++) wr_data[r][k*INT_BITS+:INT_BITS]=value(bank,t,p,r,k,base);
+        wr_scale[r]=8'(base+r+t+tile_base);
+        for(int k=0;k<TILE;k++) wr_data[r][k*INT_BITS+:INT_BITS]=value(bank,t+tile_base,p,r,k,base);
       end
       @(posedge clk);
     end
     @(negedge clk);wr_mask='0;
   endtask
 
-  task automatic pulse_commit(input int bank,epoch,count);
+  task automatic pulse_commit(input int bank,epoch,count,tile_base=0);
     @(negedge clk);commit_bank='0;commit_bank.valid=1;commit_bank.bank=bank;
-      commit_bank.epoch=epoch;commit_bank.tile_base=0;commit_bank.tile_count=count;
+      commit_bank.epoch=epoch;commit_bank.tile_base=tile_base;commit_bank.tile_count=count;
     @(negedge clk);commit_bank='0;
+  endtask
+
+  task automatic reset_case();
+    @(negedge clk);wr_mask=0;rd_valid=0;begin_bank='0;commit_bank='0;clear=1;
+    @(negedge clk);clear=0;
+    @(posedge clk); #1;
+    if(protocol_error || bank_complete!='0) $fatal(1,"Lifecycle clear failed");
+  endtask
+
+  task automatic expect_error(input string test_name);
+    if(!protocol_error) $fatal(1,"Missing protocol_error: %s",test_name);
   endtask
 
   task automatic read_one(input int bank,t,p,epoch,base);
@@ -98,13 +109,72 @@ module tb_dea8_a_pair_buffer;
     expect_not_ready(0,16,0,11);
     expect_not_ready(0,0,0,10);
 
-    // Invalid writes are reported through protocol_error and do not become
-    // part of the committed region.
-    clear=1; @(negedge clk); clear=0;
+    // Nonzero physical base must work without remapping the RAM layout.
+    reset_case();
+    pulse_begin(0,7,2,7);write_tiles(0,2,40,7);pulse_commit(0,7,2,7);
+    if(!bank_complete[0] || committed_base[0]!==7 || committed_tiles[0]!==2)
+      $fatal(1,"Nonzero base commit failed");
+    read_one(0,7,0,7,40);read_one(0,8,PAIRS-1,7,40);
+    expect_not_ready(0,6,0,7);expect_not_ready(0,9,0,7);
+
+    // A begin concurrent with a read is rejected without revoking the
+    // committed descriptor already owned by the consumer.
+    @(negedge clk);rd_bank=0;rd_tile=7;rd_pair=0;rd_epoch=7;rd_valid=1;
+    begin_bank='0;begin_bank.valid=1;begin_bank.bank=0;
+    begin_bank.epoch=8;begin_bank.tile_base=0;begin_bank.tile_count=1;
+    @(posedge clk); #1;expect_error("begin during read");
+    if(!bank_complete[0] || committed_epoch[0]!==7)
+      $fatal(1,"Begin during read changed committed Bank");
+    @(negedge clk);rd_valid=0;begin_bank='0;
+
+    reset_case();
+    pulse_begin(0,1,16);write_tiles(0,15,1);pulse_commit(0,1,16);
+    expect_error("incomplete commit");
+    if(bank_complete[0]) $fatal(1,"Incomplete region committed");
+
+    reset_case();
+    pulse_begin(0,2,1);write_tiles(0,1,2);pulse_commit(0,3,1);
+    expect_error("wrong commit epoch");
+    if(bank_complete[0]) $fatal(1,"Wrong epoch committed");
+
+    reset_case();
+    pulse_begin(0,4,1);write_tiles(0,1,4);pulse_commit(0,4,2);
+    expect_error("descriptor mismatch");
+    if(bank_complete[0]) $fatal(1,"Wrong descriptor committed");
+
+    reset_case();
+    pulse_commit(0,5,1);expect_error("commit without begin");
+
+    reset_case();
+    pulse_begin(0,6,1);pulse_begin(0,7,1);
+    expect_error("nested begin");
+    if(dut.bank_epoch[0]!==6 || !dut.open_bank[0])
+      $fatal(1,"Nested begin overwrote producer state");
+
+    reset_case();
+    @(negedge clk);
+    begin_bank='0;begin_bank.valid=1;begin_bank.bank=0;
+    begin_bank.epoch=8;begin_bank.tile_count=1;
+    commit_bank=begin_bank;
+    @(posedge clk); #1;expect_error("simultaneous begin and commit");
+    if(dut.open_bank[0] || bank_complete[0])
+      $fatal(1,"Simultaneous begin/commit changed state");
+    @(negedge clk);begin_bank='0;commit_bank='0;
+
+    reset_case();
+    pulse_begin(0,9,1);
+    @(negedge clk);wr_bank=0;wr_tile=0;wr_pair=0;wr_mask=2'b11;
+    @(posedge clk);
+    @(posedge clk); #1;expect_error("duplicate write");
+    if(dut.written[0][0]!==1 || dut.written[0][1]!==1)
+      $fatal(1,"Duplicate write changed completeness counts");
+    @(negedge clk);wr_mask=0;
+
+    reset_case();
     pulse_begin(1,20,16);
     @(negedge clk);wr_bank=1;wr_tile=16;wr_pair=0;wr_mask=2'b11;
     @(posedge clk); #1;
-    if(!protocol_error) $fatal(1,"Out-of-region write was not rejected");
+    expect_error("out-of-region write");
     $display("tb_dea8_a_pair_buffer PASS checked_reads=%0d",checked);
     $finish;
   end

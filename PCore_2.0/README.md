@@ -48,8 +48,8 @@ Vivado 2022.2 / XSim，使用实际 DSP48E2 UNISIM 模型，不用行为乘法�
 | `tb_dea8_mxu_2row` | PASS；208 个 row-pair、6,656 个 Psum；双行 signed 数值、尾行 mask、E_STREAM/E_STAT、tag/dest、固定延迟 |
 | `tb_dea8_a2_fifo` | PASS；312 个 entry，完整 Tile 预留、满载、同时 push/pop、地址回绕及 clear |
 | `tb_dea8_w_tile_assembler_pp` | PASS；12 个 Tile、192 列，逐元素转置与 scale、填充排空重叠、反压保持；前四个 Tile 的列输出无气泡 |
-| `tb_dea8_a_pair_buffer` | PASS；32 Tile 完整 Region、Z→Q 的 32→16 复用、旧 epoch 拒绝、Region 外 Tile 不可读和 Region 外写错误 |
-| `tb_dea8_matrix_frontend_2row` | PASS；实际实例化 engine 顶层，共97个完整Tile、2,522个row-pair、80,704个Psum；XBC/HBM、QOZ/KV、PBUF/KV，自动RAM读，加载计算重叠，错误epoch拒绝，运行中clear，重新加载后重启，以及1/64 Tile边界 |
+| `tb_dea8_a_pair_buffer` | PASS；32 Tile 完整 Region、Z→Q 的 32→16 复用、旧 epoch 拒绝、非零 `tile_base`、Region 外 Tile 不可读和 Region 外写错误；并覆盖未写完整 commit、错误 epoch/count/base、commit 无 begin、open Bank 重复 begin、begin+commit 同周期、重复写 |
+| `tb_dea8_matrix_frontend_2row` | PASS；实际实例化 engine 顶层，共99个完整Tile、2,574个row-pair、82,368个Psum；XBC/HBM、QOZ/KV、PBUF/KV，未提交 Region 等待、`along_n=0/1` 下的 `init_dest=0` 累加标志、自动RAM读，加载计算重叠，错误epoch拒绝，运行中clear，重新加载后重启，以及1/64 Tile边界 |
 
 以上 PE 覆盖不是全部 256³ 种三元组穷举，也不是形式化证明。矩阵集成测试验证 Tile 级整数计算，不等同于完整 Projection/Attention 数值验证。
 
@@ -73,7 +73,7 @@ PE 的两个权重 Bank 显式要求寄存器实现。上述资源只对应 MXU�
 
 **这些是 OOC 综合结果，不是布局布线或上板结论。** 外部输入/输出延迟尚未约束，OOC 时钟树也不代表最终实现，不能据此宣称整机250 MHz已经达标。
 
-包含默认32-Tile QOZ、PBUF、A/B加载器和MXU的 `dea8_matrix_engine_2row` 的上一版基线也已完成同器件、4 ns约束的OOC综合：
+包含默认32-Tile QOZ、PBUF、A/B加载器和MXU的 `dea8_matrix_engine_2row` 的本轮源码已完成同器件、4 ns约束的OOC综合展开，并生成了资源和时序报告：
 
 | 项目 | 集成矩阵前端 |
 | --- | ---: |
@@ -84,9 +84,9 @@ PE 的两个权重 Bank 显式要求寄存器实现。上述资源只对应 MXU�
 | Block RAM Tile等效数量 | 22 |
 | 综合估计 setup WNS | +0.668 ns |
 
-地址生成已改为逐pair步进累加，控制层不再额外消耗DSP。此表仍不包含DEQACC、FP32累加器、SFU/VPU或HBM控制器。
+地址生成已改为逐pair步进累加，Region计数采用移位加法，控制层不再额外消耗DSP；本轮资源报告仍为256个DSP。此表仍不包含DEQACC、FP32累加器、SFU/VPU或HBM控制器。
 
-本轮加入 `dea8_a_source_stage`、QOZ/PBUF begin/commit 状态和有效 Region 校验后，RTL 仿真已重新通过；Vivado 综合在 RTL 优化结束时仍触发 `.Xil/.../realtime/tmp` 清理异常，未把新的时序结果写成签核结论。因此上表只作为上一版综合基线，不能说是本轮修改后的新时序结果。
+本轮加入 `dea8_a_source_stage`、QOZ/PBUF begin/commit 状态和有效 Region 校验后，RTL 仿真已重新通过；Vivado 在 RTL 优化结束时仍触发 `.Xil/.../realtime/tmp` 清理异常并返回失败码，但在异常前已经生成本轮的 utilization、timing summary 和 checkpoint。上表是本轮综合报告中的结果，只能作为 OOC 综合估计，不能替代布局布线签核；需要在可正常清理 Vivado 临时目录的环境中复跑确认。
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\run_synth.ps1 -Top dea8_mxu_2row

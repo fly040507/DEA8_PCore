@@ -1,7 +1,7 @@
 import pcore2_pkg::*;
 // QOZ: MEM_TILES=32, BANKS=1. PBUF: MEM_TILES=1, BANKS=2.
 // Each parity has physically separate data and exponent RAMs.
-module dea8_a_pair_buffer #(
+(* use_dsp="no" *) module dea8_a_pair_buffer #(
   parameter int MEM_TILES=32,BANKS=1,
   parameter int ADDR_BITS=$clog2(MEM_TILES*BANKS*PAIRS)
 ) (
@@ -40,7 +40,9 @@ module dea8_a_pair_buffer #(
   logic [TILE_BITS-1:0] region_base[0:BANKS-1];
   logic [TILE_BITS:0] region_tiles[0:BANKS-1];
   logic read_in_range,read_in_region,write_in_range,write_in_region;
-  logic conflict,duplicate_write,commit_complete,bad_ctrl;
+  logic conflict,duplicate_write,commit_complete,bad_ctrl,write_ok;
+  logic [COUNT_BITS-1:0] region_tile_count,expected_even,expected_odd;
+  logic out_bank;
   logic [1:0] read_mask;
   assign bank_complete=complete_bank;
   assign read_mask=row_mask(rd_pair);
@@ -58,20 +60,29 @@ module dea8_a_pair_buffer #(
   assign duplicate_write=(|wr_mask) && write_in_region &&
     ((wr_mask[0] && initialized[0][wa]) ||
      (wr_mask[1] && initialized[1][wa]));
+  assign region_tile_count=COUNT_BITS'(region_tiles[commit_bank.bank]);
+  assign expected_even=(region_tile_count<<4)+(region_tile_count<<3)+(region_tile_count<<1);
+  assign expected_odd=(region_tile_count<<4)+(region_tile_count<<3)+region_tile_count;
   assign commit_complete=commit_bank.valid && commit_bank.bank<BANKS &&
     commit_bank.tile_base==region_base[commit_bank.bank] &&
     commit_bank.tile_count==region_tiles[commit_bank.bank] &&
-    written[commit_bank.bank][0]==((ROWS+1)/2)*region_tiles[commit_bank.bank] &&
-    written[commit_bank.bank][1]==(ROWS/2)*region_tiles[commit_bank.bank];
+    written[commit_bank.bank][0]==expected_even &&
+    written[commit_bank.bank][1]==expected_odd;
   assign bad_ctrl=(begin_bank.valid &&
       (begin_bank.bank>=BANKS || begin_bank.tile_count==0 ||
-       begin_bank.tile_base+begin_bank.tile_count>MEM_TILES)) ||
+       begin_bank.tile_base+begin_bank.tile_count>MEM_TILES ||
+       open_bank[begin_bank.bank] ||
+       (rd_valid && rd_bank==begin_bank.bank) ||
+       (out_valid && out_bank==begin_bank.bank))) ||
     (commit_bank.valid && (commit_bank.bank>=BANKS || !open_bank[commit_bank.bank] ||
       bank_epoch[commit_bank.bank]!=commit_bank.epoch || !commit_complete)) ||
     ((|wr_mask) && (!write_in_region || duplicate_write ||
+      (wr_mask & ~row_mask(wr_pair))!=0 ||
       (begin_bank.valid && begin_bank.bank==wr_bank))) ||
     (begin_bank.valid && commit_bank.valid && begin_bank.bank==commit_bank.bank);
-  assign rd_ready=!reset && !clear && (!out_valid || out_ready) &&
+  assign write_ok=(|wr_mask) && !reset && !clear && !protocol_error && !bad_ctrl &&
+    write_in_region && !duplicate_write;
+  assign rd_ready=!reset && !clear && !protocol_error && (!out_valid || out_ready) &&
     read_in_region && complete_bank[rd_bank] && bank_epoch[rd_bank]==rd_epoch &&
     initialized[0][ra] &&
     (!read_mask[1] || initialized[1][ra]) && !conflict;
@@ -80,9 +91,7 @@ module dea8_a_pair_buffer #(
     (* ram_style="block" *) logic [DATA_BITS-1:0] data_mem[0:DEPTH-1];
     (* ram_style="block" *) logic [SCALE_BITS-1:0] scale_mem[0:DEPTH-1];
     always_ff @(posedge clk) begin
-      if(!reset && !clear && wr_mask[r] && write_in_range && open_bank[wr_bank] &&
-         write_in_region && !duplicate_write &&
-         !(begin_bank.valid && begin_bank.bank==wr_bank)) begin
+      if(write_ok && wr_mask[r]) begin
         data_mem[wa]<=wr_data[r];scale_mem[wa]<=wr_scale[r];
       end
       if(rd_valid && rd_ready) begin
@@ -91,11 +100,10 @@ module dea8_a_pair_buffer #(
       end
       if(reset || clear) initialized[r]<='0;
       else begin
-        if(begin_bank.valid && begin_bank.bank<BANKS)
+        if(begin_bank.valid && !bad_ctrl && !protocol_error)
           for(int i=0;i<PAIRS*MEM_TILES;i++)
             initialized[r][begin_bank.bank*PAIRS*MEM_TILES+i]<=0;
-        if(wr_mask[r] && write_in_region && !duplicate_write &&
-           !(begin_bank.valid && begin_bank.bank==wr_bank))
+        if(write_ok && wr_mask[r])
           initialized[r][wa]<=1;
       end
     end
@@ -111,22 +119,21 @@ module dea8_a_pair_buffer #(
       end
     end else begin
       if(bad_ctrl) protocol_error<=1;
-      if(begin_bank.valid && begin_bank.bank<BANKS) begin
+      if(begin_bank.valid && !bad_ctrl && !protocol_error) begin
         open_bank[begin_bank.bank]<=1;complete_bank[begin_bank.bank]<=0;
         bank_epoch[begin_bank.bank]<=begin_bank.epoch;
         region_base[begin_bank.bank]<=begin_bank.tile_base;
         region_tiles[begin_bank.bank]<=begin_bank.tile_count;
         for(int r=0;r<ROW_LANES;r++) written[begin_bank.bank][r]<=0;
       end
-      if(commit_bank.valid && !bad_ctrl) begin
+      if(commit_bank.valid && !bad_ctrl && !protocol_error) begin
         open_bank[commit_bank.bank]<=0;complete_bank[commit_bank.bank]<=1;
         committed_epoch[commit_bank.bank]<=commit_bank.epoch;
         committed_base[commit_bank.bank]<=commit_bank.tile_base;
         committed_tiles[commit_bank.bank]<=commit_bank.tile_count;
       end
       for(int r=0;r<ROW_LANES;r++)
-        if(wr_mask[r] && write_in_region && !duplicate_write &&
-           !initialized[r][wa] && !(begin_bank.valid && begin_bank.bank==wr_bank))
+        if(write_ok && wr_mask[r] && !initialized[r][wa])
           written[wr_bank][r]<=written[wr_bank][r]+1'b1;
     end
     if(reset || clear) out_valid<=0;
@@ -135,7 +142,7 @@ module dea8_a_pair_buffer #(
       if(rd_valid && rd_ready) begin
         out_entry.reserved<=0;out_entry.row_valid<=row_mask(rd_pair);
         out_entry.pair_idx<=rd_pair;out_entry.tile_idx<=rd_emit_tile;
-        out_entry.slot<=rd_slot;out_epoch<=rd_epoch;
+        out_entry.slot<=rd_slot;out_epoch<=rd_epoch;out_bank<=rd_bank;
       end
     end
   end
@@ -146,8 +153,5 @@ module dea8_a_pair_buffer #(
     if(!write_in_range || (wr_mask & ~row_mask(wr_pair))!=0)
       $fatal(1,"Pair buffer invalid write address/mask");
   end
-  always @(posedge clk) if(!reset && !clear && begin_bank.valid &&
-    rd_valid && rd_bank==begin_bank.bank)
-    $fatal(1,"A bank replaced while reader active");
   // synthesis translate_on
 endmodule
