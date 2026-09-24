@@ -30,7 +30,7 @@ module tb_dea8_matrix_frontend_2row;
   int due[0:PAIRS*(1<<TILE_BITS)-1];
   int first_issue=0;
   int signed golden;
-  dea8_matrix_engine_2row #(.QOZ_TILES(TILES)) dut(.*);
+  dea8_matrix_engine_2row #(.QOZ_TILES(32)) dut(.*);
   for(genvar s=1;s<=2;s++) begin : g_stability
     bit held_valid=0;
     a2_t held_entry;
@@ -113,6 +113,7 @@ module tb_dea8_matrix_frontend_2row;
     a2_t v;
     a_bank_ctrl_t begin_cmd,commit_cmd;
     begin_cmd='0; begin_cmd.valid=1; begin_cmd.bank=s==2; begin_cmd.epoch=model_job.epoch;
+    begin_cmd.tile_base=0; begin_cmd.tile_count=s==1 ? TILES : 1;
     commit_cmd=begin_cmd;
     // The bank is opened before the first write and becomes readable only
     // after every valid row has been written and committed.

@@ -28,6 +28,8 @@ package pcore2_pkg;
     logic valid;
     logic bank;
     logic [EPOCH_BITS-1:0] epoch;
+    logic [TILE_BITS-1:0] tile_base;
+    logic [TILE_BITS:0] tile_count;
   } a_bank_ctrl_t;
   typedef struct packed {
     logic [1:0] mask;

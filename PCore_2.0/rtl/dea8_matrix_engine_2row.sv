@@ -27,6 +27,12 @@ import pcore2_pkg::*;
 );
   logic frontend_ready,frontend_error,config_error,config_bad,start;
   logic [1:2] memory_error;
+  logic [0:0] qoz_complete;
+  logic [1:0] pbuf_complete;
+  logic [EPOCH_BITS-1:0] qoz_epoch[0:0],pbuf_epoch[0:1];
+  logic [TILE_BITS-1:0] qoz_base[0:0],pbuf_base[0:1];
+  logic [TILE_BITS:0] qoz_tiles[0:0],pbuf_tiles[0:1];
+  logic qoz_region_bad,pbuf_region_bad,memory_config_bad;
   wire [2:0] a_valid;
   logic [2:0] a_ready;
   a2_t a_entry[0:2];
@@ -44,12 +50,22 @@ import pcore2_pkg::*;
     int'(job.dest_base)+(ROWS-1)*int'(job.dest_stride)+(job.along_n ? int'(job.tiles)-1 : 0)>1023 ||
     int'(job.kt_base)+(job.along_n ? 0 : int'(job.tiles)-1)>255 ||
     int'(job.nt_base)+(job.along_n ? int'(job.tiles)-1 : 0)>255;
+  assign qoz_region_bad=job.a_source==A_QOZ &&
+    !(qoz_complete[0] && qoz_epoch[0]==job.epoch &&
+      job.a_mem_base>=qoz_base[0] &&
+      job.a_mem_base+job.tiles<=qoz_base[0]+qoz_tiles[0]);
+  // PBUF execution Tiles reuse one physical Tile, so the requested
+  // physical span is one Tile even when job.tiles is larger.
+  assign pbuf_region_bad=job.a_source==A_PBUF &&
+    !(pbuf_complete[job.pbuf_bank] && pbuf_epoch[job.pbuf_bank]==job.epoch &&
+      pbuf_base[job.pbuf_bank]==0 && pbuf_tiles[job.pbuf_bank]>=1);
+  assign memory_config_bad=qoz_region_bad || pbuf_region_bad;
   assign protocol_error=frontend_error || config_error || memory_error[1] || memory_error[2];
-  assign job_ready=frontend_ready && !config_error && !config_bad;
+  assign job_ready=frontend_ready && !config_error && !config_bad && !memory_config_bad;
   assign start=job_valid && job_ready;
   always_ff @(posedge clk) begin
     if(reset || clear) config_error<=0;
-    else if(job_valid && frontend_ready && !config_error && config_bad) config_error<=1;
+    else if(job_valid && frontend_ready && !config_error && (config_bad || memory_config_bad)) config_error<=1;
   end
   assign a_valid[0]=xbc_valid;
   assign a_entry[0]=xbc_entry;
@@ -67,19 +83,30 @@ import pcore2_pkg::*;
     .clk,.reset,.clear,.start,.job,.source,.rd_valid,.rd_ready,
     .rd_bank,.rd_slot,.rd_tile,.rd_emit_tile,.rd_pair,.rd_epoch
   );
-  for(genvar s=1;s<=2;s++) begin : g_memory
-    dea8_a_pair_buffer #(.MEM_TILES(s==1 ? QOZ_TILES : 1),.BANKS(s==1 ? 1 : 2)) buffer (
-      .clk,.reset,.clear,.wr_mask(writes[s].mask),.wr_bank(writes[s].bank),
-      .wr_tile(writes[s].tile_idx),.wr_pair(writes[s].pair_idx),
-      .wr_data(writes[s].data),.wr_scale(writes[s].scale),
-      .begin_bank(begins[s]),.commit_bank(commits[s]),.protocol_error(memory_error[s]),
-      .rd_valid(rd_valid && source==s),.rd_ready(memory_ready[s]),
-      .rd_bank,.rd_tile,.rd_emit_tile,.rd_pair,.rd_slot,.rd_epoch,
-      .out_valid(a_valid[s]),.out_ready(a_ready[s]),.out_entry(a_entry[s]),.out_epoch(a_epoch[s])
-    );
-  end
+  dea8_a_pair_buffer #(.MEM_TILES(QOZ_TILES),.BANKS(1)) qoz_buffer (
+    .clk,.reset,.clear,.wr_mask(writes[1].mask),.wr_bank(writes[1].bank),
+    .wr_tile(writes[1].tile_idx),.wr_pair(writes[1].pair_idx),
+    .wr_data(writes[1].data),.wr_scale(writes[1].scale),
+    .begin_bank(begins[1]),.commit_bank(commits[1]),.protocol_error(memory_error[1]),
+    .bank_complete(qoz_complete),.committed_epoch(qoz_epoch),
+    .committed_base(qoz_base),.committed_tiles(qoz_tiles),
+    .rd_valid(rd_valid && source==A_QOZ),.rd_ready(memory_ready[1]),
+    .rd_bank,.rd_tile,.rd_emit_tile,.rd_pair,.rd_slot,.rd_epoch,
+    .out_valid(a_valid[1]),.out_ready(a_ready[1]),.out_entry(a_entry[1]),.out_epoch(a_epoch[1])
+  );
+  dea8_a_pair_buffer #(.MEM_TILES(1),.BANKS(2)) pbuf_buffer (
+    .clk,.reset,.clear,.wr_mask(writes[2].mask),.wr_bank(writes[2].bank),
+    .wr_tile(writes[2].tile_idx),.wr_pair(writes[2].pair_idx),
+    .wr_data(writes[2].data),.wr_scale(writes[2].scale),
+    .begin_bank(begins[2]),.commit_bank(commits[2]),.protocol_error(memory_error[2]),
+    .bank_complete(pbuf_complete),.committed_epoch(pbuf_epoch),
+    .committed_base(pbuf_base),.committed_tiles(pbuf_tiles),
+    .rd_valid(rd_valid && source==A_PBUF),.rd_ready(memory_ready[2]),
+    .rd_bank,.rd_tile,.rd_emit_tile,.rd_pair,.rd_slot,.rd_epoch,
+    .out_valid(a_valid[2]),.out_ready(a_ready[2]),.out_entry(a_entry[2]),.out_epoch(a_epoch[2])
+  );
   dea8_matrix_frontend_2row frontend (
-    .clk,.reset,.clear,.job_valid(job_valid && !config_bad && !config_error),
+    .clk,.reset,.clear,.job_valid(job_valid && !config_bad && !memory_config_bad && !config_error),
     .job_ready(frontend_ready),.busy,.done,.protocol_error(frontend_error),.job,
     .a_valid,.a_ready,.a_entry,.a_epoch,.hbm_valid,.hbm_ready,.hbm_data,
     .kv_valid,.kv_ready,.kv_entry,.rsp_valid,.rsp_row_valid,.psum,.rsp_scale,.rsp_e_stat,

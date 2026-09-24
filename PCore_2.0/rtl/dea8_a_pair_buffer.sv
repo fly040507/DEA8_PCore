@@ -14,6 +14,10 @@ module dea8_a_pair_buffer #(
   input logic [1:0][SCALE_BITS-1:0] wr_scale,
   input a_bank_ctrl_t begin_bank,commit_bank,
   output logic protocol_error,
+  output logic [BANKS-1:0] bank_complete,
+  output logic [EPOCH_BITS-1:0] committed_epoch[0:BANKS-1],
+  output logic [TILE_BITS-1:0] committed_base[0:BANKS-1],
+  output logic [TILE_BITS:0] committed_tiles[0:BANKS-1],
   input logic rd_valid,
   output logic rd_ready,
   input logic rd_bank,
@@ -33,25 +37,42 @@ module dea8_a_pair_buffer #(
   logic [COUNT_BITS-1:0] written[0:BANKS-1][0:1];
   logic [BANKS-1:0] open_bank,complete_bank;
   logic [EPOCH_BITS-1:0] bank_epoch[0:BANKS-1];
-  logic read_in_range,write_in_range,conflict,commit_complete,bad_ctrl;
+  logic [TILE_BITS-1:0] region_base[0:BANKS-1];
+  logic [TILE_BITS:0] region_tiles[0:BANKS-1];
+  logic read_in_range,read_in_region,write_in_range,write_in_region;
+  logic conflict,duplicate_write,commit_complete,bad_ctrl;
   logic [1:0] read_mask;
+  assign bank_complete=complete_bank;
   assign read_mask=row_mask(rd_pair);
   assign wa=ADDR_BITS'((wr_bank*PAIRS+wr_pair)*MEM_TILES+wr_tile);
   assign ra=ADDR_BITS'((rd_bank*PAIRS+rd_pair)*MEM_TILES+rd_tile);
   assign read_in_range=rd_bank<BANKS && rd_tile<MEM_TILES && rd_pair<PAIRS;
   assign write_in_range=wr_bank<BANKS && wr_tile<MEM_TILES && wr_pair<PAIRS;
+  assign read_in_region=read_in_range &&
+    rd_tile>=region_base[rd_bank] &&
+    rd_tile<region_base[rd_bank]+region_tiles[rd_bank];
+  assign write_in_region=write_in_range && open_bank[wr_bank] &&
+    wr_tile>=region_base[wr_bank] &&
+    wr_tile<region_base[wr_bank]+region_tiles[wr_bank];
   assign conflict=(|wr_mask) && write_in_range && wa==ra;
+  assign duplicate_write=(|wr_mask) && write_in_region &&
+    ((wr_mask[0] && initialized[0][wa]) ||
+     (wr_mask[1] && initialized[1][wa]));
   assign commit_complete=commit_bank.valid && commit_bank.bank<BANKS &&
-    written[commit_bank.bank][0]==PAIRS*MEM_TILES &&
-    written[commit_bank.bank][1]==(PAIRS-(ROWS%2))*MEM_TILES;
-  assign bad_ctrl=(begin_bank.valid && begin_bank.bank>=BANKS) ||
+    commit_bank.tile_base==region_base[commit_bank.bank] &&
+    commit_bank.tile_count==region_tiles[commit_bank.bank] &&
+    written[commit_bank.bank][0]==((ROWS+1)/2)*region_tiles[commit_bank.bank] &&
+    written[commit_bank.bank][1]==(ROWS/2)*region_tiles[commit_bank.bank];
+  assign bad_ctrl=(begin_bank.valid &&
+      (begin_bank.bank>=BANKS || begin_bank.tile_count==0 ||
+       begin_bank.tile_base+begin_bank.tile_count>MEM_TILES)) ||
     (commit_bank.valid && (commit_bank.bank>=BANKS || !open_bank[commit_bank.bank] ||
       bank_epoch[commit_bank.bank]!=commit_bank.epoch || !commit_complete)) ||
-    ((|wr_mask) && (!write_in_range || !open_bank[wr_bank] ||
+    ((|wr_mask) && (!write_in_region || duplicate_write ||
       (begin_bank.valid && begin_bank.bank==wr_bank))) ||
     (begin_bank.valid && commit_bank.valid && begin_bank.bank==commit_bank.bank);
   assign rd_ready=!reset && !clear && (!out_valid || out_ready) &&
-    read_in_range && complete_bank[rd_bank] && bank_epoch[rd_bank]==rd_epoch &&
+    read_in_region && complete_bank[rd_bank] && bank_epoch[rd_bank]==rd_epoch &&
     initialized[0][ra] &&
     (!read_mask[1] || initialized[1][ra]) && !conflict;
 
@@ -60,6 +81,7 @@ module dea8_a_pair_buffer #(
     (* ram_style="block" *) logic [SCALE_BITS-1:0] scale_mem[0:DEPTH-1];
     always_ff @(posedge clk) begin
       if(!reset && !clear && wr_mask[r] && write_in_range && open_bank[wr_bank] &&
+         write_in_region && !duplicate_write &&
          !(begin_bank.valid && begin_bank.bank==wr_bank)) begin
         data_mem[wa]<=wr_data[r];scale_mem[wa]<=wr_scale[r];
       end
@@ -72,7 +94,7 @@ module dea8_a_pair_buffer #(
         if(begin_bank.valid && begin_bank.bank<BANKS)
           for(int i=0;i<PAIRS*MEM_TILES;i++)
             initialized[r][begin_bank.bank*PAIRS*MEM_TILES+i]<=0;
-        if(wr_mask[r] && write_in_range && open_bank[wr_bank] &&
+        if(wr_mask[r] && write_in_region && !duplicate_write &&
            !(begin_bank.valid && begin_bank.bank==wr_bank))
           initialized[r][wa]<=1;
       end
@@ -83,6 +105,8 @@ module dea8_a_pair_buffer #(
       out_valid<=0;protocol_error<=0;open_bank<='0;complete_bank<='0;
       for(int b=0;b<BANKS;b++) begin
         bank_epoch[b]<=0;
+        region_base[b]<=0;region_tiles[b]<=0;
+        committed_epoch[b]<=0;committed_base[b]<=0;committed_tiles[b]<=0;
         for(int r=0;r<ROW_LANES;r++) written[b][r]<=0;
       end
     end else begin
@@ -90,13 +114,18 @@ module dea8_a_pair_buffer #(
       if(begin_bank.valid && begin_bank.bank<BANKS) begin
         open_bank[begin_bank.bank]<=1;complete_bank[begin_bank.bank]<=0;
         bank_epoch[begin_bank.bank]<=begin_bank.epoch;
+        region_base[begin_bank.bank]<=begin_bank.tile_base;
+        region_tiles[begin_bank.bank]<=begin_bank.tile_count;
         for(int r=0;r<ROW_LANES;r++) written[begin_bank.bank][r]<=0;
       end
       if(commit_bank.valid && !bad_ctrl) begin
         open_bank[commit_bank.bank]<=0;complete_bank[commit_bank.bank]<=1;
+        committed_epoch[commit_bank.bank]<=commit_bank.epoch;
+        committed_base[commit_bank.bank]<=commit_bank.tile_base;
+        committed_tiles[commit_bank.bank]<=commit_bank.tile_count;
       end
       for(int r=0;r<ROW_LANES;r++)
-        if(wr_mask[r] && write_in_range && open_bank[wr_bank] &&
+        if(wr_mask[r] && write_in_region && !duplicate_write &&
            !initialized[r][wa] && !(begin_bank.valid && begin_bank.bank==wr_bank))
           written[wr_bank][r]<=written[wr_bank][r]+1'b1;
     end
@@ -114,7 +143,7 @@ module dea8_a_pair_buffer #(
   // A writer for an odd row uses mask 10 and lane 1, not mask 01.
   // synthesis translate_off
   always @(posedge clk) if(!reset && !clear && |wr_mask) begin
-    if(!write_in_range || (wr_mask & ~row_mask(wr_pair))!=0 || bad_ctrl)
+    if(!write_in_range || (wr_mask & ~row_mask(wr_pair))!=0)
       $fatal(1,"Pair buffer invalid write address/mask");
   end
   always @(posedge clk) if(!reset && !clear && begin_bank.valid &&

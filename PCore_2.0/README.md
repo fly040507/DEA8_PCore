@@ -21,7 +21,7 @@
 5. 新增 XBC 校验器、QOZ/PBUF 奇偶存储、自动读控制器、B 列加载器和集成顶层 `dea8_matrix_engine_2row`；旧版代码保持不变。
 6. `dea8_matrix_engine_2row` 是本阶段矩阵前端顶层，不是完整 PCore。输出止于双行整数 Psum；未连接双行 DEQACC、FP32 累加和 Attention softmax。
 7. `job.init_dest` 明确控制目标累加器是否初始化：它只决定本 job 的首个逻辑累加片段清零，`along_n` 仅表示 Tile 的坐标推进方向，不能再被当作清零条件。
-8. QOZ/PBUF 写入采用 `begin_bank -> writes -> commit_bank` 生命周期；读端必须匹配 `epoch` 且只读已 commit 的 Bank。
+8. QOZ/PBUF 写入采用 `begin_bank -> writes -> commit_bank` 生命周期；控制描述包含 `epoch + tile_base + tile_count`，读端必须匹配 `epoch` 且只读已 commit 的有效 Region。
 
 ## 当前未冻结的事项
 
@@ -48,6 +48,7 @@ Vivado 2022.2 / XSim，使用实际 DSP48E2 UNISIM 模型，不用行为乘法�
 | `tb_dea8_mxu_2row` | PASS；208 个 row-pair、6,656 个 Psum；双行 signed 数值、尾行 mask、E_STREAM/E_STAT、tag/dest、固定延迟 |
 | `tb_dea8_a2_fifo` | PASS；312 个 entry，完整 Tile 预留、满载、同时 push/pop、地址回绕及 clear |
 | `tb_dea8_w_tile_assembler_pp` | PASS；12 个 Tile、192 列，逐元素转置与 scale、填充排空重叠、反压保持；前四个 Tile 的列输出无气泡 |
+| `tb_dea8_a_pair_buffer` | PASS；32 Tile 完整 Region、Z→Q 的 32→16 复用、旧 epoch 拒绝、Region 外 Tile 不可读和 Region 外写错误 |
 | `tb_dea8_matrix_frontend_2row` | PASS；实际实例化 engine 顶层，共97个完整Tile、2,522个row-pair、80,704个Psum；XBC/HBM、QOZ/KV、PBUF/KV，自动RAM读，加载计算重叠，错误epoch拒绝，运行中clear，重新加载后重启，以及1/64 Tile边界 |
 
 以上 PE 覆盖不是全部 256³ 种三元组穷举，也不是形式化证明。矩阵集成测试验证 Tile 级整数计算，不等同于完整 Projection/Attention 数值验证。
@@ -85,7 +86,7 @@ PE 的两个权重 Bank 显式要求寄存器实现。上述资源只对应 MXU�
 
 地址生成已改为逐pair步进累加，控制层不再额外消耗DSP。此表仍不包含DEQACC、FP32累加器、SFU/VPU或HBM控制器。
 
-本轮加入 `dea8_a_source_stage` 和 QOZ/PBUF begin/commit 状态后，RTL 仿真已重新通过；Vivado 第二次综合在 RTL 优化结束时触发了 `.Xil/.../realtime/tmp` 清理异常，未把新的时序结果写成签核结论。因此上表只作为上一版综合基线，不能说是本轮修改后的新时序结果。
+本轮加入 `dea8_a_source_stage`、QOZ/PBUF begin/commit 状态和有效 Region 校验后，RTL 仿真已重新通过；Vivado 综合在 RTL 优化结束时仍触发 `.Xil/.../realtime/tmp` 清理异常，未把新的时序结果写成签核结论。因此上表只作为上一版综合基线，不能说是本轮修改后的新时序结果。
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\run_synth.ps1 -Top dea8_mxu_2row
