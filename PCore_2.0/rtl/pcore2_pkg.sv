@@ -17,12 +17,18 @@ package pcore2_pkg;
     logic [EPOCH_BITS-1:0] epoch;
     logic [2:0] head;
     logic along_n;
+    logic init_dest;
     logic [7:0] kt_base,nt_base;
     logic [1:0] dest_bank;
     logic [9:0] dest_base,dest_stride;
     logic [TILE_BITS-1:0] a_mem_base;
     logic pbuf_bank;
   } job_t;
+  typedef struct packed {
+    logic valid;
+    logic bank;
+    logic [EPOCH_BITS-1:0] epoch;
+  } a_bank_ctrl_t;
   typedef struct packed {
     logic [1:0] mask;
     logic bank;

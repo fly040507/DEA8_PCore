@@ -25,7 +25,8 @@ import pcore2_pkg::*;
 );
   job_t job_q;
   logic start,flush,adapter_valid,adapter_ready,adapter_in_ready,adapter_error,a_error;
-  a2_t adapter_entry,issue_entry;
+  logic stage_valid,stage_ready;
+  a2_t adapter_entry,stage_entry,issue_entry;
   logic a_complete,a_running,issue_valid,reserve;
   logic [$clog2(A_DEPTH+1)-1:0] a_count,a_tiles;
   logic asm_valid,asm_ready,asm_hbm_ready,w_ready,w_valid,kv_fifo_ready,kv_fifo_valid;
@@ -47,8 +48,8 @@ import pcore2_pkg::*;
     int'(job.dest_base)+(ROWS-1)*int'(job.dest_stride)+(job.along_n ? int'(job.tiles)-1 : 0)>1023 ||
     int'(job.kt_base)+(job.along_n ? 0 : int'(job.tiles)-1)>255 ||
     int'(job.nt_base)+(job.along_n ? int'(job.tiles)-1 : 0)>255;
-  assign job_ready=!reset && !clear && !busy && !protocol_error;
-  assign start=job_valid && job_ready && !config_bad;
+  assign job_ready=!reset && !clear && !busy && !protocol_error && !config_bad;
+  assign start=job_valid && job_ready;
   assign flush=clear || start;
   always_comb begin
     a_ready='0;
@@ -61,9 +62,13 @@ import pcore2_pkg::*;
     .out_valid(adapter_valid),.out_ready(adapter_ready),.out_entry(adapter_entry),
     .protocol_error(adapter_error)
   );
-  dea8_a2_fifo a_fifo (
+  dea8_a_source_stage source_stage (
     .clk,.reset,.clear(flush),.in_valid(adapter_valid),.in_ready(adapter_ready),
-    .in_entry(adapter_entry),.reserve_tile(reserve),.tile_available(a_complete),
+    .in_entry(adapter_entry),.out_valid(stage_valid),.out_ready(stage_ready),.out_entry(stage_entry)
+  );
+  dea8_a2_fifo a_fifo (
+    .clk,.reset,.clear(flush),.in_valid(stage_valid),.in_ready(stage_ready),
+    .in_entry(stage_entry),.reserve_tile(reserve),.tile_available(a_complete),
     .running(a_running),.out_valid(issue_valid),.out_entry(issue_entry),
     .protocol_error(a_error),.count(a_count),.complete_tiles(a_tiles)
   );
@@ -113,7 +118,7 @@ import pcore2_pkg::*;
       issue_dest[r]='0;
       issue_dest[r].bank=job_q.dest_bank;
       issue_dest[r].address=pair_dest_address+(r==0 ? 10'd0 : job_q.dest_stride);
-      issue_dest[r].zero=job_q.along_n || issue_entry.tile_idx==0;
+      issue_dest[r].zero=job_q.init_dest && (job_q.along_n || issue_entry.tile_idx==0);
     end
   end
   dea8_mxu_2row mxu (
@@ -128,7 +133,7 @@ import pcore2_pkg::*;
       hbm_tiles<=0;hbm_beat<=0;kv_tiles<=0;kv_column<=0;
     end else begin
       done<=0;
-      if(job_valid && job_ready && config_bad) protocol_error<=1;
+      if(job_valid && !busy && !protocol_error && config_bad) protocol_error<=1;
       if(adapter_error || a_error) protocol_error<=1;
       if(start) begin
         job_q<=job;busy<=1;issue_tile<=0;

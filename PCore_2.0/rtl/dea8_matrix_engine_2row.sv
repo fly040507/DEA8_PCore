@@ -10,6 +10,7 @@ import pcore2_pkg::*;
   input a2_t xbc_entry,
   input logic [EPOCH_BITS-1:0] xbc_epoch,
   input a_write_t qoz_write,pbuf_write,
+  input a_bank_ctrl_t qoz_begin,qoz_commit,pbuf_begin,pbuf_commit,
   input logic hbm_valid,
   output logic hbm_ready,
   input logic [HBM_BITS-1:0] hbm_data,
@@ -25,11 +26,13 @@ import pcore2_pkg::*;
   output dest_t rsp_dest[0:1]
 );
   logic frontend_ready,frontend_error,config_error,config_bad,start;
+  logic [1:2] memory_error;
   wire [2:0] a_valid;
   logic [2:0] a_ready;
   a2_t a_entry[0:2];
   logic [EPOCH_BITS-1:0] a_epoch[0:2];
   a_write_t writes[1:2];
+  a_bank_ctrl_t begins[1:2],commits[1:2];
   a_source_t source;
   logic rd_valid,rd_ready,rd_bank,rd_slot;
   logic [1:2] memory_ready;
@@ -41,12 +44,12 @@ import pcore2_pkg::*;
     int'(job.dest_base)+(ROWS-1)*int'(job.dest_stride)+(job.along_n ? int'(job.tiles)-1 : 0)>1023 ||
     int'(job.kt_base)+(job.along_n ? 0 : int'(job.tiles)-1)>255 ||
     int'(job.nt_base)+(job.along_n ? int'(job.tiles)-1 : 0)>255;
-  assign protocol_error=frontend_error || config_error;
-  assign job_ready=frontend_ready && !config_error;
-  assign start=job_valid && job_ready && !config_bad;
+  assign protocol_error=frontend_error || config_error || memory_error[1] || memory_error[2];
+  assign job_ready=frontend_ready && !config_error && !config_bad;
+  assign start=job_valid && job_ready;
   always_ff @(posedge clk) begin
     if(reset || clear) config_error<=0;
-    else if(job_valid && job_ready && config_bad) config_error<=1;
+    else if(job_valid && frontend_ready && !config_error && config_bad) config_error<=1;
   end
   assign a_valid[0]=xbc_valid;
   assign a_entry[0]=xbc_entry;
@@ -54,6 +57,10 @@ import pcore2_pkg::*;
   assign xbc_ready=a_ready[0];
   assign writes[1]=qoz_write;
   assign writes[2]=pbuf_write;
+  assign begins[1]=qoz_begin;
+  assign begins[2]=pbuf_begin;
+  assign commits[1]=qoz_commit;
+  assign commits[2]=pbuf_commit;
   assign rd_ready=source==A_QOZ ? memory_ready[1] :
                   source==A_PBUF ? memory_ready[2] : 1'b0;
   dea8_a_tile_reader reader (
@@ -65,6 +72,7 @@ import pcore2_pkg::*;
       .clk,.reset,.clear,.wr_mask(writes[s].mask),.wr_bank(writes[s].bank),
       .wr_tile(writes[s].tile_idx),.wr_pair(writes[s].pair_idx),
       .wr_data(writes[s].data),.wr_scale(writes[s].scale),
+      .begin_bank(begins[s]),.commit_bank(commits[s]),.protocol_error(memory_error[s]),
       .rd_valid(rd_valid && source==s),.rd_ready(memory_ready[s]),
       .rd_bank,.rd_tile,.rd_emit_tile,.rd_pair,.rd_slot,.rd_epoch,
       .out_valid(a_valid[s]),.out_ready(a_ready[s]),.out_entry(a_entry[s]),.out_epoch(a_epoch[s])

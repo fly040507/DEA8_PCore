@@ -20,6 +20,8 @@
 4. `dea8_w_tile_assembler_pp.sv` 接受8个256-bit数据beat和1个scale beat，输出16个128-bit列entry。
 5. 新增 XBC 校验器、QOZ/PBUF 奇偶存储、自动读控制器、B 列加载器和集成顶层 `dea8_matrix_engine_2row`；旧版代码保持不变。
 6. `dea8_matrix_engine_2row` 是本阶段矩阵前端顶层，不是完整 PCore。输出止于双行整数 Psum；未连接双行 DEQACC、FP32 累加和 Attention softmax。
+7. `job.init_dest` 明确控制目标累加器是否初始化：它只决定本 job 的首个逻辑累加片段清零，`along_n` 仅表示 Tile 的坐标推进方向，不能再被当作清零条件。
+8. QOZ/PBUF 写入采用 `begin_bank -> writes -> commit_bank` 生命周期；读端必须匹配 `epoch` 且只读已 commit 的 Bank。
 
 ## 当前未冻结的事项
 
@@ -70,7 +72,7 @@ PE 的两个权重 Bank 显式要求寄存器实现。上述资源只对应 MXU�
 
 **这些是 OOC 综合结果，不是布局布线或上板结论。** 外部输入/输出延迟尚未约束，OOC 时钟树也不代表最终实现，不能据此宣称整机250 MHz已经达标。
 
-包含默认32-Tile QOZ、PBUF、A/B加载器和MXU的 `dea8_matrix_engine_2row` 也已完成同器件、4 ns约束的OOC综合：
+包含默认32-Tile QOZ、PBUF、A/B加载器和MXU的 `dea8_matrix_engine_2row` 的上一版基线也已完成同器件、4 ns约束的OOC综合：
 
 | 项目 | 集成矩阵前端 |
 | --- | ---: |
@@ -82,6 +84,8 @@ PE 的两个权重 Bank 显式要求寄存器实现。上述资源只对应 MXU�
 | 综合估计 setup WNS | +0.668 ns |
 
 地址生成已改为逐pair步进累加，控制层不再额外消耗DSP。此表仍不包含DEQACC、FP32累加器、SFU/VPU或HBM控制器。
+
+本轮加入 `dea8_a_source_stage` 和 QOZ/PBUF begin/commit 状态后，RTL 仿真已重新通过；Vivado 第二次综合在 RTL 优化结束时触发了 `.Xil/.../realtime/tmp` 清理异常，未把新的时序结果写成签核结论。因此上表只作为上一版综合基线，不能说是本轮修改后的新时序结果。
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\run_synth.ps1 -Top dea8_mxu_2row
@@ -95,4 +99,4 @@ powershell -ExecutionPolicy Bypass -File .\run_synth.ps1 -Top dea8_matrix_engine
 - `rtl/dea8_matrix_frontend_2row.sv`：job锁存、A/B供数、Tile匹配、双Bank调度。
 - `rtl/dea8_mxu_2row.sv` / `rtl/dea8_pe_2row.sv`：算术核心。
 
-本轮没有提交或推送 GitHub，也没有修改旧版发布快照。
+本目录的 RTL、测试和说明将作为独立的 `PCore_2.0` 版本维护；旧版 `pcore` 与旧版发布快照不修改。

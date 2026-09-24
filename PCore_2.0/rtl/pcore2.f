@@ -5,6 +5,7 @@ pcore2_fifo.sv
 dea8_a2_fifo.sv
 dea8_w_tile_assembler_pp.sv
 dea8_xbc_a2_adapter.sv
+dea8_a_source_stage.sv
 dea8_b_column_loader.sv
 dea8_matrix_frontend_2row.sv
 dea8_a_pair_buffer.sv

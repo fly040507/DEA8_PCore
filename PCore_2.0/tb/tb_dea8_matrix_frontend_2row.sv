@@ -9,6 +9,7 @@ module tb_dea8_matrix_frontend_2row;
   logic [EPOCH_BITS-1:0] xbc_epoch;
   logic xbc_valid=0,xbc_ready;
   a_write_t qoz_write,pbuf_write;
+  a_bank_ctrl_t qoz_begin,qoz_commit,pbuf_begin,pbuf_commit;
   logic hbm_valid=0,hbm_ready,kv_valid=0,kv_ready;
   logic [HBM_BITS-1:0] hbm_data;
   b_t kv_entry;
@@ -110,6 +111,15 @@ module tb_dea8_matrix_frontend_2row;
   end
   task automatic fill_memory(input int s);
     a2_t v;
+    a_bank_ctrl_t begin_cmd,commit_cmd;
+    begin_cmd='0; begin_cmd.valid=1; begin_cmd.bank=s==2; begin_cmd.epoch=model_job.epoch;
+    commit_cmd=begin_cmd;
+    // The bank is opened before the first write and becomes readable only
+    // after every valid row has been written and committed.
+    @(negedge clk);
+    if(s==1) qoz_begin=begin_cmd; else pbuf_begin=begin_cmd;
+    @(negedge clk);
+    if(s==1) qoz_begin='0; else pbuf_begin='0;
     for(int t=0;t<(s==1 ? TILES : 1);t++) for(int p=0;p<PAIRS;p++) begin
       v=ae(s,t,p);
       // Both dual-row and separate parity writes; no odd write for row 50.
@@ -124,6 +134,10 @@ module tb_dea8_matrix_frontend_2row;
       end
     end
     @(negedge clk);wr_mask[s]=0;
+    @(negedge clk);
+    if(s==1) qoz_commit=commit_cmd; else pbuf_commit=commit_cmd;
+    @(negedge clk);
+    if(s==1) qoz_commit='0; else pbuf_commit='0;
   endtask
   task automatic send_a(input int tile_limit=-1);
     if(tile_limit<0) tile_limit=model_job.tiles;
@@ -165,6 +179,7 @@ module tb_dea8_matrix_frontend_2row;
   endtask
   initial begin
     job='0;model_job='0;xbc_entry='0;xbc_epoch=0;hbm_data=0;kv_entry='0;
+    qoz_begin='0;qoz_commit='0;pbuf_begin='0;pbuf_commit='0;
     for(int s=1;s<=2;s++) begin
       wr_mask[s]=0;wr_bank[s]=0;wr_tile[s]=0;wr_pair[s]=0;wr_data[s]=0;wr_scale[s]=0;
     end
@@ -174,6 +189,7 @@ module tb_dea8_matrix_frontend_2row;
       model_job='0;model_job.a_source=a_source_t'(m);model_job.b_from_kv=m!=0;
       model_job.tiles=TILES;model_job.epoch=m+1;model_job.slot=m%2;
       model_job.head=3;model_job.along_n=m==2;model_job.kt_base=4;model_job.nt_base=5;
+      model_job.init_dest=1;
       model_job.pbuf_bank=m==2;
       model_job.dest_base=3;model_job.dest_stride=m==2 ? TILES : 1;model_job.dest_bank=m;
       if(m!=0) fill_memory(m);
@@ -201,7 +217,7 @@ module tb_dea8_matrix_frontend_2row;
 
     // Abort a tile after five S0 issues but before its first S6 output.
     mode=0;job_seen=0;issue_count=0;model_job='0;
-    model_job.a_source=A_XBC;model_job.tiles=1;model_job.epoch=7;
+    model_job.a_source=A_XBC;model_job.tiles=1;model_job.epoch=7;model_job.init_dest=1;
     @(negedge clk);job=model_job;job_valid=1;
     @(negedge clk);job_valid=0;
     fork send_a(1);send_b(1);join
