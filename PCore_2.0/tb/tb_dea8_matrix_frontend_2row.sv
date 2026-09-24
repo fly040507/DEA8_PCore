@@ -141,6 +141,30 @@ module tb_dea8_matrix_frontend_2row;
     @(negedge clk);
     if(s==1) qoz_commit='0; else pbuf_commit='0;
   endtask
+  task automatic write_open_memory(input int s);
+    a2_t v;
+    a_bank_ctrl_t commit_cmd;
+    commit_cmd='0; commit_cmd.valid=1; commit_cmd.bank=s==2;
+    commit_cmd.epoch=model_job.epoch; commit_cmd.tile_base=0;
+    commit_cmd.tile_count=s==1 ? TILES : 1;
+    for(int t=0;t<(s==1 ? TILES : 1);t++) for(int p=0;p<PAIRS;p++) begin
+      v=ae(s,t,p);
+      if(p%2==0) begin
+        @(negedge clk);wr_mask[s]=v.row_valid;wr_bank[s]=s==2;
+        wr_tile[s]=t;wr_pair[s]=p;wr_data[s]=v.data;wr_scale[s]=v.scale;
+      end else begin
+        for(int r=0;r<ROW_LANES;r++) if(v.row_valid[r]) begin
+          @(negedge clk);wr_mask[s]=2'(1<<r);wr_bank[s]=s==2;
+          wr_tile[s]=t;wr_pair[s]=p;wr_data[s]=v.data;wr_scale[s]=v.scale;
+        end
+      end
+    end
+    @(negedge clk);wr_mask[s]=0;
+    @(negedge clk);
+    if(s==1) qoz_commit=commit_cmd; else pbuf_commit=commit_cmd;
+    @(negedge clk);
+    if(s==1) qoz_commit='0; else pbuf_commit='0;
+  endtask
   task automatic send_a(input int tile_limit=-1);
     if(tile_limit<0) tile_limit=model_job.tiles;
     if(mode!=0) return; // QOZ/PBUF request generation is implemented in RTL.
@@ -186,6 +210,91 @@ module tb_dea8_matrix_frontend_2row;
       wr_mask[s]=0;wr_bank[s]=0;wr_tile[s]=0;wr_pair[s]=0;wr_data[s]=0;wr_scale[s]=0;
     end
     repeat(32) @(negedge clk);reset=0;
+
+    // A begin has priority over a consumer job in the same cycle.  The old
+    // job must not become busy while its committed Region is being replaced.
+    mode=1;job_seen=0;total_seen=0;issue_count=0;
+    model_job='0;model_job.a_source=A_QOZ;model_job.b_from_kv=1;
+    model_job.tiles=1;model_job.epoch=20;model_job.slot=0;
+    model_job.head=1;model_job.kt_base=2;model_job.nt_base=3;
+    model_job.dest_base=4;model_job.dest_stride=1;model_job.dest_bank=1;
+    fill_memory(1);
+    begin
+      a_bank_ctrl_t race_begin;
+      race_begin='0;race_begin.valid=1;race_begin.bank=0;
+      race_begin.epoch=21;race_begin.tile_base=0;race_begin.tile_count=TILES;
+      @(negedge clk);job=model_job;job_valid=1;qoz_begin=race_begin;
+      #1;
+      if(job_ready) $fatal(1,"QOZ begin/job conflict must backpressure job");
+      @(posedge clk); #1;
+      if(job_ready || busy || protocol_error || dut.qoz_complete[0] ||
+         dut.qoz_buffer.bank_epoch[0]!==EPOCH_BITS'(21)) begin
+        $fatal(1,"QOZ begin/job acquisition race was not serialized");
+      end
+      @(negedge clk);job_valid=0;job='0;qoz_begin='0;
+    end
+    model_job.epoch=21;
+    write_open_memory(1);
+    @(negedge clk);job=model_job;job_valid=1;
+    do @(posedge clk);while(!job_ready);
+    @(negedge clk);job_valid=0;job='1;
+    fork send_a(1);send_b(1);join
+    wait(done);@(negedge clk);
+    if(protocol_error || busy || job_seen!=PAIRS)
+      $fatal(1,"QOZ post-race recovery failed");
+
+    // PBUF bank1 may be consumed while an unrelated producer opens bank0.
+    // The same-bank case below must still be blocked for the consumer.
+    mode=2;job_seen=0;issue_count=0;
+    model_job='0;model_job.a_source=A_PBUF;model_job.b_from_kv=1;
+    model_job.tiles=1;model_job.epoch=30;model_job.slot=1;
+    model_job.head=2;model_job.along_n=1;model_job.pbuf_bank=1;
+    model_job.kt_base=4;model_job.nt_base=5;model_job.dest_base=6;
+    model_job.dest_stride=1;model_job.dest_bank=2;
+    fill_memory(2);
+    begin
+      a_bank_ctrl_t other_bank_begin;
+      other_bank_begin='0;other_bank_begin.valid=1;other_bank_begin.bank=0;
+      other_bank_begin.epoch=31;other_bank_begin.tile_base=0;other_bank_begin.tile_count=1;
+      @(negedge clk);job=model_job;job_valid=1;pbuf_begin=other_bank_begin;
+      #1;
+      if(!job_ready) $fatal(1,"PBUF different-bank begin must not block job");
+      @(posedge clk); #1;
+      if(!busy || protocol_error) $fatal(1,"PBUF different-bank begin corrupted job");
+      @(negedge clk);job_valid=0;job='0;pbuf_begin='0;
+    end
+    fork send_a(1);send_b(1);join
+    wait(done);@(negedge clk);
+    if(protocol_error || busy || job_seen!=PAIRS)
+      $fatal(1,"PBUF different-bank case failed");
+
+    model_job.epoch=30;
+    begin
+      a_bank_ctrl_t same_bank_begin;
+      same_bank_begin='0;same_bank_begin.valid=1;same_bank_begin.bank=1;
+      same_bank_begin.epoch=31;same_bank_begin.tile_base=0;same_bank_begin.tile_count=1;
+      @(negedge clk);job=model_job;job_valid=1;pbuf_begin=same_bank_begin;
+      #1;
+      if(job_ready) $fatal(1,"PBUF same-bank begin must backpressure job");
+      @(posedge clk); #1;
+      if(job_ready || busy || protocol_error || dut.pbuf_complete[1] ||
+         dut.pbuf_buffer.bank_epoch[1]!==EPOCH_BITS'(31))
+        $fatal(1,"PBUF begin/job acquisition race was not serialized");
+      @(negedge clk);job_valid=0;job='0;pbuf_begin='0;
+    end
+    model_job.epoch=31;job_seen=0;issue_count=0;last_issue=0;
+    write_open_memory(2);
+    @(negedge clk);job=model_job;job_valid=1;
+    do @(posedge clk);while(!job_ready);
+    @(negedge clk);job_valid=0;job='1;
+    fork send_a(1);send_b(1);join
+    wait(done);@(negedge clk);
+    if(protocol_error || busy || job_seen!=PAIRS)
+      $fatal(1,"PBUF post-race recovery failed");
+
+    // The race tests are independent of the aggregate throughput counters.
+    clear=1;@(negedge clk);clear=0;@(negedge clk);
+    job_seen=0;total_seen=0;issue_count=0;overlap=0;
     for(int m=0;m<3;m++) begin
       mode=m;job_seen=0;issue_count=0;
       model_job='0;model_job.a_source=a_source_t'(m);model_job.b_from_kv=m!=0;

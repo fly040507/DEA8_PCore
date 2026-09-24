@@ -41,6 +41,8 @@ import pcore2_pkg::*;
   logic [TILE_BITS:0] region_tiles[0:BANKS-1];
   logic read_in_range,read_in_region,write_in_range,write_in_region;
   logic conflict,duplicate_write,commit_complete,bad_ctrl,write_ok;
+  logic begin_bank_open,begin_reader_busy,begin_output_busy,commit_bad;
+  logic rd_data_ready,rd_complete,rd_epoch_match;
   logic [COUNT_BITS-1:0] region_tile_count,expected_even,expected_odd;
   logic out_bank;
   logic [1:0] read_mask;
@@ -50,32 +52,60 @@ import pcore2_pkg::*;
   assign ra=ADDR_BITS'((rd_bank*PAIRS+rd_pair)*MEM_TILES+rd_tile);
   assign read_in_range=rd_bank<BANKS && rd_tile<MEM_TILES && rd_pair<PAIRS;
   assign write_in_range=wr_bank<BANKS && wr_tile<MEM_TILES && wr_pair<PAIRS;
-  assign read_in_region=read_in_range &&
-    rd_tile>=region_base[rd_bank] &&
-    rd_tile<region_base[rd_bank]+region_tiles[rd_bank];
-  assign write_in_region=write_in_range && open_bank[wr_bank] &&
-    wr_tile>=region_base[wr_bank] &&
-    wr_tile<region_base[wr_bank]+region_tiles[wr_bank];
+  always_comb begin
+    read_in_region=0;
+    if(read_in_range)
+      read_in_region=rd_tile>=region_base[rd_bank] &&
+        rd_tile<region_base[rd_bank]+region_tiles[rd_bank];
+    write_in_region=0;
+    if(write_in_range && open_bank[wr_bank])
+      write_in_region=wr_tile>=region_base[wr_bank] &&
+        wr_tile<region_base[wr_bank]+region_tiles[wr_bank];
+    duplicate_write=0;
+    if((|wr_mask) && write_in_region)
+      duplicate_write=(wr_mask[0] && initialized[0][wa]) ||
+        (wr_mask[1] && initialized[1][wa]);
+    rd_data_ready=0;
+    rd_complete=0;
+    rd_epoch_match=0;
+    if(read_in_range)
+      rd_data_ready=initialized[0][ra] &&
+        (!read_mask[1] || initialized[1][ra]);
+    if(rd_bank<BANKS) begin
+      rd_complete=complete_bank[rd_bank];
+      rd_epoch_match=bank_epoch[rd_bank]==rd_epoch;
+    end
+    begin_bank_open=0;
+    begin_reader_busy=0;
+    begin_output_busy=0;
+    if(begin_bank.bank<BANKS) begin begin_bank_open=open_bank[begin_bank.bank];
+      begin_reader_busy=rd_valid && rd_bank==begin_bank.bank;
+      begin_output_busy=out_valid && out_bank==begin_bank.bank;
+    end
+    region_tile_count='0;
+    commit_complete=0;
+    commit_bad=0;
+    if(commit_bank.valid) begin
+      if(commit_bank.bank>=BANKS) commit_bad=1;
+      else begin
+        region_tile_count=COUNT_BITS'(region_tiles[commit_bank.bank]);
+        commit_complete=commit_bank.tile_base==region_base[commit_bank.bank] &&
+          commit_bank.tile_count==region_tiles[commit_bank.bank] &&
+          written[commit_bank.bank][0]==expected_even &&
+          written[commit_bank.bank][1]==expected_odd;
+        commit_bad=!open_bank[commit_bank.bank] ||
+          bank_epoch[commit_bank.bank]!=commit_bank.epoch || !commit_complete;
+      end
+    end
+  end
   assign conflict=(|wr_mask) && write_in_range && wa==ra;
-  assign duplicate_write=(|wr_mask) && write_in_region &&
-    ((wr_mask[0] && initialized[0][wa]) ||
-     (wr_mask[1] && initialized[1][wa]));
-  assign region_tile_count=COUNT_BITS'(region_tiles[commit_bank.bank]);
   assign expected_even=(region_tile_count<<4)+(region_tile_count<<3)+(region_tile_count<<1);
   assign expected_odd=(region_tile_count<<4)+(region_tile_count<<3)+region_tile_count;
-  assign commit_complete=commit_bank.valid && commit_bank.bank<BANKS &&
-    commit_bank.tile_base==region_base[commit_bank.bank] &&
-    commit_bank.tile_count==region_tiles[commit_bank.bank] &&
-    written[commit_bank.bank][0]==expected_even &&
-    written[commit_bank.bank][1]==expected_odd;
   assign bad_ctrl=(begin_bank.valid &&
       (begin_bank.bank>=BANKS || begin_bank.tile_count==0 ||
        begin_bank.tile_base+begin_bank.tile_count>MEM_TILES ||
-       open_bank[begin_bank.bank] ||
-       (rd_valid && rd_bank==begin_bank.bank) ||
-       (out_valid && out_bank==begin_bank.bank))) ||
-    (commit_bank.valid && (commit_bank.bank>=BANKS || !open_bank[commit_bank.bank] ||
-      bank_epoch[commit_bank.bank]!=commit_bank.epoch || !commit_complete)) ||
+       begin_bank_open || begin_reader_busy || begin_output_busy)) ||
+    commit_bad ||
     ((|wr_mask) && (!write_in_region || duplicate_write ||
       (wr_mask & ~row_mask(wr_pair))!=0 ||
       (begin_bank.valid && begin_bank.bank==wr_bank))) ||
@@ -83,9 +113,8 @@ import pcore2_pkg::*;
   assign write_ok=(|wr_mask) && !reset && !clear && !protocol_error && !bad_ctrl &&
     write_in_region && !duplicate_write;
   assign rd_ready=!reset && !clear && !protocol_error && (!out_valid || out_ready) &&
-    read_in_region && complete_bank[rd_bank] && bank_epoch[rd_bank]==rd_epoch &&
-    initialized[0][ra] &&
-    (!read_mask[1] || initialized[1][ra]) && !conflict;
+    read_in_region && rd_complete && rd_epoch_match &&
+    rd_data_ready && !conflict;
 
   for(genvar r=0;r<ROW_LANES;r++) begin : g_parity
     (* ram_style="block" *) logic [DATA_BITS-1:0] data_mem[0:DEPTH-1];

@@ -33,6 +33,7 @@ import pcore2_pkg::*;
   logic [TILE_BITS-1:0] qoz_base[0:0],pbuf_base[0:1];
   logic [TILE_BITS:0] qoz_tiles[0:0],pbuf_tiles[0:1];
   logic qoz_region_ready,pbuf_region_ready,region_ready;
+  logic qoz_begin_conflict,pbuf_begin_conflict;
   logic reader_owner_error,qoz_owner_busy,pbuf_owner_busy;
   wire [2:0] a_valid;
   logic [2:0] a_ready;
@@ -59,8 +60,16 @@ import pcore2_pkg::*;
   assign pbuf_region_ready=pbuf_complete[job.pbuf_bank] &&
     pbuf_epoch[job.pbuf_bank]==job.epoch &&
     pbuf_base[job.pbuf_bank]==0 && pbuf_tiles[job.pbuf_bank]>=1;
-  assign region_ready=job.a_source==A_QOZ ? qoz_region_ready :
-                      job.a_source==A_PBUF ? pbuf_region_ready : 1'b1;
+  // A producer begin has priority over a consumer job in the same cycle.
+  // Otherwise the old committed descriptor could be accepted while begin
+  // invalidates that exact Region at the same rising edge.
+  assign qoz_begin_conflict=job_valid && qoz_begin.valid && job.a_source==A_QOZ;
+  assign pbuf_begin_conflict=job_valid && pbuf_begin.valid &&
+    job.a_source==A_PBUF && pbuf_begin.bank==job.pbuf_bank;
+  assign region_ready=job.a_source==A_QOZ ?
+    (qoz_region_ready && !qoz_begin_conflict) :
+    job.a_source==A_PBUF ?
+    (pbuf_region_ready && !pbuf_begin_conflict) : 1'b1;
   assign qoz_owner_busy=busy && source==A_QOZ;
   assign pbuf_owner_busy=busy && source==A_PBUF && pbuf_begin.bank==rd_bank;
   assign protocol_error=frontend_error || config_error || reader_owner_error ||

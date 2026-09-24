@@ -1,7 +1,7 @@
 param([string]$VivadoRoot="D:\Xilinx\Vivado\2022.2")
 $ErrorActionPreference="Stop"
 $here=$PSScriptRoot; $xvlog=Join-Path $VivadoRoot "bin\xvlog.bat"; $xelab=Join-Path $VivadoRoot "bin\xelab.bat"; $xsim=Join-Path $VivadoRoot "bin\xsim.bat"
-$tops=@("tb_dea8_pe_2row","tb_dea8_mxu_2row","tb_dea8_a2_fifo","tb_dea8_w_tile_assembler_pp","tb_dea8_a_pair_buffer","tb_dea8_matrix_frontend_2row")
+$tops=@("tb_dea8_pe_2row","tb_dea8_mxu_2row","tb_dea8_a2_fifo","tb_dea8_w_tile_assembler_pp","tb_dea8_a_pair_buffer","tb_dea8_a_pair_buffer_guard","tb_dea8_matrix_frontend_2row")
 $testFiles=@($tops | ForEach-Object { "..\tb\$_.sv" })
 $reportDir=Join-Path $here "reports"
 New-Item -ItemType Directory -Force -Path $reportDir | Out-Null
