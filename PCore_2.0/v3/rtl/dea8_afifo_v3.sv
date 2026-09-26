@@ -16,7 +16,9 @@ module dea8_afifo_v3 #(parameter int DEPTH=AFIFO_DEPTH) (
 );
   localparam int PTR_BITS=$clog2(DEPTH);
   logic [PTR_BITS-1:0] head,tail;
-  a2_t mem[0:DEPTH-1];
+  // Consecutive logical words land in opposite single-write physical banks.
+  a2_t mem_even[0:DEPTH/2-1];
+  a2_t mem_odd [0:DEPTH/2-1];
   logic [PAIR_BITS-1:0] expected_pair;
   logic [TILE_BITS-1:0] expected_tile;
   logic expected_slot;
@@ -26,10 +28,14 @@ module dea8_afifo_v3 #(parameter int DEPTH=AFIFO_DEPTH) (
   logic push0,push1,pop_fire,reserve_fire;
   logic bad0,bad1,finish0,finish1;
   logic [$clog2(DEPTH+1):0] space;
+  logic rollover_available;
 
-  assign out_entry=mem[head];
+  assign out_entry=head[0]?mem_odd[head>>1]:mem_even[head>>1];
   assign out_valid=running && (count!=0);
-  assign tile_available=!reset && !clear && !running && complete_tiles!=0 && count>=PAIRS;
+  assign rollover_available=running&&out_valid&&out_entry.pair_idx==PAIRS-1&&
+    complete_tiles!=0&&count>=PAIRS+1;
+  assign tile_available=!reset && !clear &&
+    ((!running&&complete_tiles!=0&&count>=PAIRS)||rollover_available);
   assign pop_fire=out_valid;
   assign reserve_fire=reserve_tile && tile_available;
   assign space=DEPTH-count+pop_fire;
@@ -57,8 +63,15 @@ module dea8_afifo_v3 #(parameter int DEPTH=AFIFO_DEPTH) (
       expected_pair<='0;expected_tile<='0;expected_slot<=0;have_context<=0;protocol_error<=0;
     end else begin
       if(bad0||bad1) protocol_error<=1;
-      if(push0) begin mem[tail]<=in_entry[0]; tail<=tail+1'b1; end
-      if(push1) begin mem[tail+push0]<=in_entry[1]; tail<=tail+push0+1'b1; end
+      if(push0) begin
+        if(tail[0]) mem_odd[tail>>1]<=in_entry[0];
+        else mem_even[tail>>1]<=in_entry[0];
+      end
+      if(push1) begin
+        if((tail+push0)&1'b1) mem_odd[(tail+push0)>>1]<=in_entry[1];
+        else mem_even[(tail+push0)>>1]<=in_entry[1];
+      end
+      if(push0||push1) tail<=tail+push0+push1;
       if(pop_fire) head<=head+1'b1;
       case({push0,push1,pop_fire})
         3'b100,3'b010: count<=count+1'b1;

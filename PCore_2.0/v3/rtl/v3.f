@@ -7,5 +7,7 @@ dea8_xbc4_adapter_v3.sv
 dea8_bfifo_v3.sv
 dea8_b_serializer_v3.sv
 dea8_b_loader_v3.sv
+dea8_matrix_v3.sv
 dea8_pair_store_v3.sv
 dea8_deqacc32_v3.sv
+dea8_acc_store_v3.sv

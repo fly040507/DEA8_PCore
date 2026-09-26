@@ -11,6 +11,24 @@ module tb_v3_deqacc32;
   int commits;
   dea8_deqacc32_v3 dut(.clk,.reset,.clear,.rsp_valid,.rsp,.commit_valid,.done,.commit_meta,
     .dbg_valid,.dbg_sel,.dbg_parity,.dbg_addr,.dbg_lane,.dbg_data);
+
+  task automatic drive_one(input acc_sel_e sel,input int pair,input int nt,
+                           input logic clear_acc,input logic last_flag);
+    begin
+      @(negedge clk); rsp_valid=1; rsp='0; rsp.row_valid=row_mask(pair);
+      rsp.e_stream[0]=128; rsp.e_stream[1]=128;
+      for(int n=0;n<16;n++) begin
+        rsp.e_stat[n]=128;
+        rsp.psum[0][n]=32'sd16; rsp.psum[1][n]=32'sd16;
+      end
+      rsp.meta.epoch=1; rsp.meta.head=0; rsp.meta.tile_idx=0;
+      rsp.meta.pair_idx=pair; rsp.meta.nt=nt; rsp.meta.final_k=1;
+      rsp.meta.last=last_flag; rsp.meta.exp_fold=0;
+      rsp.meta.acc_sel=sel; rsp.meta.acc_clear=clear_acc;
+      @(posedge clk); @(negedge clk); rsp_valid=0;
+    end
+  endtask
+
   // Sample after NBA updates; commit_valid is the stage-4 registered output.
   always @(posedge clk) #1 if(commit_valid) commits++;
   initial begin
@@ -32,7 +50,31 @@ module tb_v3_deqacc32;
     if(dbg_data!==pack_scaled32(0,32'h80000000,-6,0,0)) $fatal(1,"FACC even value mismatch %h",dbg_data);
     dbg_parity=1;#1;
     if(dbg_data!==pack_scaled32(0,32'h80000000,-6,0,0)) $fatal(1,"FACC odd value mismatch %h",dbg_data);
-    $display("tb_v3_deqacc32 PASS commits=%0d latency=5",commits);
+
+    // Wait for the registered done pulse to leave before starting the next
+    // independent transaction stream.
+    @(posedge clk); #1;
+    // OACC/PV mode: the second transaction must see the first transaction's
+    // committed value at the same pair/nt address.
+    drive_one(ACC_OACC,0,3,1,0);
+    wait(commit_valid); @(posedge clk); #1;
+    drive_one(ACC_OACC,0,3,0,1);
+    wait(done); #1;
+    dbg_valid=1; dbg_sel=ACC_OACC; dbg_parity=0; dbg_addr=oacc_addr(0,3); dbg_lane=0; #1;
+    if(dbg_data!==pack_scaled32(0,32'h80000000,-5,0,0))
+      $fatal(1,"OACC even read/add mismatch %h",dbg_data);
+    dbg_parity=1; #1;
+    if(dbg_data!==pack_scaled32(0,32'h80000000,-5,0,0))
+      $fatal(1,"OACC odd read/add mismatch %h",dbg_data);
+
+    @(posedge clk); #1;
+    // FACC B uses an independent physical bank and must not alias FACC A.
+    drive_one(ACC_FACC_B,0,0,1,1);
+    wait(done); #1;
+    dbg_valid=1; dbg_sel=ACC_FACC_B; dbg_parity=0; dbg_addr=0; dbg_lane=0; #1;
+    if(dbg_data!==pack_scaled32(0,32'h80000000,-6,0,0))
+      $fatal(1,"FACC B even value mismatch %h",dbg_data);
+    $display("tb_v3_deqacc32 PASS commits=%0d latency=5 FACC_A/FACC_B/OACC=1",commits);
     $finish;
   end
   initial begin #100000;$fatal(1,"v3 DEQACC watchdog"); end

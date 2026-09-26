@@ -49,8 +49,12 @@ module dea8_bfifo_v3 #(parameter int DEPTH=BFIFO_DEPTH) (
         2'b01: count<=count-1'b1;
         default: ;
       endcase
-      if(in_valid&&in_ready&&!bad&&in_entry.group_idx==7) complete_tiles<=complete_tiles+1'b1;
-      if(pop_fire&&out_entry.group_idx==7) complete_tiles<=complete_tiles-1'b1;
+      case({in_valid&&in_ready&&!bad&&in_entry.group_idx==7,
+            pop_fire&&out_entry.group_idx==7})
+        2'b10: complete_tiles<=complete_tiles+1'b1;
+        2'b01: complete_tiles<=complete_tiles-1'b1;
+        default: ;
+      endcase
     end
   end
   initial if(DEPTH<8 || (DEPTH&(DEPTH-1))!=0) $fatal(1,"BFIFO geometry");

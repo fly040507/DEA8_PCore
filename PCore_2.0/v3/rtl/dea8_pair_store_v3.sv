@@ -34,7 +34,8 @@ module dea8_pair_store_v3 #(parameter int MEM_TILES=32,parameter int BANKS=1) (
   logic [DEPTH-1:0] init[0:1][0:BANKS-1];
   logic [$clog2(PAIRS*MEM_TILES+1)-1:0] writes[0:BANKS-1][0:1];
   logic wr_in_range,rd_in_range,wr_ok,wr_in_region,rd_in_region,commit_bad;
-  logic wr_bank_open,begin_bank_open,begin_bad;
+  logic wr_bank_open,begin_bank_open,begin_bad,duplicate_write,write_bad;
+  logic begin_reader_busy,begin_output_busy,out_bank;
   logic rd_data_ready;
   logic [BANKS-1:0] bank_idx;
   logic [PAIR_BITS+$clog2(MEM_TILES)-1:0] addr;
@@ -43,11 +44,15 @@ module dea8_pair_store_v3 #(parameter int MEM_TILES=32,parameter int BANKS=1) (
   assign wr_in_range=wr_bank<BANKS&&wr_tile<MEM_TILES&&wr_pair<PAIRS;
   assign rd_in_range=rd_bank<BANKS&&rd_tile<MEM_TILES&&rd_pair<PAIRS;
   always_comb begin
-    rd_in_region=0;wr_in_region=0;commit_bad=0;wr_bank_open=0;begin_bank_open=0;begin_bad=0;
+    rd_in_region=0;wr_in_region=0;commit_bad=0;wr_bank_open=0;begin_bank_open=0;
+    begin_bad=0;duplicate_write=0;begin_reader_busy=0;begin_output_busy=0;
     if(wr_in_range) begin
       wr_bank_open=open_bank[wr_bank];
       wr_in_region=wr_tile>=open_base[wr_bank]&&
         wr_tile<open_base[wr_bank]+open_tiles[wr_bank];
+      if(wr_in_region)
+        duplicate_write=(wr_mask[0]&&init[0][wr_bank][addr])||
+          (wr_mask[1]&&init[1][wr_bank][addr]);
     end
     if(rd_in_range) rd_in_region=rd_tile>=complete_base[rd_bank]&&
       rd_tile<complete_base[rd_bank]+complete_tiles[rd_bank]&&
@@ -57,25 +62,32 @@ module dea8_pair_store_v3 #(parameter int MEM_TILES=32,parameter int BANKS=1) (
       else commit_bad=!open_bank[commit_bank]||open_epoch[commit_bank]!=commit_epoch||
         open_base[commit_bank]!=commit_base||open_tiles[commit_bank]!=commit_tiles||
       writes[commit_bank][0] < PAIRS*commit_tiles ||
-      writes[commit_bank][1] < ((ROWS%2)?PAIRS*commit_tiles-1:PAIRS*commit_tiles);
+      writes[commit_bank][1] < (ROWS/2)*commit_tiles;
     end
     if(begin_valid) begin
       if(begin_bank>=BANKS) begin_bad=1;
       else begin
         begin_bank_open=open_bank[begin_bank];
-        begin_bad=begin_tiles==0||begin_base+begin_tiles>MEM_TILES||begin_bank_open;
+        begin_reader_busy=rd_valid&&rd_bank==begin_bank;
+        begin_output_busy=out_valid&&out_bank==begin_bank;
+        begin_bad=begin_tiles==0||begin_base+begin_tiles>MEM_TILES||
+          begin_bank_open||begin_reader_busy||begin_output_busy;
       end
     end
+    if(begin_valid&&commit_valid&&begin_bank==commit_bank) begin_bad=1;
   end
   always_comb begin
     rd_data_ready=0;
     if(rd_in_range) rd_data_ready=init[0][rd_bank][rd_tile*PAIRS+rd_pair]&&
       (!((row_mask(rd_pair)&2'b10)!=0)||init[1][rd_bank][rd_tile*PAIRS+rd_pair]);
   end
-  assign wr_ok=(|wr_mask)&&wr_in_range&&wr_in_region&&wr_bank_open&&!protocol_error&&
-    (wr_mask&~row_mask(wr_pair))==0;
+  assign write_bad=(|wr_mask)&&(!wr_in_range||!wr_in_region||!wr_bank_open||
+    duplicate_write||(wr_mask&~row_mask(wr_pair))!=0||
+    (begin_valid&&begin_bank==wr_bank));
+  assign wr_ok=(|wr_mask)&&!reset&&!clear&&!protocol_error&&!write_bad&&!begin_bad&&!commit_bad;
   assign rd_ready=!reset&&!clear&&!protocol_error&&rd_valid&&rd_in_region&&
-    (!out_valid||out_ready)&&rd_data_ready;
+    (!out_valid||out_ready)&&rd_data_ready&&
+    !(begin_valid&&begin_bank==rd_bank);
   always_ff @(posedge clk) begin
     if(reset||clear) begin
       protocol_error<=0;open_bank<='0;complete<='0;out_valid<=0;
@@ -86,9 +98,8 @@ module dea8_pair_store_v3 #(parameter int MEM_TILES=32,parameter int BANKS=1) (
       end
       for(int r=0;r<2;r++) for(int b=0;b<BANKS;b++) init[r][b]<='0;
     end else begin
-      if(commit_bad||begin_bad) protocol_error<=1;
-      if(begin_valid&&!protocol_error&&(begin_bank<BANKS)&&begin_tiles!=0&&
-         begin_base+begin_tiles<=MEM_TILES&&!open_bank[begin_bank]) begin
+      if(commit_bad||begin_bad||write_bad) protocol_error<=1;
+      if(begin_valid&&!protocol_error&&!begin_bad&&!write_bad&&!commit_bad) begin
         open_bank[begin_bank]<=1;open_epoch[begin_bank]<=begin_epoch;
         open_base[begin_bank]<=begin_base;open_tiles[begin_bank]<=begin_tiles;
         complete[begin_bank]<=0;writes[begin_bank][0]<='0;writes[begin_bank][1]<='0;
@@ -98,7 +109,7 @@ module dea8_pair_store_v3 #(parameter int MEM_TILES=32,parameter int BANKS=1) (
         for(int r=0;r<2;r++) if(wr_mask[r]) begin mem[r][wr_bank][addr]<=wr_row[r];init[r][wr_bank][addr]<=1;end
         for(int r=0;r<2;r++) if(wr_mask[r]&&!init[r][wr_bank][addr]) writes[wr_bank][r]<=writes[wr_bank][r]+1'b1;
       end
-      if(commit_valid&&!commit_bad&&!protocol_error) begin
+      if(commit_valid&&!commit_bad&&!begin_bad&&!write_bad&&!protocol_error) begin
         open_bank[commit_bank]<=0;complete[commit_bank]<=1;
         complete_epoch[commit_bank]<=commit_epoch;complete_base[commit_bank]<=commit_base;
         complete_tiles[commit_bank]<=commit_tiles;
@@ -106,7 +117,8 @@ module dea8_pair_store_v3 #(parameter int MEM_TILES=32,parameter int BANKS=1) (
       if(rd_valid&&rd_ready) begin
         out_entry.row[0]<=mem[0][rd_bank][rd_tile*PAIRS+rd_pair];
         out_entry.row[1]<=mem[1][rd_bank][rd_tile*PAIRS+rd_pair];out_entry.row_valid<=row_mask(rd_pair);
-        out_entry.pair_idx<=rd_pair;out_entry.tile_idx<=rd_tile;out_entry.slot<=rd_slot;out_valid<=1;
+        out_entry.pair_idx<=rd_pair;out_entry.tile_idx<=rd_tile;out_entry.slot<=rd_slot;
+        out_entry.reserved<=0;out_bank<=rd_bank;out_valid<=1;
       end else if(out_valid&&out_ready) out_valid<=0;
     end
   end

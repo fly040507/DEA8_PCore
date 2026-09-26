@@ -1,7 +1,7 @@
 param([string]$VivadoRoot="D:\Xilinx\Vivado\2022.2")
 $ErrorActionPreference="Stop"
 $here=$PSScriptRoot;$rtl=Join-Path $here "rtl";$xvlog=Join-Path $VivadoRoot "bin\xvlog.bat";$xelab=Join-Path $VivadoRoot "bin\xelab.bat";$xsim=Join-Path $VivadoRoot "bin\xsim.bat";$report=Join-Path $here "reports"
-$tops=@("tb_v3_ingress","tb_v3_bpath","tb_v3_pair_store","tb_v3_deqacc32","tb_v3_matrix")
+$tops=@("tb_v3_ingress","tb_v3_bpath","tb_v3_bfifo_stream","tb_v3_pair_store","tb_v3_pair_store_regions","tb_v3_deqacc32","tb_v3_matrix")
 New-Item -ItemType Directory -Force -Path $report | Out-Null
 "RUNNING at $(Get-Date -Format o)" | Set-Content (Join-Path $report "v3_simulation_summary.txt") -Encoding UTF8
 Push-Location $here

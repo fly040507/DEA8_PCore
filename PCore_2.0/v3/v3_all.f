@@ -10,8 +10,11 @@ rtl/dea8_b_loader_v3.sv
 rtl/dea8_matrix_v3.sv
 rtl/dea8_pair_store_v3.sv
 rtl/dea8_deqacc32_v3.sv
+rtl/dea8_acc_store_v3.sv
 tb/tb_v3_ingress.sv
 tb/tb_v3_bpath.sv
+tb/tb_v3_bfifo_stream.sv
 tb/tb_v3_pair_store.sv
+tb/tb_v3_pair_store_regions.sv
 tb/tb_v3_deqacc32.sv
 tb/tb_v3_matrix.sv

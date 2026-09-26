@@ -16,8 +16,8 @@ package pcore3_pkg;
     logic [SCALE_BITS-1:0] scale;
   } qvec16_t;
 
-  typedef struct {
-    qvec16_t row[0:1];
+  typedef struct packed {
+    qvec16_t [0:1] row;
     logic [1:0] row_valid;
     logic [PAIR_BITS-1:0] pair_idx;
     logic [TILE_BITS-1:0] tile_idx;
@@ -25,8 +25,8 @@ package pcore3_pkg;
     logic [1:0] reserved;
   } a2_t;
 
-  typedef struct {
-    qvec16_t row[0:3];
+  typedef struct packed {
+    qvec16_t [0:3] row;
     logic [3:0] row_valid;
     logic [3:0] group_idx;
     logic [TILE_BITS-1:0] tile_idx;
@@ -34,8 +34,8 @@ package pcore3_pkg;
     logic [3:0] reserved;
   } xbc4_t;
 
-  typedef struct {
-    qvec16_t col[0:1];
+  typedef struct packed {
+    qvec16_t [0:1] col;
     logic [TILE_BITS-1:0] tile_idx;
     logic [2:0] group_idx;
     logic [EPOCH_BITS-1:0] epoch;
