@@ -7,7 +7,7 @@ module tb_v3_deqacc32;
   logic reset=1,clear=0,rsp_valid;
   mxu_rsp_t rsp;
   logic commit_valid,done; pair_meta_t commit_meta;
-  logic proj_rd_data_valid; logic [15:0][31:0] proj_even_data,proj_odd_data;
+  logic result_rd_data_valid; logic [15:0][31:0] result_even_data,result_odd_data;
   logic dbg_valid,dbg_parity; acc_sel_e dbg_sel; logic [9:0] dbg_addr; logic [3:0] dbg_lane; logic [31:0] dbg_data;
   int commits;
   function automatic logic [31:0] even_one(input int lane,input int exponent);
@@ -17,7 +17,8 @@ module tb_v3_deqacc32;
     return pack_scaled32(0,(32+lane)<<26,exponent,0,0);
   endfunction
   dea8_deqacc32_v3 dut(.clk,.reset,.clear,.rsp_valid,.rsp,.commit_valid,.done,.commit_meta,
-    .proj_rd_valid(1'b0),.proj_rd_pair(5'b0),.proj_rd_data_valid,.proj_even_data,.proj_odd_data,
+    .result_rd_owner(ACC_READ_DEQACC),.result_rd_valid(1'b0),.result_rd_sel(ACC_FACC_A),
+    .result_rd_addr(10'b0),.result_rd_data_valid,.result_even_data,.result_odd_data,
     .dbg_valid,.dbg_sel,.dbg_parity,.dbg_addr,.dbg_lane,.dbg_data);
 
   task automatic drive_one(input acc_sel_e sel,input int pair,input int nt,

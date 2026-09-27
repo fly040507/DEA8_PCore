@@ -15,6 +15,9 @@ module dea8_matrix_v3 (
   input logic [TILE_BITS:0] job_tiles,
   input logic [EPOCH_BITS-1:0] job_epoch,
   input logic [2:0] job_head,
+  input logic [3:0] job_nt,
+  input logic job_nt_per_tile,
+  input logic job_clear_each_tile,
   input logic job_final_k,
   input logic signed [EXP_FOLD_BITS-1:0] job_exp_fold,
   input acc_sel_e job_acc_sel,
@@ -22,9 +25,12 @@ module dea8_matrix_v3 (
   output logic job_ready,job_busy,
   output logic commit_valid,done,
   output pair_meta_t commit_meta,
-  input logic proj_rd_valid,input logic [4:0] proj_rd_pair,
-  output logic proj_rd_data_valid,
-  output logic [15:0][31:0] proj_even_data,proj_odd_data,
+  input acc_read_owner_e result_rd_owner,
+  input logic result_rd_valid,
+  input acc_sel_e result_rd_sel,
+  input logic [9:0] result_rd_addr,
+  output logic result_rd_data_valid,
+  output logic [15:0][31:0] result_even_data,result_odd_data,
   input logic dbg_valid,input acc_sel_e dbg_sel,input logic dbg_parity,
   input logic [9:0] dbg_addr,input logic [3:0] dbg_lane,
   output logic [31:0] dbg_data,
@@ -80,7 +86,9 @@ module dea8_matrix_v3 (
   logic [TILE_BITS:0] tiles_q,tile_seq_q;
   logic tile_started_q;
   logic [EPOCH_BITS-1:0] epoch_q; logic [2:0] head_q;
-  logic final_k_q; logic signed [EXP_FOLD_BITS-1:0] exp_fold_q;
+  logic final_k_q; logic [3:0] nt_q;
+  logic nt_per_tile_q,clear_each_tile_q;
+  logic signed [EXP_FOLD_BITS-1:0] exp_fold_q;
   acc_sel_e acc_sel_q; logic acc_clear_q;
   logic job_accept,tile_issue_last;
   logic [TILE_BITS:0] current_tile_ext,next_tile_ext;
@@ -104,22 +112,26 @@ module dea8_matrix_v3 (
   assign tile_issue_last=req_valid&&(a_head.pair_idx==PAIRS-1);
   always_comb begin
     req_meta='0;req_meta.epoch=epoch_q;req_meta.head=head_q;req_meta.tile_idx=current_tile;
-    req_meta.pair_idx=a_head.pair_idx;req_meta.nt=0;req_meta.final_k=final_k_q;
+    req_meta.pair_idx=a_head.pair_idx;
+    req_meta.nt=nt_per_tile_q?(nt_q+4'(tile_seq_q)):nt_q;
+    req_meta.final_k=final_k_q;
     req_meta.last=(tile_seq_q+1'b1>=tiles_q)&&(a_head.pair_idx==PAIRS-1);
     req_meta.exp_fold=exp_fold_q;req_meta.acc_sel=acc_sel_q;
     // init_acc applies to every pair in the first K Tile, not only pair0.
-    req_meta.acc_clear=acc_clear_q&&(tile_seq_q==0);
+    req_meta.acc_clear=acc_clear_q&&(clear_each_tile_q||(tile_seq_q==0));
   end
   always_ff @(posedge clk) begin
     if(reset||clear) begin
       job_busy_q<=0;base_tile_q<=0;tiles_q<=0;tile_seq_q<=0;tile_started_q<=0;epoch_q<=0;head_q<=0;
-      final_k_q<=0;exp_fold_q<=0;acc_sel_q<=ACC_FACC_A;acc_clear_q<=0;
+      final_k_q<=0;nt_q<=0;nt_per_tile_q<=0;clear_each_tile_q<=0;
+      exp_fold_q<=0;acc_sel_q<=ACC_FACC_A;acc_clear_q<=0;
       release_valid_q<=0;release_bank_q<=0;
     end else begin
       release_valid_q<=tile_issue_last;release_bank_q<=req_bank;
       if(job_accept) begin
         job_busy_q<=1;base_tile_q<=job_tile_idx;tiles_q<=job_tiles;tile_seq_q<=0;tile_started_q<=0;
-        epoch_q<=job_epoch;head_q<=job_head;final_k_q<=job_final_k;exp_fold_q<=job_exp_fold;
+        epoch_q<=job_epoch;head_q<=job_head;nt_q<=job_nt;final_k_q<=job_final_k;exp_fold_q<=job_exp_fold;
+        nt_per_tile_q<=job_nt_per_tile;clear_each_tile_q<=job_clear_each_tile;
         acc_sel_q<=job_acc_sel;acc_clear_q<=job_acc_clear;
       end
       if(tile_issue_last&&tile_seq_q+1'b1<tiles_q) begin
@@ -141,6 +153,7 @@ module dea8_matrix_v3 (
     .load_valid,.load_bank,.load_column,.load_entry(serializer_out),.rsp_valid(mxu_rsp_valid),.rsp(mxu_rsp));
   dea8_deqacc32_v3 deqacc(
     .clk,.reset,.clear,.rsp_valid(mxu_rsp_valid),.rsp(mxu_rsp),.commit_valid,.done,.commit_meta,
-    .proj_rd_valid,.proj_rd_pair,.proj_rd_data_valid,.proj_even_data,.proj_odd_data,
+    .result_rd_owner,.result_rd_valid,.result_rd_sel,.result_rd_addr,
+    .result_rd_data_valid,.result_even_data,.result_odd_data,
     .dbg_valid,.dbg_sel,.dbg_parity,.dbg_addr,.dbg_lane,.dbg_data);
 endmodule
