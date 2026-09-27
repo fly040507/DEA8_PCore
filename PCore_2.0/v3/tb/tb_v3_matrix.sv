@@ -15,7 +15,7 @@ module tb_v3_matrix;
   logic [EPOCH_BITS-1:0] job_epoch;
   logic [2:0] job_head; logic [3:0] job_nt; logic job_final_k;
   logic signed [EXP_FOLD_BITS-1:0] job_exp_fold;
-  acc_sel_e job_acc_sel; logic job_acc_clear;
+  acc_sel_e job_acc_sel; logic job_add_old;
   logic commit_valid,done; pair_meta_t commit_meta;
   logic dbg_valid,dbg_parity; acc_sel_e dbg_sel; logic [9:0] dbg_addr;
   logic [3:0] dbg_lane; logic [31:0] dbg_data;
@@ -27,9 +27,9 @@ module tb_v3_matrix;
   dea8_matrix_v3 dut(
     .clk,.reset,.clear,.xbc_valid,.xbc_ready,.xbc_entry,
     .hbm_valid,.hbm_ready,.hbm_entry,.kv_valid,.kv_ready,.kv_entry,.b_source,
-    .job_start,.job_tile_idx,.job_tiles,.job_epoch,.job_head,.job_nt,
+    .job_start,.job_a_tile_idx(job_tile_idx),.job_b_tile_idx(job_tile_idx),.job_tiles,.job_m_rows((PAIR_BITS+1)'(ROWS)),.job_epoch,.job_head,.job_nt,
     .job_nt_per_tile(1'b0),.job_clear_each_tile(1'b0),.job_final_k,
-    .job_exp_fold,.job_acc_sel,.job_acc_clear,.job_ready,.job_busy,
+    .job_exp_fold,.job_acc_sel,.job_add_old,.job_ready,.job_busy,
     .commit_valid,.done,.commit_meta,.dbg_valid,.dbg_sel,.dbg_parity,
     .result_rd_owner(ACC_READ_DEQACC),.result_rd_valid(1'b0),
     .result_rd_sel(ACC_FACC_A),.result_rd_addr(10'b0),
@@ -94,7 +94,7 @@ module tb_v3_matrix;
     xbc_valid=0; hbm_valid=0; kv_valid=0; b_source=B_HBM;
     job_start=0; job_tile_idx=0; job_tiles=TEST_TILES;
     job_epoch=1; job_head=0; job_nt=0; job_final_k=1; job_exp_fold=0;
-    job_acc_sel=ACC_FACC_A; job_acc_clear=1;
+    job_acc_sel=ACC_FACC_A; job_add_old=0;
     dbg_valid=0; dbg_sel=ACC_FACC_A; dbg_parity=0; dbg_addr=0; dbg_lane=0;
     commits=0; last_tile_count=0; cycle_count=0; issue_count=0;
     last_issue_cycle=0; max_issue_gap=0;
@@ -108,7 +108,7 @@ module tb_v3_matrix;
     // Live inputs are deliberately changed after acceptance.  All metadata
     // observed at the commit boundary must still come from the latched job.
     job_tile_idx=6'h3f; job_tiles=1; job_epoch=4'hf; job_head=3'h7;
-    job_final_k=0; job_exp_fold=-7; job_acc_sel=ACC_FACC_B; job_acc_clear=0;
+    job_final_k=0; job_exp_fold=-7; job_acc_sel=ACC_FACC_B; job_add_old=0;
 
     fork
       begin

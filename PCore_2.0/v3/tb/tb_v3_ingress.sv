@@ -15,7 +15,8 @@ module tb_v3_ingress;
 
   dea8_xbc4_adapter_v3 adapter(.clk,.reset,.clear,.in_valid(x_valid),.in_ready(x_ready),
     .in_entry(x_entry),.out_valid(a_valid),.out_ready(a_ready),.out_entry(a_entry));
-  dea8_afifo_v3 fifo(.clk,.reset,.clear,.in_valid(a_valid),.in_ready(a_ready),.in_entry(a_entry),
+  dea8_afifo_v3 fifo(.clk,.reset,.clear,.pairs_cfg(PAIRS),.rows_cfg(ROWS),
+    .in_valid(a_valid),.in_ready(a_ready),.in_entry(a_entry),
     .reserve_tile(reserve),.tile_available,.running,.out_valid,.out_entry,.protocol_error,
     .count,.complete_tiles);
 

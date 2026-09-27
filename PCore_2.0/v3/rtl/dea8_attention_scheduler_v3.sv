@@ -70,7 +70,11 @@ module dea8_attention_scheduler_v3 #(
     matrix_cmd.op=(phase_q==RUN_PV||phase_q==TAIL_PV)?MATRIX_PV:MATRIX_QK;
     matrix_cmd.block_id=(phase_q==NEXT_QK)?b_q+1'b1:b_q;
     matrix_cmd.epoch=epoch_q;matrix_cmd.head=head_q;
-    matrix_cmd.a_tile=tile_base_q;matrix_cmd.b_tile=tile_base_q;
+    matrix_cmd.m_rows=ROWS;
+    // QK advances Q and K together.  PV reuses P tile 0 while the V-side
+    // output-tile window starts at a separate ID range.
+    matrix_cmd.a_id=(matrix_cmd.op==MATRIX_PV)?6'd0:tile_base_q;
+    matrix_cmd.b_id=(matrix_cmd.op==MATRIX_PV)?TILE_BITS'(ATTN_K_TILES):tile_base_q;
     matrix_cmd.out_tile=0;
     matrix_cmd.acc_sel=matrix_cmd.op==MATRIX_QK?
       (matrix_cmd.block_id[0]?ACC_FACC_B:ACC_FACC_A):ACC_OACC;

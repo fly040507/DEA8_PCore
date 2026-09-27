@@ -8,6 +8,7 @@ module tb_v3_attention_matrix;
   logic cmd_valid,cmd_ready,done_valid,done_ready=1;
   matrix_cmd_t cmd,done_cmd;
   logic xbc_valid,xbc_ready; xbc4_t xbc_entry;
+  logic replay_load_valid,replay_load_ready; xbc4_t replay_load_entry;
   logic hbm_valid,hbm_ready; b2_t hbm_entry;
   logic kv_valid,kv_ready; b2_t kv_entry;
   logic a_error,b_error; int done_count;
@@ -15,6 +16,7 @@ module tb_v3_attention_matrix;
   dea8_attention_matrix_v3 dut(
     .clk,.reset,.clear,.cmd_valid,.cmd_ready,.cmd,.done_valid,.done_ready,.done_cmd,
     .xbc_valid,.xbc_ready,.xbc_entry,.hbm_valid,.hbm_ready,.hbm_entry,
+    .replay_load_valid,.replay_load_ready,.replay_load_entry,
     .kv_valid,.kv_ready,.kv_entry,.b_source(B_HBM),
     .a_protocol_error(a_error),.b_protocol_error(b_error));
 
@@ -37,6 +39,13 @@ module tb_v3_attention_matrix;
     do begin @(negedge clk);hbm_valid=1;end while(!hbm_ready);
     @(negedge clk);hbm_valid=0;
   endtask
+  task automatic send_replay(input int group);
+    replay_load_entry='0;replay_load_entry.tile_idx=16;replay_load_entry.group_idx=group;
+    replay_load_entry.row_valid=(group==XBC_GROUPS-1)?4'b0111:4'b1111;
+    for(int r=0;r<4;r++)replay_load_entry.row[r]=qv(3);
+    do begin @(negedge clk);replay_load_valid=1;end while(!replay_load_ready);
+    @(negedge clk);replay_load_valid=0;
+  endtask
   task automatic send_cmd(input matrix_cmd_t c);
     do begin @(negedge clk);cmd=c;cmd_valid=1;end while(!cmd_ready);
     @(negedge clk);cmd_valid=0;
@@ -48,10 +57,10 @@ module tb_v3_attention_matrix;
   end
   initial begin
     matrix_cmd_t qk,pv;
-    cmd_valid=0;xbc_valid=0;hbm_valid=0;kv_valid=0;done_count=0;
-    qk='0;qk.mode=MAT_ATTENTION;qk.op=MATRIX_QK;qk.a_tile=0;qk.b_tile=0;
+    cmd_valid=0;xbc_valid=0;replay_load_valid=0;hbm_valid=0;kv_valid=0;done_count=0;
+    qk='0;qk.mode=MAT_ATTENTION;qk.op=MATRIX_QK;qk.a_id=0;qk.b_id=0;qk.m_rows=ROWS;
     qk.acc_sel=ACC_FACC_A;qk.result_last=1;qk.job_last=0;qk.epoch=1;
-    pv=qk;pv.op=MATRIX_PV;pv.a_tile=16;pv.b_tile=1;pv.acc_sel=ACC_OACC;
+    pv=qk;pv.op=MATRIX_PV;pv.a_id=16;pv.b_id=16;pv.acc_sel=ACC_OACC;
     pv.add_old=0;pv.job_last=1;
     repeat(20)@(negedge clk);reset=0;
     fork
@@ -61,8 +70,11 @@ module tb_v3_attention_matrix;
         send_cmd(pv);
       end
       begin
-        for(int t=0;t<TOTAL_TILES;t++)
+        for(int t=0;t<16;t++)
           for(int g=0;g<XBC_GROUPS;g++)send_a(t,g);
+      end
+      begin
+        for(int g=0;g<XBC_GROUPS;g++)send_replay(g);
       end
       begin
         for(int t=0;t<TOTAL_TILES;t++)
@@ -84,7 +96,7 @@ module tb_v3_attention_matrix;
       dut.matrix.bank_tile[0],dut.matrix.bank_tile[1]);
     $display("  reserve=%0d started=%0d jobbusy=%0d cur=%0d next=%0d tiles=%0d ahead=%0d",
       dut.matrix.a_reserve,dut.matrix.tile_started_q,dut.matrix.job_busy_q,
-      dut.matrix.current_tile,dut.matrix.next_tile,dut.matrix.tiles_q,dut.matrix.a_head.tile_idx);
+      dut.matrix.current_b,dut.matrix.next_b,dut.matrix.tiles_q,dut.matrix.a_head.tile_idx);
     $fatal(1,"attention matrix watchdog");
   end
 endmodule

@@ -2,8 +2,8 @@
 import pcore3_pkg::*;
 
 module tb_v3_attention_scheduler;
-  localparam int BLOCKS=4;
-  localparam int TAIL=12;
+  localparam int BLOCKS=KV_BLOCKS;
+  localparam int TAIL=MATRIX_STEADY_BUDGET;
   logic clk=0; always #2 clk=~clk;
   logic reset=1,clear=0;
   logic start_valid=0,start_ready,busy,done_valid,done_ready=0;
@@ -73,20 +73,26 @@ module tb_v3_attention_scheduler;
     wait(done_valid);
     if(m_count!=2*BLOCKS||qk_count!=BLOCKS||pv_count!=BLOCKS)
       $fatal(1,"matrix count m=%0d qk=%0d pv=%0d",m_count,qk_count,pv_count);
-    if(!matrix_is_qk[0]||matrix_block[0]!=0||
+    for(int oi=0;oi<2*BLOCKS;oi++) begin
+      if(oi==0 && (!matrix_is_qk[oi]||matrix_block[oi]!=0)) $fatal(1,"QK/PV startup order mismatch at %0d",oi);
+      else if(oi==2*BLOCKS-1 && (matrix_is_qk[oi]||matrix_block[oi]!=BLOCKS-1)) $fatal(1,"tail PV order mismatch at %0d",oi);
+      else if(oi>0 && oi<2*BLOCKS-1 && oi[0] && (!matrix_is_qk[oi]||matrix_block[oi]!=(oi+1)/2)) $fatal(1,"QK order mismatch at %0d",oi);
+      else if(oi>1 && oi<2*BLOCKS-1 && !oi[0] && (matrix_is_qk[oi]||matrix_block[oi]!=(oi/2)-1)) $fatal(1,"PV order mismatch at %0d",oi);
+    end
+    if(0 && (!matrix_is_qk[0]||matrix_block[0]!=0||
        !matrix_is_qk[1]||matrix_block[1]!=1||
        matrix_is_qk[2]||matrix_block[2]!=0||
        !matrix_is_qk[3]||matrix_block[3]!=2||
        matrix_is_qk[4]||matrix_block[4]!=1||
        !matrix_is_qk[5]||matrix_block[5]!=3||
        matrix_is_qk[6]||matrix_block[6]!=2||
-       matrix_is_qk[7]||matrix_block[7]!=3)
-      $fatal(1,"QK/PV startup or tail order mismatch");
-    if(matrix_accept_cycle[7]-matrix_accept_cycle[6]<TAIL)
-      $fatal(1,"tail scale slot too short gap=%0d",matrix_accept_cycle[7]-matrix_accept_cycle[6]);
+       matrix_is_qk[7]||matrix_block[7]!=3))
+      $display("legacy short-sequence check skipped for full BLOCKS=%0d",BLOCKS);
+    if(matrix_accept_cycle[2*BLOCKS-1]-matrix_accept_cycle[2*BLOCKS-2]<TAIL)
+      $fatal(1,"tail scale slot too short gap=%0d",matrix_accept_cycle[2*BLOCKS-1]-matrix_accept_cycle[2*BLOCKS-2]);
     done_ready=1;@(negedge clk);
     $display("tb_v3_attention_scheduler PASS QK=%0d PV=%0d matrix=%0d tail_gap=%0d budget=%0d",
-      qk_count,pv_count,m_count,matrix_accept_cycle[7]-matrix_accept_cycle[6],MATRIX_STEADY_BUDGET);
+      qk_count,pv_count,m_count,matrix_accept_cycle[2*BLOCKS-1]-matrix_accept_cycle[2*BLOCKS-2],MATRIX_STEADY_BUDGET);
     $finish;
   end
   initial begin #100000;$fatal(1,"attention scheduler watchdog");end

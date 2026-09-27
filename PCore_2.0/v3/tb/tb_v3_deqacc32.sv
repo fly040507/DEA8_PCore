@@ -33,7 +33,7 @@ module tb_v3_deqacc32;
       rsp.meta.epoch=1; rsp.meta.head=0; rsp.meta.tile_idx=0;
       rsp.meta.pair_idx=pair; rsp.meta.nt=nt; rsp.meta.final_k=1;
       rsp.meta.last=last_flag; rsp.meta.exp_fold=0;
-      rsp.meta.acc_sel=sel; rsp.meta.acc_clear=clear_acc;
+      rsp.meta.acc_sel=sel; rsp.meta.add_old=!clear_acc;
       @(posedge clk); @(negedge clk); rsp_valid=0;
     end
   endtask
@@ -48,7 +48,7 @@ module tb_v3_deqacc32;
       rsp.e_stream[0]=128;rsp.e_stream[1]=128;
       for(int n=0;n<16;n++) rsp.e_stat[n]=128;
       rsp.meta.epoch=1;rsp.meta.head=0;rsp.meta.tile_idx=0;rsp.meta.pair_idx=p;rsp.meta.nt=0;
-      rsp.meta.final_k=1;rsp.meta.last=p==PAIRS-1;rsp.meta.exp_fold=0;rsp.meta.acc_sel=ACC_FACC_A;rsp.meta.acc_clear=p==0;
+      rsp.meta.final_k=1;rsp.meta.last=p==PAIRS-1;rsp.meta.exp_fold=0;rsp.meta.acc_sel=ACC_FACC_A;rsp.meta.add_old=p!=0;
       for(int n=0;n<16;n++) begin
         rsp.psum[0][n]=32'sd16+n;
         rsp.psum[1][n]=32'sd32+n;

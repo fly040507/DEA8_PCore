@@ -1,7 +1,7 @@
 import pcore3_pkg::*;
 
 // Multi-Tile Matrix job shell.  A job latches its configuration once, then
-// advances one A Tile per 26 row-pair issues.  The AFIFO supports rollover
+// advances one A Tile per configured row-pair count.  The AFIFO supports rollover
 // reservation on the last pair, while the B loader releases a stationary bank
 // one cycle after the final S1 multiply has consumed it.
 module dea8_matrix_v3 (
@@ -11,8 +11,10 @@ module dea8_matrix_v3 (
   input logic kv_valid, output logic kv_ready, input b2_t kv_entry,
   input b_source_e b_source,
   input logic job_start,
-  input logic [TILE_BITS-1:0] job_tile_idx,
+  input logic [TILE_BITS-1:0] job_a_tile_idx,
+  input logic [TILE_BITS-1:0] job_b_tile_idx,
   input logic [TILE_BITS:0] job_tiles,
+  input logic [PAIR_BITS:0] job_m_rows,
   input logic [EPOCH_BITS-1:0] job_epoch,
   input logic [2:0] job_head,
   input logic [3:0] job_nt,
@@ -21,7 +23,7 @@ module dea8_matrix_v3 (
   input logic job_final_k,
   input logic signed [EXP_FOLD_BITS-1:0] job_exp_fold,
   input acc_sel_e job_acc_sel,
-  input logic job_acc_clear,
+  input logic job_add_old,
   output logic job_ready,job_busy,
   output logic commit_valid,done,
   output pair_meta_t commit_meta,
@@ -38,13 +40,15 @@ module dea8_matrix_v3 (
 );
   logic [1:0] a2_valid,a2_ready; a2_t a2_entry[0:1];
   logic a_tile_available,a_running,a_out_valid,a_reserve; a2_t a_head;
+  logic [PAIR_BITS:0] rows_q,pairs_q;
   logic [6:0] a_count;
   logic [$clog2(AFIFO_DEPTH/PAIRS+1)-1:0] a_complete;
   dea8_xbc4_adapter_v3 xbc_adapter(
     .clk,.reset,.clear,.in_valid(xbc_valid),.in_ready(xbc_ready),.in_entry(xbc_entry),
     .out_valid(a2_valid),.out_ready(a2_ready),.out_entry(a2_entry));
   dea8_afifo_v3 a_fifo(
-    .clk,.reset,.clear,.in_valid(a2_valid),.in_ready(a2_ready),.in_entry(a2_entry),
+    .clk,.reset,.clear,.pairs_cfg(pairs_q),.rows_cfg(rows_q),
+    .in_valid(a2_valid),.in_ready(a2_ready),.in_entry(a2_entry),
     .reserve_tile(a_reserve),.tile_available(a_tile_available),.running(a_running),
     .out_valid(a_out_valid),.out_entry(a_head),.protocol_error(a_protocol_error),
     .count(a_count),.complete_tiles(a_complete));
@@ -82,57 +86,67 @@ module dea8_matrix_v3 (
 
   // Latched job configuration and Tile sequence.
   logic job_busy_q;
-  logic [TILE_BITS-1:0] base_tile_q;
+  logic [TILE_BITS-1:0] base_a_tile_q,base_b_tile_q;
   logic [TILE_BITS:0] tiles_q,tile_seq_q;
   logic tile_started_q;
   logic [EPOCH_BITS-1:0] epoch_q; logic [2:0] head_q;
   logic final_k_q; logic [3:0] nt_q;
   logic nt_per_tile_q,clear_each_tile_q;
   logic signed [EXP_FOLD_BITS-1:0] exp_fold_q;
-  acc_sel_e acc_sel_q; logic acc_clear_q;
+  acc_sel_e acc_sel_q; logic add_old_q;
   logic job_accept,tile_issue_last;
-  logic [TILE_BITS:0] current_tile_ext,next_tile_ext;
-  logic [TILE_BITS-1:0] current_tile,next_tile;
+  logic [TILE_BITS:0] current_a_ext,current_b_ext,next_a_ext,next_b_ext;
+  logic [TILE_BITS-1:0] current_a,current_b,next_a,next_b;
   logic req_valid,req_bank; pair_meta_t req_meta;
   assign job_ready=!job_busy_q;
   assign job_busy=job_busy_q;
   assign job_accept=job_start&&job_ready&&(job_tiles!=0);
-  assign current_tile_ext={1'b0,base_tile_q}+tile_seq_q;
-  assign next_tile_ext=current_tile_ext+1'b1;
-  assign current_tile=current_tile_ext[TILE_BITS-1:0];
-  assign next_tile=next_tile_ext[TILE_BITS-1:0];
-  assign req_bank=current_tile[0];
+  assign current_a_ext={1'b0,base_a_tile_q}+tile_seq_q;
+  assign current_b_ext={1'b0,base_b_tile_q}+tile_seq_q;
+  assign next_a_ext=current_a_ext+1'b1;
+  assign next_b_ext=current_b_ext+1'b1;
+  assign current_a=current_a_ext[TILE_BITS-1:0];
+  assign current_b=current_b_ext[TILE_BITS-1:0];
+  assign next_a=next_a_ext[TILE_BITS-1:0];
+  assign next_b=next_b_ext[TILE_BITS-1:0];
+  assign req_bank=current_b[0];
   assign a_reserve=job_busy_q&&(
     (!tile_started_q&&!a_running&&tile_seq_q<tiles_q&&a_tile_available&&
-      bank_ready[req_bank]&&bank_tile[req_bank]==current_tile) ||
-    (a_running&&a_out_valid&&a_head.pair_idx==PAIRS-1&&
+      bank_ready[req_bank]&&bank_tile[req_bank]==current_b) ||
+    (a_running&&a_out_valid&&a_head.pair_idx==pairs_q-1&&
       tile_seq_q+1'b1<tiles_q&&a_tile_available&&
-      bank_ready[next_tile[0]]&&bank_tile[next_tile[0]]==next_tile));
+      bank_ready[next_b[0]]&&bank_tile[next_b[0]]==next_b));
   assign req_valid=job_busy_q&&a_running&&a_out_valid;
-  assign tile_issue_last=req_valid&&(a_head.pair_idx==PAIRS-1);
+  assign tile_issue_last=req_valid&&(a_head.pair_idx==pairs_q-1);
   always_comb begin
-    req_meta='0;req_meta.epoch=epoch_q;req_meta.head=head_q;req_meta.tile_idx=current_tile;
+    req_meta='0;req_meta.epoch=epoch_q;req_meta.head=head_q;req_meta.tile_idx=current_b;
     req_meta.pair_idx=a_head.pair_idx;
     req_meta.nt=nt_per_tile_q?(nt_q+4'(tile_seq_q)):nt_q;
     req_meta.final_k=final_k_q;
-    req_meta.last=(tile_seq_q+1'b1>=tiles_q)&&(a_head.pair_idx==PAIRS-1);
+    req_meta.last=(tile_seq_q+1'b1>=tiles_q)&&(a_head.pair_idx==pairs_q-1);
     req_meta.exp_fold=exp_fold_q;req_meta.acc_sel=acc_sel_q;
-    // init_acc applies to every pair in the first K Tile, not only pair0.
-    req_meta.acc_clear=acc_clear_q&&(clear_each_tile_q||(tile_seq_q==0));
+    // add_old applies to every pair in the job's first/next reduction tile.
+    req_meta.add_old=add_old_q || ((tile_seq_q!=0)&&!clear_each_tile_q);
   end
   always_ff @(posedge clk) begin
     if(reset||clear) begin
-      job_busy_q<=0;base_tile_q<=0;tiles_q<=0;tile_seq_q<=0;tile_started_q<=0;epoch_q<=0;head_q<=0;
+      job_busy_q<=0;base_a_tile_q<=0;base_b_tile_q<=0;tiles_q<=0;tile_seq_q<=0;tile_started_q<=0;epoch_q<=0;head_q<=0;
+      rows_q<=ROWS;pairs_q<=PAIRS;
       final_k_q<=0;nt_q<=0;nt_per_tile_q<=0;clear_each_tile_q<=0;
-      exp_fold_q<=0;acc_sel_q<=ACC_FACC_A;acc_clear_q<=0;
+      exp_fold_q<=0;acc_sel_q<=ACC_FACC_A;add_old_q<=0;
       release_valid_q<=0;release_bank_q<=0;
     end else begin
       release_valid_q<=tile_issue_last;release_bank_q<=req_bank;
       if(job_accept) begin
-        job_busy_q<=1;base_tile_q<=job_tile_idx;tiles_q<=job_tiles;tile_seq_q<=0;tile_started_q<=0;
+        job_busy_q<=1;
+        base_a_tile_q<=job_a_tile_idx;
+        base_b_tile_q<=job_b_tile_idx;
+        tiles_q<=job_tiles;tile_seq_q<=0;tile_started_q<=0;
+        rows_q<=(job_m_rows==0)?ROWS:job_m_rows;
+        pairs_q<=(((job_m_rows==0)?ROWS:job_m_rows) + 1'b1)>>1;
         epoch_q<=job_epoch;head_q<=job_head;nt_q<=job_nt;final_k_q<=job_final_k;exp_fold_q<=job_exp_fold;
         nt_per_tile_q<=job_nt_per_tile;clear_each_tile_q<=job_clear_each_tile;
-        acc_sel_q<=job_acc_sel;acc_clear_q<=job_acc_clear;
+        acc_sel_q<=job_acc_sel;add_old_q<=job_add_old;
       end
       if(tile_issue_last&&tile_seq_q+1'b1<tiles_q) begin
         tile_seq_q<=tile_seq_q+1'b1;

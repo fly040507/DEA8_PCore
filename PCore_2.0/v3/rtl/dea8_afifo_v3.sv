@@ -4,6 +4,8 @@ import pcore3_pkg::*;
 // XBC4 beat and emits at most one entry per cycle to the MXU.
 module dea8_afifo_v3 #(parameter int DEPTH=AFIFO_DEPTH) (
   input logic clk,reset,clear,
+  input logic [PAIR_BITS:0] pairs_cfg,
+  input logic [PAIR_BITS:0] rows_cfg,
   input logic [1:0] in_valid,
   output logic [1:0] in_ready,
   input a2_t in_entry[0:1],
@@ -29,13 +31,17 @@ module dea8_afifo_v3 #(parameter int DEPTH=AFIFO_DEPTH) (
   logic bad0,bad1,finish0,finish1;
   logic [$clog2(DEPTH+1):0] space;
   logic rollover_available;
+  logic [PAIR_BITS:0] active_pairs;
+  logic [1:0] expected_mask;
 
+  assign active_pairs=(pairs_cfg==0)?PAIRS: pairs_cfg;
+  assign expected_mask=(expected_pair==active_pairs-1 && rows_cfg[0]) ? 2'b01 : 2'b11;
   assign out_entry=head[0]?mem_odd[head>>1]:mem_even[head>>1];
   assign out_valid=running && (count!=0);
-  assign rollover_available=running&&out_valid&&out_entry.pair_idx==PAIRS-1&&
-    complete_tiles!=0&&count>=PAIRS+1;
+  assign rollover_available=running&&out_valid&&out_entry.pair_idx==active_pairs-1&&
+    complete_tiles!=0&&count>=active_pairs+1;
   assign tile_available=!reset && !clear &&
-    ((!running&&complete_tiles!=0&&count>=PAIRS)||rollover_available);
+    ((!running&&complete_tiles!=0&&count>=active_pairs)||rollover_available);
   assign pop_fire=out_valid;
   assign reserve_fire=reserve_tile && tile_available;
   assign space=DEPTH-count+pop_fire;
@@ -46,16 +52,17 @@ module dea8_afifo_v3 #(parameter int DEPTH=AFIFO_DEPTH) (
   assign push0=in_valid[0] && in_ready[0];
   assign push1=in_valid[1] && in_ready[1];
 
-  assign finish0=push0 && expected_pair==PAIRS-1;
+  assign finish0=push0 && expected_pair==active_pairs-1;
   assign next_pair=finish0 ? '0 : expected_pair+1'b1;
   assign next_tile=finish0 ? expected_tile+1'b1 : expected_tile;
-  assign finish1=push1 && next_pair==PAIRS-1;
+  assign finish1=push1 && next_pair==active_pairs-1;
   assign bad0=push0 && (in_entry[0].pair_idx!=expected_pair ||
     in_entry[0].tile_idx!=expected_tile || (have_context && in_entry[0].slot!=expected_slot) ||
-    in_entry[0].row_valid!=row_mask(expected_pair) || in_entry[0].reserved!=0);
+    in_entry[0].row_valid!=expected_mask || in_entry[0].reserved!=0);
   assign bad1=push1 && (in_entry[1].pair_idx!=next_pair ||
     in_entry[1].tile_idx!=next_tile || (have_context && in_entry[1].slot!=expected_slot) ||
-    in_entry[1].row_valid!=row_mask(next_pair) || in_entry[1].reserved!=0);
+    in_entry[1].row_valid!=((next_pair==active_pairs-1 && rows_cfg[0]) ? 2'b01 : 2'b11) ||
+    in_entry[1].reserved!=0);
 
   always_ff @(posedge clk) begin
     if(reset || clear) begin
@@ -96,14 +103,17 @@ module dea8_afifo_v3 #(parameter int DEPTH=AFIFO_DEPTH) (
       if(push1) expected_slot<=in_entry[1].slot;
       if(push0||push1) have_context<=1;
       if(reserve_fire) begin running<=1; end
-      else if(pop_fire && out_entry.pair_idx==PAIRS-1) running<=0;
+      else if(pop_fire && out_entry.pair_idx==active_pairs-1) running<=0;
     end
   end
 
   initial if(DEPTH<2*PAIRS || (DEPTH&(DEPTH-1))!=0) $fatal(1,"AFIFO geometry");
   // synthesis translate_off
   always @(posedge clk) if(!reset&&!clear) begin
-    if((bad0||bad1)) $fatal(1,"AFIFO A4/A2 order or mask mismatch");
+    if((bad0||bad1)) $fatal(1,"AFIFO A4/A2 order or mask mismatch p0=%0d/%0d t0=%0d/%0d rv0=%b/%b p1=%0d/%0d t1=%0d/%0d rv1=%b/%b active=%0d rows=%0d",
+      in_entry[0].pair_idx,expected_pair,in_entry[0].tile_idx,expected_tile,in_entry[0].row_valid,expected_mask,
+      in_entry[1].pair_idx,next_pair,in_entry[1].tile_idx,next_tile,in_entry[1].row_valid,
+      ((next_pair==active_pairs-1&&rows_cfg[0])?2'b01:2'b11),active_pairs,rows_cfg);
     if(reserve_tile&&!tile_available) $fatal(1,"AFIFO reserve without complete Tile");
     if(pop_fire&&!out_valid) $fatal(1,"AFIFO underflow");
   end
