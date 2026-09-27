@@ -11,6 +11,11 @@ module dea8_acc_store_v3 (
   output logic rd_data_valid,
   output logic [15:0][31:0] rd_even_data,
   output logic [15:0][31:0] rd_odd_data,
+  input logic proj_rd_valid,
+  input logic [4:0] proj_rd_pair,
+  output logic proj_rd_data_valid,
+  output logic [15:0][31:0] proj_even_data,
+  output logic [15:0][31:0] proj_odd_data,
   input logic wr_valid,
   input acc_sel_e wr_sel,
   input logic wr_even_valid,wr_odd_valid,
@@ -72,15 +77,15 @@ module dea8_acc_store_v3 (
       if(wr_valid) begin
         for(int n=0;n<16;n++) begin
           if(wr_even_valid) case(wr_sel)
-            ACC_FACC_A: if(wr_addr<26) begin facc_a_even[wr_addr][n]<=wr_even_data;facc_a_even_v[wr_addr][n]<=1;end
-            ACC_FACC_B: if(wr_addr<26) begin facc_b_even[wr_addr][n]<=wr_even_data;facc_b_even_v[wr_addr][n]<=1;end
-            ACC_OACC: if(wr_addr<416) begin oacc_even[wr_addr][n]<=wr_even_data;oacc_even_v[wr_addr][n]<=1;end
+            ACC_FACC_A: if(wr_addr<26) begin facc_a_even[wr_addr][n]<=wr_even_data[n];facc_a_even_v[wr_addr][n]<=1;end
+            ACC_FACC_B: if(wr_addr<26) begin facc_b_even[wr_addr][n]<=wr_even_data[n];facc_b_even_v[wr_addr][n]<=1;end
+            ACC_OACC: if(wr_addr<416) begin oacc_even[wr_addr][n]<=wr_even_data[n];oacc_even_v[wr_addr][n]<=1;end
             default: ;
           endcase
           if(wr_odd_valid) case(wr_sel)
-            ACC_FACC_A: if(wr_addr<25) begin facc_a_odd[wr_addr][n]<=wr_odd_data;facc_a_odd_v[wr_addr][n]<=1;end
-            ACC_FACC_B: if(wr_addr<25) begin facc_b_odd[wr_addr][n]<=wr_odd_data;facc_b_odd_v[wr_addr][n]<=1;end
-            ACC_OACC: if(wr_addr<400) begin oacc_odd[wr_addr][n]<=wr_odd_data;oacc_odd_v[wr_addr][n]<=1;end
+            ACC_FACC_A: if(wr_addr<25) begin facc_a_odd[wr_addr][n]<=wr_odd_data[n];facc_a_odd_v[wr_addr][n]<=1;end
+            ACC_FACC_B: if(wr_addr<25) begin facc_b_odd[wr_addr][n]<=wr_odd_data[n];facc_b_odd_v[wr_addr][n]<=1;end
+            ACC_OACC: if(wr_addr<400) begin oacc_odd[wr_addr][n]<=wr_odd_data[n];oacc_odd_v[wr_addr][n]<=1;end
             default: ;
           endcase
         end
@@ -90,6 +95,20 @@ module dea8_acc_store_v3 (
 
   // One-cycle synchronous read response from the registered request.
   assign rd_data_valid=rd_valid_q;
+  always_ff @(posedge clk) begin
+    if(reset||clear) proj_rd_data_valid<=0;
+    else proj_rd_data_valid<=proj_rd_valid;
+    if(proj_rd_valid) begin
+      for(int n=0;n<16;n++) begin
+        // Keep the projection read explicit: this is the registered FACC-A
+        // read port, independent of the normal DEQACC read selector.
+        proj_even_data[n]<=(proj_rd_pair<26 && facc_a_even_v[proj_rd_pair][n])?
+          facc_a_even[proj_rd_pair][n]:32'b0;
+        proj_odd_data[n]<=(proj_rd_pair<25 && facc_a_odd_v[proj_rd_pair][n])?
+          facc_a_odd[proj_rd_pair][n]:32'b0;
+      end
+    end
+  end
   always_comb begin
     rd_even_data='0;rd_odd_data='0;
     for(int n=0;n<16;n++) begin

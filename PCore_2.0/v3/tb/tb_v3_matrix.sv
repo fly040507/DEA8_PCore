@@ -30,6 +30,7 @@ module tb_v3_matrix;
     .job_start,.job_tile_idx,.job_tiles,.job_epoch,.job_head,.job_final_k,
     .job_exp_fold,.job_acc_sel,.job_acc_clear,.job_ready,.job_busy,
     .commit_valid,.done,.commit_meta,.dbg_valid,.dbg_sel,.dbg_parity,
+    .proj_rd_valid(1'b0),.proj_rd_pair(5'b0),.proj_rd_data_valid(),.proj_even_data(),.proj_odd_data(),
     .dbg_addr,.dbg_lane,.dbg_data,.a_protocol_error,.b_protocol_error);
 
   always @(posedge clk) begin

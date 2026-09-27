@@ -6,6 +6,9 @@ import dea8_fp32_v3_pkg::*;
 module dea8_deqacc32_v3 (
   input logic clk,reset,clear,
   input logic rsp_valid,input mxu_rsp_t rsp,
+  input logic proj_rd_valid,input logic [4:0] proj_rd_pair,
+  output logic proj_rd_data_valid,
+  output logic [15:0][31:0] proj_even_data,proj_odd_data,
   output logic commit_valid,done,output pair_meta_t commit_meta,
   input logic dbg_valid,input acc_sel_e dbg_sel,input logic dbg_parity,
   input logic [9:0] dbg_addr,input logic [3:0] dbg_lane,
@@ -61,6 +64,7 @@ module dea8_deqacc32_v3 (
   dea8_acc_store_v3 acc_store(
     .clk,.reset,.clear,.rd_valid(acc_rd_valid),.rd_sel(acc_rd_sel),.rd_addr(acc_rd_addr),
     .rd_data_valid(acc_rd_rsp_valid),.rd_even_data(acc_rd_even),.rd_odd_data(acc_rd_odd),
+    .proj_rd_valid,.proj_rd_pair,.proj_rd_data_valid,.proj_even_data,.proj_odd_data,
     .wr_valid(acc_wr_valid),.wr_sel(acc_wr_sel),.wr_even_valid(acc_wr_even_valid),
     .wr_odd_valid(acc_wr_odd_valid),.wr_addr(acc_wr_addr),.wr_even_data(acc_wr_even),
     .wr_odd_data(acc_wr_odd),.dbg_valid,.dbg_sel,.dbg_parity,.dbg_addr,.dbg_lane,.dbg_data);

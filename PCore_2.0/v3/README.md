@@ -14,6 +14,7 @@
 - `Pair Store`：QOZ/PBUF 使用偶数行/奇数行物理存储，data 与 scale 绑定，保留 begin/write/commit 语义。
 - `DEQACC32`：32 lane、5 级流水，偶奇双物理路径，支持 FACC A/B 与 OACC，最终 commit 才产生 `done`。
 - `dea8_matrix_v3`：把 XBC、A/B FIFO、B Loader、MXU 和 DEQACC 接成完整多 Tile 矩阵作业链路；支持 HBM/KVB 入口选择、显式 `job_start`、作业配置锁存、Tile 序列、bank 释放/重装、首 K Tile 全 26 pair 清零和最终 D4 commit 后结束。
+- `dea8_projection_v3`：Projection 控制壳，固定验证 `[51,1024] x [1024,256]`；每个输出 N Tile 归约 64 个 K Tile，16 个 N Tile 依次完成，并从 FACC-A 以同步读口输出 26 个 pair 的 FP32 结果。
 
 ## 仿真入口
 
@@ -36,9 +37,11 @@ powershell -ExecutionPolicy Bypass -File .\run_v3_xsim.ps1
 | `tb_v3_pair_store_regions` | Q16、Z32 及 Z32→Q16 reuse，验证 odd row 计数 `25×Tile` |
 | `tb_v3_deqacc32` | 5 级流水、FACC-A/FACC-B/OACC 三种选择及 OACC 读改写 |
 | `tb_v3_matrix` | 单作业连续 64 Tile，A/B 并发灌入、AFIFO 边写边读、两 bank 循环复用、1664 个 pair commit；MXU issue=1664、`max_gap=1` |
+| `tb_v3_projection` | 完整 Q Projection：`[51,1024] x [1024,256]`，16 个输出 Tile、每 Tile 64 个 K Tile；逐一检查 16×26×16 个输出 lane、尾行 mask 和最终输出 Tile 数 |
 
 ## 边界说明
 
 - `b2_t` 是 PCore 的逻辑 B2 接口，不是物理 HBM AXI beat。真实 256-bit HBM AXI 的 burst/repack 由 HBM Controller/GCore 完成。
-- 当前顶层是矩阵数据面验证壳，尚未接入真实 HBM 控制器、SFU/VPU、Projection/Attention 全流程。
+- 当前 Projection 输出是送往 VPU/QOZ 量化边界的 FP32 流；VPU 的 FP32→INT8 量化及实际 QOZ 写入尚未接入本目录。
+- 当前仍未接入真实 HBM 控制器、SFU/VPU，也未实现 QK/PV Attention；本轮目标仅覆盖 Projection 矩阵计算与 FACC 读回验证。
 - 当前目标是先证明接口粒度、数据/scale 对齐、双行 MXU 算术、奇偶累加存储和最终 commit；综合、布局布线和 250 MHz 时序留到下一阶段。
