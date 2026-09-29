@@ -25,6 +25,8 @@ module tb_v3_matrix;
   int cycle_count,issue_count,last_issue_cycle,max_issue_gap;
 
   dea8_matrix_v3 dut(
+    .local_a_valid(1'b0),.local_a_entry('0),.local_a_ready(),
+    .vpu_wr_valid(1'b0),.vpu_wr('0),.vpu_wr_ready(),.result_rd_ready(),
     .clk,.reset,.clear,.xbc_valid,.xbc_ready,.xbc_entry,
     .hbm_valid,.hbm_ready,.hbm_entry,.kv_valid,.kv_ready,.kv_entry,.b_source,
     .job_start,.job_a_tile_idx(job_tile_idx),.job_b_tile_idx(job_tile_idx),

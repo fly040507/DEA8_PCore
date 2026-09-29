@@ -10,6 +10,7 @@ rtl/dea8_b_loader_v3.sv
 rtl/dea8_matrix_v3.sv
 rtl/dea8_projection_v3.sv
 rtl/dea8_attention_scheduler_v3.sv
+rtl/dea8_local_a_store_v3.sv
 rtl/dea8_attention_matrix_v3.sv
 rtl/dea8_pair_store_v3.sv
 rtl/dea8_deqacc32_v3.sv
@@ -26,3 +27,5 @@ tb/tb_v3_attention_scheduler.sv
 tb/tb_v3_attention_matrix.sv
 tb/tb_v3_attention_system.sv
 tb/tb_v3_attention_55.sv
+tb/tb_v3_acc_overlap.sv
+tb/tb_v3_local_a_protocol.sv

@@ -1,146 +1,104 @@
 import pcore3_pkg::*;
 
-// Parity-split accumulator storage.  The data arrays intentionally have no
-// reset branch: only the small valid maps are reset, so BRAM/LUTRAM inference
-// is not defeated by a full-memory reset loop.
-module dea8_acc_store_v3 #(
-  parameter int ROWS_P=ROWS,
-  parameter int OUT_TILES_P=TILE
+// One synchronous read and one write per physical parity bank. Data RAM is
+// never reset; validity is reset separately. Debug is simulation-only.
+module dea8_acc_bank_v3 #(
+  parameter int DEPTH=26,
+  parameter STYLE="distributed"
 ) (
-  input logic clk,reset,clear,
-  input logic rd_valid,
-  input acc_sel_e rd_sel,
-  input logic [9:0] rd_addr,
-  output logic rd_data_valid,
-  output logic [15:0][31:0] rd_even_data,
-  output logic [15:0][31:0] rd_odd_data,
-  input acc_read_owner_e result_rd_owner,
-  input logic result_rd_valid,
-  input acc_sel_e result_rd_sel,
-  input logic [9:0] result_rd_addr,
-  output logic result_rd_data_valid,
-  output logic [15:0][31:0] result_even_data,
-  output logic [15:0][31:0] result_odd_data,
-  input logic wr_valid,
-  input acc_sel_e wr_sel,
-  input logic wr_even_valid,wr_odd_valid,
-  input logic [9:0] wr_addr,
-  input logic [15:0][31:0] wr_even_data,wr_odd_data,
-  input logic dbg_valid,
-  input acc_sel_e dbg_sel,
-  input logic dbg_parity,
-  input logic [9:0] dbg_addr,
-  input logic [3:0] dbg_lane,
+  input logic clk,reset,clear,rd_en,wr_en,
+  input logic [9:0] rd_addr,wr_addr,
+  input logic [511:0] wr_data,
+  output logic [511:0] rd_data,
+  input logic [9:0] dbg_addr,input logic [3:0] dbg_lane,
   output logic [31:0] dbg_data
 );
-  localparam int PAIRS_P=(ROWS_P+1)/2;
-  localparam int OACC_EVEN_DEPTH=PAIRS_P*OUT_TILES_P;
-  localparam int OACC_ODD_DEPTH=PAIRS_P*OUT_TILES_P;
-  // Each entry is one 16-lane FP32 vector.  The shallow FACC arrays are
-  // intentionally eligible for LUTRAM; the deeper OACC arrays are explicitly
-  // marked for block RAM.  Read addresses are registered and writes occur in
-  // the same always_ff, giving one physical 1R1W vector port per parity bank.
-  (* ram_style = "distributed" *) logic [15:0][31:0] facc_a_even[0:PAIRS_P-1];
-  (* ram_style = "distributed" *) logic [15:0][31:0] facc_a_odd [0:PAIRS_P-1];
-  (* ram_style = "distributed" *) logic [15:0][31:0] facc_b_even[0:PAIRS_P-1];
-  (* ram_style = "distributed" *) logic [15:0][31:0] facc_b_odd [0:PAIRS_P-1];
-  (* ram_style = "block" *) logic [15:0][31:0] oacc_even[0:OACC_EVEN_DEPTH-1];
-  (* ram_style = "block" *) logic [15:0][31:0] oacc_odd [0:OACC_ODD_DEPTH-1];
-  logic facc_a_even_v[0:PAIRS_P-1],facc_a_odd_v[0:PAIRS_P-1];
-  logic facc_b_even_v[0:PAIRS_P-1],facc_b_odd_v[0:PAIRS_P-1];
-  logic oacc_even_v[0:OACC_EVEN_DEPTH-1],oacc_odd_v[0:OACC_ODD_DEPTH-1];
-  // FACC is a shallow vector store; OACC is the large 416-entry vector store.
-  // Both are written on the single write port below.  The read interface is a
-  // one-request-per-cycle synchronous port: DEQACC owns it during arithmetic,
-  // while result reads use it only when the owner is RESULT.
-  logic phys_rd_valid_q,phys_rd_result_q;
-  logic [9:0] phys_rd_addr_q;
-  acc_sel_e phys_rd_sel_q;
-
-  function automatic logic [31:0] read_even(input acc_sel_e sel,input logic [9:0] addr,input int lane);
-    read_even=0;
-    if(lane<16) begin
-      case(sel)
-        ACC_FACC_A: if(addr<PAIRS_P && facc_a_even_v[addr]) read_even=facc_a_even[addr][lane];
-        ACC_FACC_B: if(addr<PAIRS_P && facc_b_even_v[addr]) read_even=facc_b_even[addr][lane];
-        ACC_OACC: if(addr<OACC_EVEN_DEPTH && oacc_even_v[addr]) read_even=oacc_even[addr][lane];
-        default: ;
-      endcase
-    end
-  endfunction
-  function automatic logic [31:0] read_odd(input acc_sel_e sel,input logic [9:0] addr,input int lane);
-    read_odd=0;
-    if(lane<16) begin
-      case(sel)
-        ACC_FACC_A: if(addr<PAIRS_P && facc_a_odd_v[addr]) read_odd=facc_a_odd[addr][lane];
-        ACC_FACC_B: if(addr<PAIRS_P && facc_b_odd_v[addr]) read_odd=facc_b_odd[addr][lane];
-        ACC_OACC: if(addr<OACC_ODD_DEPTH && oacc_odd_v[addr]) read_odd=oacc_odd[addr][lane];
-        default: ;
-      endcase
-    end
-  endfunction
-
+  localparam int AW=$clog2(DEPTH);
+  (* ram_style=STYLE *) logic [511:0] mem[0:DEPTH-1];
+  logic [DEPTH-1:0] valid_q;
+  logic [511:0] data_q;
+  logic initialized_q;
   always_ff @(posedge clk) begin
-    if(reset||clear) begin
-      phys_rd_valid_q<=0;phys_rd_result_q<=0;phys_rd_addr_q<='0;phys_rd_sel_q<=ACC_FACC_A;
-      for(int a=0;a<PAIRS_P;a++) begin
-        facc_a_even_v[a]<=0;facc_b_even_v[a]<=0;
-        facc_a_odd_v[a]<=0;facc_b_odd_v[a]<=0;
-      end
-      for(int a=0;a<OACC_EVEN_DEPTH;a++) oacc_even_v[a]<=0;
-      for(int a=0;a<OACC_ODD_DEPTH;a++) oacc_odd_v[a]<=0;
-    end else begin
-      // One physical read port.  DEQACC has priority; result reads are
-      // accepted only when the internal port is idle.  The selected address
-      // is registered at the RAM boundary, which is the portable synchronous
-      // 1R1W inference template.
-      phys_rd_valid_q<=rd_valid || (result_rd_valid&&result_rd_owner==ACC_READ_RESULT);
-      phys_rd_result_q<=!rd_valid && result_rd_valid&&result_rd_owner==ACC_READ_RESULT;
-      if(rd_valid) begin
-        phys_rd_addr_q<=rd_addr;phys_rd_sel_q<=rd_sel;
-      end else if(result_rd_valid&&result_rd_owner==ACC_READ_RESULT) begin
-        phys_rd_addr_q<=result_rd_addr;phys_rd_sel_q<=result_rd_sel;
-      end
-      if(wr_valid) begin
-        for(int n=0;n<16;n++) begin
-          if(wr_even_valid) case(wr_sel)
-            ACC_FACC_A: if(wr_addr<PAIRS_P) begin facc_a_even[wr_addr][n]<=wr_even_data[n];facc_a_even_v[wr_addr]<=1;end
-            ACC_FACC_B: if(wr_addr<PAIRS_P) begin facc_b_even[wr_addr][n]<=wr_even_data[n];facc_b_even_v[wr_addr]<=1;end
-            ACC_OACC: if(wr_addr<OACC_EVEN_DEPTH) begin oacc_even[wr_addr][n]<=wr_even_data[n];oacc_even_v[wr_addr]<=1;end
-            default: ;
-          endcase
-          if(wr_odd_valid) case(wr_sel)
-            ACC_FACC_A: if(wr_addr<PAIRS_P) begin facc_a_odd[wr_addr][n]<=wr_odd_data[n];facc_a_odd_v[wr_addr]<=1;end
-            ACC_FACC_B: if(wr_addr<PAIRS_P) begin facc_b_odd[wr_addr][n]<=wr_odd_data[n];facc_b_odd_v[wr_addr]<=1;end
-            ACC_OACC: if(wr_addr<OACC_ODD_DEPTH) begin oacc_odd[wr_addr][n]<=wr_odd_data[n];oacc_odd_v[wr_addr]<=1;end
-            default: ;
-          endcase
-        end
-      end
+    if(rd_en && rd_addr<DEPTH) data_q<=mem[rd_addr[AW-1:0]];
+    if(wr_en && !reset && !clear && wr_addr<DEPTH)
+      mem[wr_addr[AW-1:0]]<=wr_data;
+  end
+  always_ff @(posedge clk) begin
+    if(reset||clear) begin valid_q<='0;initialized_q<=0;end
+    else begin
+      if(rd_en) initialized_q<=(rd_addr<DEPTH)?valid_q[rd_addr[AW-1:0]]:1'b0;
+      if(wr_en && wr_addr<DEPTH) valid_q[wr_addr[AW-1:0]]<=1;
     end
   end
-
-  assign rd_data_valid=phys_rd_valid_q&&!phys_rd_result_q;
-  assign result_rd_data_valid=phys_rd_valid_q&&phys_rd_result_q;
-  always_comb begin
-    rd_even_data='0;rd_odd_data='0;
-    for(int n=0;n<16;n++) begin
-      rd_even_data[n]=read_even(phys_rd_sel_q,phys_rd_addr_q,n);
-      rd_odd_data[n]=read_odd(phys_rd_sel_q,phys_rd_addr_q,n);
-    end
-  end
-  always_comb begin
-    result_even_data='0;result_odd_data='0;
-    if(phys_rd_result_q) begin
-      for(int n=0;n<16;n++) begin
-        result_even_data[n]=read_even(phys_rd_sel_q,phys_rd_addr_q,n);
-        result_odd_data[n]=read_odd(phys_rd_sel_q,phys_rd_addr_q,n);
-      end
-    end
-  end
-
+  assign rd_data=initialized_q?data_q:'0;
   always_comb begin
     dbg_data=0;
-    if(dbg_valid) dbg_data=dbg_parity?read_odd(dbg_sel,dbg_addr,dbg_lane):read_even(dbg_sel,dbg_addr,dbg_lane);
+    // synthesis translate_off
+    if(dbg_addr<DEPTH && valid_q[dbg_addr]) dbg_data=mem[dbg_addr][32*dbg_lane+:32];
+    // synthesis translate_on
   end
+endmodule
+
+// Independent FACC-A, FACC-B and OACC ownership. Matrix owns its selected
+// bank(s); a VPU/result request to another bank proceeds in the same cycle.
+// Same-bank conflicts are explicit backpressure, never silently dropped.
+module dea8_acc_store_v3 #(
+  parameter int ROWS_P=ROWS,OUT_TILES_P=TILE
+) (
+  input logic clk,reset,clear,
+  input logic rd_valid,input acc_sel_e rd_sel,input logic [9:0] rd_addr,
+  output logic rd_data_valid,
+  output logic [15:0][31:0] rd_even_data,rd_odd_data,
+  input acc_read_owner_e result_rd_owner,
+  input logic result_rd_valid,output logic result_rd_ready,
+  input acc_sel_e result_rd_sel,input logic [9:0] result_rd_addr,
+  output logic result_rd_data_valid,
+  output logic [15:0][31:0] result_even_data,result_odd_data,
+  input logic vpu_wr_valid,output logic vpu_wr_ready,input acc_write_t vpu_wr,
+  input logic wr_valid,input acc_sel_e wr_sel,
+  input logic wr_even_valid,wr_odd_valid,input logic [9:0] wr_addr,
+  input logic [15:0][31:0] wr_even_data,wr_odd_data,
+  input logic dbg_valid,input acc_sel_e dbg_sel,input logic dbg_parity,
+  input logic [9:0] dbg_addr,input logic [3:0] dbg_lane,
+  output logic [31:0] dbg_data
+);
+  logic [511:0] bank_data[0:2][0:1];
+  logic [31:0] bank_debug[0:2][0:1];
+  acc_sel_e rd_sel_q,result_sel_q;
+  assign result_rd_ready=!reset&&!clear&&result_rd_owner==ACC_READ_RESULT&&
+    result_rd_sel<=ACC_OACC&&!(rd_valid&&rd_sel==result_rd_sel)&&
+    !(wr_valid&&wr_sel==result_rd_sel);
+  assign vpu_wr_ready=!reset&&!clear&&vpu_wr.sel<=ACC_OACC&&
+    !(rd_valid&&rd_sel==vpu_wr.sel)&&!(wr_valid&&wr_sel==vpu_wr.sel);
+  for(genvar b=0;b<3;b++) begin: banks
+    wire mr=rd_valid&&rd_sel==b;
+    wire vr=result_rd_valid&&result_rd_ready&&result_rd_sel==b;
+    wire mw=wr_valid&&wr_sel==b;
+    wire vw=vpu_wr_valid&&vpu_wr_ready&&vpu_wr.sel==b;
+    wire [9:0] ra=mr?rd_addr:result_rd_addr;
+    wire [9:0] wa=mw?wr_addr:vpu_wr.addr;
+    for(genvar p=0;p<2;p++) begin: parity
+      localparam int ROW_COUNT=(p==0)?(ROWS_P+1)/2:ROWS_P/2;
+      localparam int DEPTH=ROW_COUNT*((b==2)?OUT_TILES_P:1);
+      wire we=mw?(p==0?wr_even_valid:wr_odd_valid):(vw&&vpu_wr.row_valid[p]);
+      wire [511:0] wd=mw?(p==0?wr_even_data:wr_odd_data):vpu_wr.data[p];
+      dea8_acc_bank_v3 #(.DEPTH(DEPTH),.STYLE(b==2?"block":"distributed")) ram(
+        .clk,.reset,.clear,.rd_en(mr||vr),.rd_addr(ra),.rd_data(bank_data[b][p]),
+        .wr_en(we),.wr_addr(wa),.wr_data(wd),.dbg_addr,.dbg_lane,.dbg_data(bank_debug[b][p]));
+    end
+  end
+  always_ff @(posedge clk) begin
+    if(reset||clear) begin
+      rd_data_valid<=0;result_rd_data_valid<=0;rd_sel_q<=ACC_FACC_A;result_sel_q<=ACC_FACC_A;
+    end else begin
+      rd_data_valid<=rd_valid;result_rd_data_valid<=result_rd_valid&&result_rd_ready;
+      if(rd_valid) rd_sel_q<=rd_sel;
+      if(result_rd_valid&&result_rd_ready) result_sel_q<=result_rd_sel;
+    end
+  end
+  assign rd_even_data=bank_data[rd_sel_q][0];
+  assign rd_odd_data=bank_data[rd_sel_q][1];
+  assign result_even_data=bank_data[result_sel_q][0];
+  assign result_odd_data=bank_data[result_sel_q][1];
+  assign dbg_data=(dbg_valid&&dbg_sel<=ACC_OACC)?bank_debug[dbg_sel][dbg_parity]:32'b0;
 endmodule

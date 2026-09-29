@@ -34,7 +34,7 @@ module dea8_projection_v3 #(
   logic matrix_job_start,matrix_ready,matrix_busy,matrix_done;
   logic matrix_commit_valid;
   pair_meta_t matrix_commit_meta;
-  logic result_rd_valid,result_rd_data_valid;
+  logic result_rd_valid,result_rd_ready,result_rd_data_valid;
   acc_sel_e result_rd_sel;
   logic [9:0] result_rd_addr;
   logic [15:0][31:0] result_even_data,result_odd_data;
@@ -53,6 +53,8 @@ module dea8_projection_v3 #(
   dea8_matrix_v3 matrix(
     .clk,.reset,.clear,
     .xbc_valid,.xbc_ready,.xbc_entry,
+    .local_a_valid(1'b0),.local_a_entry('0),.local_a_ready(),
+    .vpu_wr_valid(1'b0),.vpu_wr('0),.vpu_wr_ready(),
     .hbm_valid,.hbm_ready,.hbm_entry,
     .kv_valid(1'b0),.kv_ready(),.kv_entry('0),.b_source(B_HBM),
     .job_start(matrix_job_start),.job_a_tile_idx('0),.job_b_tile_idx('0),
@@ -64,7 +66,7 @@ module dea8_projection_v3 #(
     .job_acc_sel(matrix_launch_tile[0]?ACC_FACC_B:ACC_FACC_A),.job_add_old(1'b0),.job_ready(matrix_ready),
     .job_busy(matrix_busy),.commit_valid(matrix_commit_valid),.done(matrix_done),
     .commit_meta(matrix_commit_meta),
-    .result_rd_owner(ACC_READ_RESULT),.result_rd_valid,.result_rd_sel,.result_rd_addr,
+    .result_rd_owner(ACC_READ_RESULT),.result_rd_valid,.result_rd_ready,.result_rd_sel,.result_rd_addr,
     .result_rd_data_valid,.result_even_data,.result_odd_data,
     .dbg_valid(1'b0),.dbg_sel(ACC_FACC_A),.dbg_parity(1'b0),.dbg_addr('0),
     .dbg_lane('0),.dbg_data(unused_dbg_data),
@@ -102,7 +104,7 @@ module dea8_projection_v3 #(
       done<=0;
       matrix_done_q<=matrix_done;
       qoz_wr_valid_q<=0;
-      if(result_rd_valid) begin
+      if(result_rd_valid&&result_rd_ready) begin
         response_pair_q<=read_pair_q;
         if(read_pair_q==PAIRS-1) read_last_requested_q<=1;
         else read_pair_q<=read_pair_q+1'b1;

@@ -23,6 +23,12 @@ package pcore3_pkg;
   typedef enum logic [1:0] {B_HBM=0,B_KVB=1} b_source_e;
   typedef enum logic [1:0] {ACC_FACC_A=0,ACC_FACC_B=1,ACC_OACC=2} acc_sel_e;
   typedef enum logic {ACC_READ_DEQACC=0,ACC_READ_RESULT=1} acc_read_owner_e;
+  typedef struct packed {
+    acc_sel_e sel;
+    logic [9:0] addr;
+    logic [1:0] row_valid;
+    logic [1:0][15:0][31:0] data;
+  } acc_write_t;
   typedef enum logic [1:0] {MAT_PROJECTION=0,MAT_ATTENTION=1,MAT_GU=2} matrix_mode_e;
   typedef enum logic {MATRIX_QK=0,MATRIX_PV=1} matrix_op_e;
 

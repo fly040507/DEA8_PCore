@@ -18,8 +18,9 @@ module tb_v3_attention_system;
   logic vpu_done_valid,vpu_done_ready; vpu_cmd_t vpu_done;
   logic sfu_valid,sfu_ready=1; sfu_cmd_t sfu_cmd;
   logic sfu_done_valid,sfu_done_ready; sfu_cmd_t sfu_done;
-  logic xbc_valid,xbc_ready; xbc4_t xbc_entry;
-  logic replay_load_valid,replay_load_ready; xbc4_t replay_load_entry;
+  logic qoz_load_valid=0,qoz_load_ready; a2_t qoz_load_entry;
+  logic replay_load_valid,replay_load_ready; a2_t replay_load_entry;
+  logic [5:0] replay_load_block;
   logic hbm_valid,hbm_ready; b2_t hbm_entry;
   logic kv_valid,kv_ready; b2_t kv_entry;
   logic a_error,b_error; int matrix_accepts,matrix_done_count;
@@ -35,8 +36,10 @@ module tb_v3_attention_system;
   dea8_attention_matrix_v3 matrix(
     .clk,.reset,.clear,.cmd_valid(matrix_valid),.cmd_ready(matrix_ready),.cmd(matrix_cmd),
     .done_valid(matrix_done_valid),.done_ready(matrix_done_ready),.done_cmd(matrix_done),
-    .xbc_valid,.xbc_ready,.xbc_entry,
+    .qoz_load_valid,.qoz_load_ready,.qoz_load_entry,.qoz_load_epoch(start_epoch),.qoz_load_head(start_head),
     .replay_load_valid,.replay_load_ready,.replay_load_entry,
+    .replay_load_epoch(start_epoch),.replay_load_head(start_head),.replay_load_block,
+    .vpu_wr_valid(1'b0),.vpu_wr('0),.vpu_wr_ready(),.result_rd_ready(),
     .hbm_valid,.hbm_ready,.hbm_entry,.kv_valid,.kv_ready,.kv_entry,.b_source(B_HBM),
     .a_protocol_error(a_error),.b_protocol_error(b_error),
     .result_rd_owner(ACC_READ_RESULT),.result_rd_valid(1'b0),.result_rd_sel(ACC_OACC),
@@ -48,19 +51,23 @@ module tb_v3_attention_system;
   endfunction
 
   task automatic send_replay(input int slot,input int group);
-    replay_load_entry='0;replay_load_entry.slot=slot[0];replay_load_entry.group_idx=group;
-    replay_load_entry.tile_idx=slot;replay_load_entry.row_valid=(group==XBC_GROUPS-1)?4'b0111:4'b1111;
-    for(int r=0;r<4;r++)replay_load_entry.row[r]=qv(1);
-    do begin @(negedge clk);replay_load_valid=1;end while(!replay_load_ready);
+    @(negedge clk);
+    replay_load_entry='0;replay_load_entry.slot=slot[0];replay_load_entry.pair_idx=PAIR_BITS'(group);
+    replay_load_entry.row_valid=row_mask(group);replay_load_block=6'(slot);
+    for(int r=0;r<2;r++)replay_load_entry.row[r]=qv(1);
+    replay_load_valid=1;
+    do @(posedge clk); while(!replay_load_ready);
     @(negedge clk);replay_load_valid=0;
   endtask
 
   task automatic send_a(input int tile,input int group);
-    xbc_entry='0; xbc_entry.tile_idx=tile[TILE_BITS-1:0];xbc_entry.group_idx=group;
-    xbc_entry.row_valid=(group==XBC_GROUPS-1)?4'b0111:4'b1111;
-    for(int r=0;r<4;r++)xbc_entry.row[r]=qv(r==1?2:1);
-    do begin @(negedge clk);xbc_valid=1;end while(!xbc_ready);
-    @(negedge clk);xbc_valid=0;
+    @(negedge clk);
+    qoz_load_entry='0;qoz_load_entry.tile_idx=TILE_BITS'(tile);qoz_load_entry.pair_idx=PAIR_BITS'(group);
+    qoz_load_entry.row_valid=row_mask(group);
+    for(int r=0;r<2;r++)qoz_load_entry.row[r]=qv(r==1?2:1);
+    qoz_load_valid=1;
+    do @(posedge clk); while(!qoz_load_ready);
+    @(negedge clk);qoz_load_valid=0;
   endtask
 
   task automatic send_b(input int tile,input int group);
@@ -72,10 +79,6 @@ module tb_v3_attention_system;
 
   task automatic produce_matrix_job(input matrix_cmd_t c,input int a_base,input int b_base);
     fork
-      begin
-        if(c.op==MATRIX_QK)
-          for(int t=0;t<ATTN_K_TILES;t++)for(int g=0;g<XBC_GROUPS;g++)send_a(a_base+t,g);
-      end
       begin
         for(int t=0;t<ATTN_K_TILES;t++)for(int g=0;g<8;g++)send_b(b_base+t,g);
       end
@@ -106,13 +109,14 @@ module tb_v3_attention_system;
   end
 
   initial begin
-    start_valid=0;xbc_valid=0;replay_load_valid=0;hbm_valid=0;kv_valid=0;
+    start_valid=0;replay_load_valid=0;hbm_valid=0;kv_valid=0;
     matrix_accepts=0;matrix_done_count=0;a_stream_next=0;b_stream_next=0;
     repeat(20)@(negedge clk);reset=0;
+    for(int t=0;t<ATTN_K_TILES;t++) for(int p=0;p<PAIRS;p++) send_a(t,p);
     // Fill both PBUF banks before the scheduler starts.  The matrix adapter
     // still checks bank selection at each PV command boundary.
-    for(int g=0;g<XBC_GROUPS;g++)send_replay(0,g);
-    for(int g=0;g<XBC_GROUPS;g++)send_replay(1,g);
+    for(int g=0;g<PAIRS;g++)send_replay(0,g);
+    for(int g=0;g<PAIRS;g++)send_replay(1,g);
     @(negedge clk);start_valid=1;
     @(negedge clk);start_valid=0;
     wait(done_valid);

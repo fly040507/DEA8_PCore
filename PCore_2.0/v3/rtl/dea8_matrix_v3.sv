@@ -4,9 +4,10 @@ import pcore3_pkg::*;
 // advances one A Tile per configured row-pair count.  The AFIFO supports rollover
 // reservation on the last pair, while the B loader releases a stationary bank
 // one cycle after the final S1 multiply has consumed it.
-module dea8_matrix_v3 (
+module dea8_matrix_v3 #(parameter bit LOCAL_A=0) (
   input logic clk,reset,clear,
   input logic xbc_valid, output logic xbc_ready, input xbc4_t xbc_entry,
+  input logic local_a_valid,output logic local_a_ready,input a2_t local_a_entry,
   input logic hbm_valid, output logic hbm_ready, input b2_t hbm_entry,
   input logic kv_valid, output logic kv_ready, input b2_t kv_entry,
   input b_source_e b_source,
@@ -33,6 +34,8 @@ module dea8_matrix_v3 (
   output pair_meta_t commit_meta,
   input acc_read_owner_e result_rd_owner,
   input logic result_rd_valid,
+  output logic result_rd_ready,
+  input logic vpu_wr_valid,output logic vpu_wr_ready,input acc_write_t vpu_wr,
   input acc_sel_e result_rd_sel,
   input logic [9:0] result_rd_addr,
   output logic result_rd_data_valid,
@@ -47,9 +50,18 @@ module dea8_matrix_v3 (
   logic [PAIR_BITS:0] rows_q,pairs_q;
   logic [6:0] a_count;
   logic [$clog2(AFIFO_DEPTH+1)-1:0] a_complete;
+  if(!LOCAL_A) begin: external_a
+  assign local_a_ready=0;
   dea8_xbc4_adapter_v3 xbc_adapter(
     .clk,.reset,.clear,.in_valid(xbc_valid),.in_ready(xbc_ready),.in_entry(xbc_entry),
     .out_valid(a2_valid),.out_ready(a2_ready),.out_entry(a2_entry));
+  end else begin: local_a
+    assign xbc_ready=0;
+    assign a2_valid={1'b0,local_a_valid};
+    assign a2_entry[0]=local_a_entry;
+    assign a2_entry[1]='0;
+    assign local_a_ready=a2_ready[0];
+  end
   dea8_afifo_v3 a_fifo(
     .clk,.reset,.clear,.pairs_cfg(pairs_q),.rows_cfg(rows_q),
     .in_valid(a2_valid),.in_ready(a2_ready),.in_entry(a2_entry),
@@ -190,12 +202,23 @@ module dea8_matrix_v3 (
   end
 
   logic mxu_rsp_valid; mxu_rsp_t mxu_rsp;
+  logic store_result_ready,store_vpu_ready;
+  logic result_bank_free,vpu_bank_free;
+  // Reserve the accumulator for the whole job, including pipeline gaps.
+  assign result_bank_free=(!job_busy_q||result_rd_sel!=acc_sel_q)&&
+    !(job_accept&&result_rd_sel==job_acc_sel);
+  assign vpu_bank_free=(!job_busy_q||vpu_wr.sel!=acc_sel_q)&&
+    !(job_accept&&vpu_wr.sel==job_acc_sel);
+  assign result_rd_ready=store_result_ready&&result_bank_free;
+  assign vpu_wr_ready=store_vpu_ready&&vpu_bank_free;
   dea8_mxu_2row_v3 mxu(
     .clk,.reset,.clear,.req_valid(req_valid),.req_bank(req_bank),.req(a_head),.req_meta(req_meta),
     .load_valid,.load_bank,.load_column,.load_entry(serializer_out),.rsp_valid(mxu_rsp_valid),.rsp(mxu_rsp));
   dea8_deqacc32_v3 deqacc(
     .clk,.reset,.clear,.rsp_valid(mxu_rsp_valid),.rsp(mxu_rsp),.commit_valid,.done,.commit_meta,
-    .result_rd_owner,.result_rd_valid,.result_rd_sel,.result_rd_addr,
+    .result_rd_owner,.result_rd_valid(result_rd_valid&&result_bank_free),
+    .result_rd_ready(store_result_ready),.result_rd_sel,.result_rd_addr,
+    .vpu_wr_valid(vpu_wr_valid&&vpu_bank_free),.vpu_wr_ready(store_vpu_ready),.vpu_wr,
     .result_rd_data_valid,.result_even_data,.result_odd_data,
     .dbg_valid,.dbg_sel,.dbg_parity,.dbg_addr,.dbg_lane,.dbg_data);
 endmodule

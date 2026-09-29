@@ -12,6 +12,8 @@ module dea8_deqacc32_v3 (
   input logic rsp_valid,input mxu_rsp_t rsp,
   input acc_read_owner_e result_rd_owner,
   input logic result_rd_valid,
+  output logic result_rd_ready,
+  input logic vpu_wr_valid,output logic vpu_wr_ready,input acc_write_t vpu_wr,
   input acc_sel_e result_rd_sel,
   input logic [9:0] result_rd_addr,
   output logic result_rd_data_valid,
@@ -71,7 +73,8 @@ module dea8_deqacc32_v3 (
   dea8_acc_store_v3 acc_store(
     .clk,.reset,.clear,.rd_valid(acc_rd_valid),.rd_sel(acc_rd_sel),.rd_addr(acc_rd_addr),
     .rd_data_valid(acc_rd_rsp_valid),.rd_even_data(acc_rd_even),.rd_odd_data(acc_rd_odd),
-    .result_rd_owner,.result_rd_valid,.result_rd_sel,.result_rd_addr,
+    .result_rd_owner,.result_rd_valid,.result_rd_ready,.result_rd_sel,.result_rd_addr,
+    .vpu_wr_valid,.vpu_wr_ready,.vpu_wr,
     .result_rd_data_valid,.result_even_data,.result_odd_data,
     .wr_valid(acc_wr_valid),.wr_sel(acc_wr_sel),.wr_even_valid(acc_wr_even_valid),
     .wr_odd_valid(acc_wr_odd_valid),.wr_addr(acc_wr_addr),.wr_even_data(acc_wr_even),

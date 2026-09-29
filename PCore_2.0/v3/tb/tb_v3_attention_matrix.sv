@@ -7,8 +7,9 @@ module tb_v3_attention_matrix;
   logic reset=1,clear=0;
   logic cmd_valid,cmd_ready,done_valid,done_ready=1;
   matrix_cmd_t cmd,done_cmd;
-  logic xbc_valid,xbc_ready; xbc4_t xbc_entry;
-  logic replay_load_valid,replay_load_ready; xbc4_t replay_load_entry;
+  logic qoz_load_valid=0,qoz_load_ready; a2_t qoz_load_entry;
+  logic replay_load_valid,replay_load_ready; a2_t replay_load_entry;
+  logic [5:0] replay_load_block;
   logic hbm_valid,hbm_ready; b2_t hbm_entry;
   logic kv_valid,kv_ready; b2_t kv_entry;
   logic a_error,b_error; int done_count;
@@ -19,8 +20,10 @@ module tb_v3_attention_matrix;
 
   dea8_attention_matrix_v3 dut(
     .clk,.reset,.clear,.cmd_valid,.cmd_ready,.cmd,.done_valid,.done_ready,.done_cmd,
-    .xbc_valid,.xbc_ready,.xbc_entry,
+    .qoz_load_valid,.qoz_load_ready,.qoz_load_entry,.qoz_load_epoch(4'd1),.qoz_load_head(3'd0),
     .replay_load_valid,.replay_load_ready,.replay_load_entry,
+    .replay_load_epoch(4'd1),.replay_load_head(3'd0),.replay_load_block,
+    .vpu_wr_valid(1'b0),.vpu_wr('0),.vpu_wr_ready(),.result_rd_ready(),
     .hbm_valid,.hbm_ready,.hbm_entry,.kv_valid,.kv_ready,.kv_entry,.b_source(B_HBM),
     .a_protocol_error(a_error),.b_protocol_error(b_error),
     .result_rd_owner(ACC_READ_RESULT),.result_rd_valid(1'b0),.result_rd_sel(ACC_OACC),
@@ -36,17 +39,19 @@ module tb_v3_attention_matrix;
   endfunction
 
   task automatic send_cmd(input matrix_cmd_t c);
-    do begin @(negedge clk);cmd=c;cmd_valid=1;end while(!cmd_ready);
+    @(negedge clk);cmd=c;cmd_valid=1;
+    do @(posedge clk); while(!cmd_ready);
     @(negedge clk);cmd_valid=0;
   endtask
 
   task automatic send_a(input int tile,input int group);
-    xbc_entry='0;xbc_entry.tile_idx=tile[TILE_BITS-1:0];xbc_entry.group_idx=group;
-    xbc_entry.slot=0;xbc_entry.row_valid=(group==XBC_GROUPS-1)?4'b0111:4'b1111;
-    xbc_entry.row[0]=qv(1,128);xbc_entry.row[1]=qv(2,128);
-    xbc_entry.row[2]=qv(1,128);xbc_entry.row[3]=qv(1,128);
-    do begin @(negedge clk);xbc_valid=1;end while(!xbc_ready);
-    @(negedge clk);xbc_valid=0;
+    @(negedge clk);
+    qoz_load_entry='0;qoz_load_entry.tile_idx=TILE_BITS'(tile);qoz_load_entry.pair_idx=PAIR_BITS'(group);
+    qoz_load_entry.row_valid=row_mask(group);
+    qoz_load_entry.row[0]=qv(1,128);qoz_load_entry.row[1]=qv((group%2==0)?2:1,128);
+    qoz_load_valid=1;
+    do @(posedge clk); while(!qoz_load_ready);
+    @(negedge clk);qoz_load_valid=0;
   endtask
 
   task automatic send_b(input int tile,input int group,input int value);
@@ -57,11 +62,13 @@ module tb_v3_attention_matrix;
   endtask
 
   task automatic send_replay(input int slot,input int group,input int value);
-    replay_load_entry='0;replay_load_entry.tile_idx=slot;replay_load_entry.group_idx=group;
+    @(negedge clk);
+    replay_load_entry='0;replay_load_entry.pair_idx=PAIR_BITS'(group);replay_load_block=6'(slot);
     replay_load_entry.slot=slot[0];
-    replay_load_entry.row_valid=(group==XBC_GROUPS-1)?4'b0111:4'b1111;
-    for(int r=0;r<4;r++) replay_load_entry.row[r]=qv(value,128);
-    do begin @(negedge clk);replay_load_valid=1;end while(!replay_load_ready);
+    replay_load_entry.row_valid=row_mask(group);
+    for(int r=0;r<2;r++) replay_load_entry.row[r]=qv(value,128);
+    replay_load_valid=1;
+    do @(posedge clk); while(!replay_load_ready);
     @(negedge clk);replay_load_valid=0;
   endtask
 
@@ -73,7 +80,6 @@ module tb_v3_attention_matrix;
     target=done_count+1;
     fork
       begin send_cmd(c); end
-      begin for(int t=0;t<ATTN_K_TILES;t++) for(int g=0;g<XBC_GROUPS;g++) send_a(a_base+t,g); end
       begin for(int t=0;t<ATTN_K_TILES;t++) for(int g=0;g<8;g++) send_b(b_base+t,g,1); end
     join
     wait(done_count==target);
@@ -103,19 +109,20 @@ module tb_v3_attention_matrix;
   end
 
   initial begin
-    cmd_valid=0;xbc_valid=0;replay_load_valid=0;hbm_valid=0;kv_valid=0;done_count=0;
+    cmd_valid=0;replay_load_valid=0;hbm_valid=0;kv_valid=0;done_count=0;
     dbg_valid=0;dbg_sel=ACC_OACC;dbg_parity=0;dbg_addr=0;dbg_lane=0;
     repeat(20)@(negedge clk);reset=0;
+    for(int t=0;t<ATTN_K_TILES;t++) for(int p=0;p<PAIRS;p++) send_a(t,p);
 
     // P0 can be loaded before QK0.  P1 is deliberately loaded while QK1 is
     // running, proving that the alternate PBUF bank is independent.
     fork
-      begin for(int g=0;g<XBC_GROUPS;g++) send_replay(0,g,1); end
+      begin for(int g=0;g<PAIRS;g++) send_replay(0,g,1); end
       begin run_qk(0,0,0); end
     join
     fork
       begin run_qk(1,16,16); end
-      begin for(int g=0;g<XBC_GROUPS;g++) send_replay(1,g,1); end
+      begin for(int g=0;g<PAIRS;g++) send_replay(1,g,1); end
     join
     run_pv(0,32);
     for(int nt=0;nt<16;nt++) begin
@@ -138,7 +145,19 @@ module tb_v3_attention_matrix;
         $fatal(1,"OACC add_old mismatch nt%0d old=%h new=%h expected=%h",
           nt,pv0[nt],oacc0[nt],fp32_add(pv0[nt],pv0[nt]));
     end
-    $display("tb_v3_attention_matrix PASS QK=3 PV=2 PBUF_banks=2 replay_nt=16 OACC_add_old=1");
+    // A full parity bank is insufficient: PV must match block, epoch and head.
+    for(int scenario=0;scenario<3;scenario++) begin
+      @(negedge clk);clear=1;cmd_valid=0;
+      @(negedge clk);clear=0;
+      for(int p=0;p<PAIRS;p++) send_replay(0,p,1);
+      @(negedge clk);cmd='0;cmd.mode=MAT_ATTENTION;cmd.op=MATRIX_PV;cmd.m_rows=ROWS;
+      cmd.epoch=(scenario==1)?2:1;cmd.head=(scenario==2)?1:0;
+      cmd.block_id=(scenario==0)?2:0;cmd.a_id=cmd.block_id;cmd_valid=1;
+      #1;if(cmd_ready) $fatal(1,"stale PBUF command accepted scenario=%0d",scenario);
+      @(posedge clk);#1;if(!a_error) $fatal(1,"stale PBUF command not diagnosed");
+      @(negedge clk);cmd_valid=0;
+    end
+    $display("tb_v3_attention_matrix PASS QK=3 PV=2 PBUF_banks=2 replay_nt=16 OACC_add_old=1 stale_context_cases=3");
     $finish;
   end
   initial begin #250000;$fatal(1,"attention matrix watchdog");end
