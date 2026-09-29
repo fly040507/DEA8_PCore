@@ -4,6 +4,7 @@ package pcore3_pkg;
   parameter int INT_BITS=8, SCALE_BITS=8, PSUM_BITS=32, FP_BITS=32;
   parameter int DATA_BITS=TILE*INT_BITS;
   parameter int TILE_BITS=6, PAIR_BITS=5, EPOCH_BITS=4;
+  parameter int LOGICAL_ID_BITS=10;
   parameter int AFIFO_DEPTH=64, BFIFO_DEPTH=64;
   parameter int KV_BLOCKS=55;
   parameter int ATTN_K_TILES=16;
@@ -92,8 +93,8 @@ package pcore3_pkg;
     matrix_op_e op;
     // A and B are independent IDs.  Projection/QK normally advance both;
     // PV holds a_id and advances only b_id.
-    logic [5:0] a_id;
-    logic [5:0] b_id;
+    logic [LOGICAL_ID_BITS-1:0] a_id;
+    logic [LOGICAL_ID_BITS-1:0] b_id;
     logic [5:0] m_rows;
     logic [3:0] out_tile;
     acc_sel_e acc_sel;

@@ -36,21 +36,26 @@ module dea8_acc_store_v3 #(
   localparam int PAIRS_P=(ROWS_P+1)/2;
   localparam int OACC_EVEN_DEPTH=PAIRS_P*OUT_TILES_P;
   localparam int OACC_ODD_DEPTH=PAIRS_P*OUT_TILES_P;
-  logic [31:0] facc_a_even[0:PAIRS_P-1][0:OUT_TILES_P-1];
-  logic [31:0] facc_a_odd [0:PAIRS_P-1][0:OUT_TILES_P-1];
-  logic [31:0] facc_b_even[0:PAIRS_P-1][0:OUT_TILES_P-1];
-  logic [31:0] facc_b_odd [0:PAIRS_P-1][0:OUT_TILES_P-1];
-  logic [31:0] oacc_even[0:OACC_EVEN_DEPTH-1][0:OUT_TILES_P-1];
-  logic [31:0] oacc_odd [0:OACC_ODD_DEPTH-1][0:OUT_TILES_P-1];
+  // Each entry is one 16-lane FP32 vector.  The shallow FACC arrays are
+  // intentionally eligible for LUTRAM; the deeper OACC arrays are explicitly
+  // marked for block RAM.  Read addresses are registered and writes occur in
+  // the same always_ff, giving one physical 1R1W vector port per parity bank.
+  (* ram_style = "distributed" *) logic [15:0][31:0] facc_a_even[0:PAIRS_P-1];
+  (* ram_style = "distributed" *) logic [15:0][31:0] facc_a_odd [0:PAIRS_P-1];
+  (* ram_style = "distributed" *) logic [15:0][31:0] facc_b_even[0:PAIRS_P-1];
+  (* ram_style = "distributed" *) logic [15:0][31:0] facc_b_odd [0:PAIRS_P-1];
+  (* ram_style = "block" *) logic [15:0][31:0] oacc_even[0:OACC_EVEN_DEPTH-1];
+  (* ram_style = "block" *) logic [15:0][31:0] oacc_odd [0:OACC_ODD_DEPTH-1];
   logic facc_a_even_v[0:PAIRS_P-1],facc_a_odd_v[0:PAIRS_P-1];
   logic facc_b_even_v[0:PAIRS_P-1],facc_b_odd_v[0:PAIRS_P-1];
   logic oacc_even_v[0:OACC_EVEN_DEPTH-1],oacc_odd_v[0:OACC_ODD_DEPTH-1];
-  logic [9:0] rd_addr_q;
-  acc_sel_e rd_sel_q;
-  logic rd_valid_q;
-  logic [9:0] result_rd_addr_q;
-  acc_sel_e result_rd_sel_q;
-  logic result_rd_valid_q;
+  // FACC is a shallow vector store; OACC is the large 416-entry vector store.
+  // Both are written on the single write port below.  The read interface is a
+  // one-request-per-cycle synchronous port: DEQACC owns it during arithmetic,
+  // while result reads use it only when the owner is RESULT.
+  logic phys_rd_valid_q,phys_rd_result_q;
+  logic [9:0] phys_rd_addr_q;
+  acc_sel_e phys_rd_sel_q;
 
   function automatic logic [31:0] read_even(input acc_sel_e sel,input logic [9:0] addr,input int lane);
     read_even=0;
@@ -77,12 +82,25 @@ module dea8_acc_store_v3 #(
 
   always_ff @(posedge clk) begin
     if(reset||clear) begin
-      rd_valid_q<=0;rd_addr_q<='0;rd_sel_q<=ACC_FACC_A;
-      for(int a=0;a<PAIRS_P;a++) begin facc_a_even_v[a]<=0;facc_b_even_v[a]<=0;facc_a_odd_v[a]<=0;facc_b_odd_v[a]<=0;end
+      phys_rd_valid_q<=0;phys_rd_result_q<=0;phys_rd_addr_q<='0;phys_rd_sel_q<=ACC_FACC_A;
+      for(int a=0;a<PAIRS_P;a++) begin
+        facc_a_even_v[a]<=0;facc_b_even_v[a]<=0;
+        facc_a_odd_v[a]<=0;facc_b_odd_v[a]<=0;
+      end
       for(int a=0;a<OACC_EVEN_DEPTH;a++) oacc_even_v[a]<=0;
       for(int a=0;a<OACC_ODD_DEPTH;a++) oacc_odd_v[a]<=0;
     end else begin
-      rd_valid_q<=rd_valid;rd_addr_q<=rd_addr;rd_sel_q<=rd_sel;
+      // One physical read port.  DEQACC has priority; result reads are
+      // accepted only when the internal port is idle.  The selected address
+      // is registered at the RAM boundary, which is the portable synchronous
+      // 1R1W inference template.
+      phys_rd_valid_q<=rd_valid || (result_rd_valid&&result_rd_owner==ACC_READ_RESULT);
+      phys_rd_result_q<=!rd_valid && result_rd_valid&&result_rd_owner==ACC_READ_RESULT;
+      if(rd_valid) begin
+        phys_rd_addr_q<=rd_addr;phys_rd_sel_q<=rd_sel;
+      end else if(result_rd_valid&&result_rd_owner==ACC_READ_RESULT) begin
+        phys_rd_addr_q<=result_rd_addr;phys_rd_sel_q<=result_rd_sel;
+      end
       if(wr_valid) begin
         for(int n=0;n<16;n++) begin
           if(wr_even_valid) case(wr_sel)
@@ -102,38 +120,22 @@ module dea8_acc_store_v3 #(
     end
   end
 
-  // One-cycle synchronous read response from the registered request.
-  assign rd_data_valid=rd_valid_q;
-  // Generic result reads use the same one-cycle registered request contract
-  // as the internal DEQACC read port.  Keeping the data combinational after
-  // the request register makes the valid pulse and the vector data refer to
-  // exactly the same address.
-  always_ff @(posedge clk) begin
-    if(reset||clear) begin
-      result_rd_valid_q<=0;result_rd_addr_q<='0;result_rd_sel_q<=ACC_FACC_A;
-    end else begin
-      result_rd_valid_q<=result_rd_valid && result_rd_owner==ACC_READ_RESULT;
-      if(result_rd_valid && result_rd_owner==ACC_READ_RESULT) begin
-        result_rd_addr_q<=result_rd_addr;
-        result_rd_sel_q<=result_rd_sel;
-      end
-    end
-  end
-  assign result_rd_data_valid=result_rd_valid_q;
-  always_comb begin
-    result_even_data='0;result_odd_data='0;
-    if(result_rd_valid_q) begin
-      for(int n=0;n<16;n++) begin
-        result_even_data[n]=read_even(result_rd_sel_q,result_rd_addr_q,n);
-        result_odd_data[n]=read_odd(result_rd_sel_q,result_rd_addr_q,n);
-      end
-    end
-  end
+  assign rd_data_valid=phys_rd_valid_q&&!phys_rd_result_q;
+  assign result_rd_data_valid=phys_rd_valid_q&&phys_rd_result_q;
   always_comb begin
     rd_even_data='0;rd_odd_data='0;
     for(int n=0;n<16;n++) begin
-      rd_even_data[n]=read_even(rd_sel_q,rd_addr_q,n);
-      rd_odd_data[n]=read_odd(rd_sel_q,rd_addr_q,n);
+      rd_even_data[n]=read_even(phys_rd_sel_q,phys_rd_addr_q,n);
+      rd_odd_data[n]=read_odd(phys_rd_sel_q,phys_rd_addr_q,n);
+    end
+  end
+  always_comb begin
+    result_even_data='0;result_odd_data='0;
+    if(phys_rd_result_q) begin
+      for(int n=0;n<16;n++) begin
+        result_even_data[n]=read_even(phys_rd_sel_q,phys_rd_addr_q,n);
+        result_odd_data[n]=read_odd(phys_rd_sel_q,phys_rd_addr_q,n);
+      end
     end
   end
 

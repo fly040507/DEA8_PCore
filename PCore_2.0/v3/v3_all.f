@@ -24,3 +24,5 @@ tb/tb_v3_matrix.sv
 tb/tb_v3_projection.sv
 tb/tb_v3_attention_scheduler.sv
 tb/tb_v3_attention_matrix.sv
+tb/tb_v3_attention_system.sv
+tb/tb_v3_attention_55.sv

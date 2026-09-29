@@ -33,7 +33,6 @@ module dea8_attention_scheduler_v3 #(
   phase_e phase_q;
   post_e post_q;
   logic [5:0] b_q;
-  logic [TILE_BITS-1:0] tile_base_q;
   logic [2:0] head_q;
   logic [EPOCH_BITS-1:0] epoch_q;
   logic matrix_sent_q,matrix_finished_q,vpu_sent_q,vpu_finished_q,sfu_sent_q,sfu_finished_q;
@@ -73,9 +72,14 @@ module dea8_attention_scheduler_v3 #(
     matrix_cmd.m_rows=ROWS;
     // QK advances Q and K together.  PV reuses P tile 0 while the V-side
     // output-tile window starts at a separate ID range.
-    matrix_cmd.a_id=(matrix_cmd.op==MATRIX_PV)?6'd0:tile_base_q;
-    matrix_cmd.b_id=(matrix_cmd.op==MATRIX_PV)?TILE_BITS'(ATTN_K_TILES):tile_base_q;
-    matrix_cmd.out_tile=0;
+    // These are logical source IDs, not FIFO transport counters.  Q is the
+    // same QOZ source for every QK block; each KV block owns a K/V window.
+    matrix_cmd.a_id=(matrix_cmd.op==MATRIX_PV)?b_q:6'd0;
+    // NEXT_QK launches block b_q+1 while b_q is still the completed PV
+    // block.  Its B logical window must advance together with block_id;
+    // RUN_PV uses the current completed block's V window.
+    matrix_cmd.b_id=LOGICAL_ID_BITS'(((phase_q==NEXT_QK)?(b_q+1'b1):b_q)*ATTN_K_TILES);
+    matrix_cmd.out_tile=(matrix_cmd.op==MATRIX_PV)?b_q:0;
     matrix_cmd.acc_sel=matrix_cmd.op==MATRIX_QK?
       (matrix_cmd.block_id[0]?ACC_FACC_B:ACC_FACC_A):ACC_OACC;
     matrix_cmd.add_old=matrix_cmd.op==MATRIX_PV && matrix_cmd.block_id!=0;
@@ -112,7 +116,7 @@ module dea8_attention_scheduler_v3 #(
 
   always_ff @(posedge clk) begin
     if(reset||clear) begin
-      phase_q<=IDLE;post_q<=POST_NONE;b_q<=0;tile_base_q<=0;
+      phase_q<=IDLE;post_q<=POST_NONE;b_q<=0;
       head_q<=0;epoch_q<=0;tail_remaining_q<=0;
       matrix_sent_q<=0;matrix_finished_q<=0;
       vpu_sent_q<=0;vpu_finished_q<=0;sfu_sent_q<=0;sfu_finished_q<=0;
@@ -126,7 +130,6 @@ module dea8_attention_scheduler_v3 #(
       if(sfu_valid&&sfu_ready) begin sfu_sent_q<=1;sfu_inflight_q<=sfu_cmd;end
       if(matrix_done_valid&&matrix_done_ready) begin
         matrix_finished_q<=1;
-        tile_base_q<=tile_base_q+TILE_BITS'(ATTN_K_TILES);
       end
       if(vpu_done_valid&&vpu_done_ready) vpu_finished_q<=1;
       if(sfu_done_valid&&sfu_done_ready) sfu_finished_q<=1;
@@ -144,7 +147,7 @@ module dea8_attention_scheduler_v3 #(
         default: ;
       endcase
       if(start_valid&&start_ready) begin
-        phase_q<=FIRST_QK;b_q<=0;tile_base_q<=0;
+        phase_q<=FIRST_QK;b_q<=0;
         head_q<=start_head;epoch_q<=start_epoch;
       end
       if(advance) begin

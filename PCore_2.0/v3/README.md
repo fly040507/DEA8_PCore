@@ -12,16 +12,14 @@
 - `B2 -> B1 serializer -> B Loader`：Tile 内部连续输出一列/拍，分别加载两个 stationary B bank；Tile 末列禁止跨 Tile 预取，避免破坏完整 Tile credit。
 - `2-row MXU`：保留 16 x 16、256 个显式 DSP48E2、每拍两行 A、7 级 Psum 流水。
 - `Pair Store`：QOZ/PBUF 使用偶数行/奇数行物理存储，data 与 scale 绑定，保留 begin/write/commit 语义。
-- `DEQACC32`：32 lane、严格 D0..D4 五级流水，偶奇双物理路径，支持 FACC A/B 与 OACC；`add_old=0` 直接写 partial，`add_old=1` 读旧值并做 FP32 累加，最终 D4 commit 才产生 `done`。
-- `dea8_matrix_v3`：把 XBC、A/B FIFO、B Loader、MXU 和 DEQACC 接成完整多 Tile 矩阵作业链路；A/B 使用独立的 `job_a_tile_idx/job_b_tile_idx`，`m_rows` 派生 pair 数与尾行 mask，支持 HBM/KVB 入口选择、显式 `job_start`、作业配置锁存、Tile 序列、bank 释放/重装、首 K Tile 清零和最终 D4 commit 后结束。
+- `DEQACC32`：32 lane、严格 D0..D4 五级流水，偶奇双物理路径，支持 FACC A/B 与 OACC；`add_old=0` 直接写 partial，`add_old=1` 读旧值并做 FP32 累加，最终 D4 commit 才产生 `done`。写回在 `valid_q[3]` 对应的 D4 边沿完成，没有额外 `sum_q4` holding stage；testbench 逐周期检查首个响应到 commit 的 edge delta 为 4（含首拍计数即 5 stage）。
+- `dea8_matrix_v3`：把 XBC、A/B FIFO、B Loader、MXU 和 DEQACC 接成完整多 Tile 矩阵作业链路；逻辑 `job_a_tile_idx/job_b_tile_idx` 与 FIFO 运输 `job_a_stream_idx/job_b_stream_idx` 分开，`m_rows` 派生 pair 数与尾行 mask，支持 HBM/KVB 入口选择、显式 `job_start`、作业配置锁存、Tile 序列、bank 释放/重装、首 K Tile 清零和最终 D4 commit 后结束。B 源在 Job 接受时锁存，Job 期间不能由 live `b_source` 切换。
 - `dea8_projection_v3`：Projection 控制壳，验证 `[51,1024] x [1024,256]`；每个输出 N Tile 归约 64 个 K Tile，FACC-A/B 交替写入，同时读回上一个 N Tile 的 26 个 pair。
 - `dea8_attention_scheduler_v3`：按旧单 INT8 方案生成 `QK0, QK1, PV0, QK2, PV1, ...,
   QK54, PV53, PV54`；没有 QK55，并在 PV53 后保留一个完整的稳态矩阵时隙给尾部 OACC/scale。
-- `dea8_attention_matrix_v3`：Attention block 适配层。QK block 展开为 16 个 K Tile，
-  PV block 展开为 16 个 N Tile；PV 的 P Tile 通过 replay window 只装载一次，随后以独立
-  的运输 tile ID 重放 16 次，底层仍只调用通用 `dea8_matrix_v3`。
-- `matrix_cmd_t`：算法模式只存在于控制边界；MXU 和 DEQACC 只接收目标 accumulator、
-  `add_old/result_last/job_last` 等通用元数据。
+- `dea8_attention_matrix_v3`：Attention block 适配层。QK/PV 均作为一个 16-Tile Matrix Job，
+  QK 沿 K 方向展开，PV 沿 N 方向展开；PV 在一个 Job 内重放同一 PBUF bank 的 P，逐 N Tile 更新 OACC 地址。PBUF 为双 bank，按 group 顺序完成 load/commit，PV 最后一个 N Tile 完成后 release 当前 bank，下一 block 可装载另一 bank。
+- `matrix_cmd_t`：算法模式只存在于控制边界；`a_id/b_id` 为 10-bit 逻辑源 ID，MXU 和 DEQACC 只接收目标 accumulator、`add_old/result_last/job_last` 等通用元数据。内部 A/B FIFO 运输编号由 Matrix/Attention 适配层单独维护。
 
 ## 仿真入口
 
@@ -37,16 +35,18 @@ powershell -ExecutionPolicy Bypass -File .\run_v3_xsim.ps1
 
 | Testbench | 覆盖 |
 | --- | --- |
-| `tb_v3_ingress` | XBC4 到 26 个 A2，13 拍输入与尾行 mask |
+| `tb_v3_ingress` | XBC4 到 26 个 A2，13 拍输入与尾行 mask；再验证 M=50 时 25 个 pair 和单个有效尾 A2 |
 | `tb_v3_bpath` | 8 个 B2 到 16 次 B1 加载，scale/data 绑定与 BFIFO 完整度 |
 | `tb_v3_bfifo_stream` | 16 Tile、128 个 B2 的连续入队/出队，覆盖 `group7` 同拍 push/pop |
 | `tb_v3_pair_store` | QOZ/PBUF 行偶奇存储、scale 原子性与尾行读取 |
 | `tb_v3_pair_store_regions` | Q16、Z32 及 Z32→Q16 reuse，验证 odd row 计数 `25×Tile` |
-| `tb_v3_deqacc32` | 5 级流水、FACC-A/FACC-B/OACC 三种选择及 OACC 读改写 |
+| `tb_v3_deqacc32` | 5 级流水、FACC-A/FACC-B/OACC 三种选择、OACC 读改写及 D0..D4 周期测量 |
 | `tb_v3_matrix` | 单作业连续 64 Tile，A/B 并发灌入、AFIFO 边写边读、两 bank 循环复用、1664 个 pair commit；MXU issue=1664、`max_gap=1` |
 | `tb_v3_projection` | 完整 Q Projection：`[51,1024] x [1024,256]`，16 个输出 Tile、每 Tile 64 个 K Tile；逐一检查 16×26×16 个输出 lane、尾行 mask 和最终输出 Tile 数 |
 | `tb_v3_attention_scheduler` | 真实 55 个 block 验证 QK/PV 顺序、矩阵完成握手、VPU/SFU 独立完成握手、尾部时隙及 55+55 计数 |
-| `tb_v3_attention_matrix` | 通用 Matrix Core 联调 1 个 QK block（16 K Tile）和 1 个 PV block（同一 P Tile 重放到 16 个 N Tile），检查 block 完成顺序及 A/B ingress 无协议错误 |
+| `tb_v3_attention_matrix` | 真实 `QK0,QK1,PV0,QK2,PV1` 序列；验证两个 PBUF bank、P 重放 16 个 N Tile、OACC 地址以及第二个 PV 的 `add_old` 数值 |
+| `tb_v3_attention_system` | Scheduler 与真实 Attention Matrix 直接连接，2 个 KV block 跑通 QK=2 + PV=2，VPU/SFU 使用 one-cycle handshake model，检查 command/done context、A/B stream、PBUF 双 bank和协议错误 |
+| `tb_v3_attention_55` | 完整 55 个 QK + 55 个 PV；TB 模拟 VPU/SFU 非矩阵延迟、PBUF 产生、HBM A/B 输入，真实运行 Scheduler、Attention Matrix、MXU、DEQACC 和 OACC；逐 Block 检查上下文/部分结果，最终逐项检查 51×256=13056 个 OACC 输出 |
 
 ## Attention 时序基线
 
@@ -61,11 +61,8 @@ powershell -ExecutionPolicy Bypass -File .\run_v3_xsim.ps1
 
 - `b2_t` 是 PCore 的逻辑 B2 接口，不是物理 HBM AXI beat。真实 256-bit HBM AXI 的 burst/repack 由 HBM Controller/GCore 完成。
 - 当前 Projection 输出是送往 VPU/QOZ 量化边界的 FP32 流；VPU 的 FP32→INT8 量化及实际 QOZ 写入尚未接入本目录。
-- Attention 控制器和 QK/PV block 展开已经加入；当前 testbench 已把真实双行 Matrix Core
-  跑通 1 个 QK block 和 1 个 PV block，并验证 P Tile replay 16 次；调度器已单独跑通 55 个 QK + 55 个 PV，
-  但尚未把 55 个 block 的真实 Q/K/P/V 生成、
-  Mask/Softmax 和 VPU/SFU 数值模型接入同一条仿真。因此当前可以确认控制顺序、
-  block 展开和矩阵数据面联调，不能宣称端到端 Attention 数值已经完成。
-- `dea8_attention_matrix_v3` 约定输入流使用连续的虚拟 `tile_idx`：QK 每个 block 占 16 个 Tile，
-  PV 每个 N Tile 占 1 个 Tile；后续接入真实 Q/K/V buffer 时必须由上游按该约定编号。
+- Attention 已完成完整 55 个 block 的矩阵级验证：`tb_v3_attention_55` 由TB模拟VPU/SFU的非矩阵处理、PBUF装载以及HBM A/B供数，真实运行 Scheduler、Attention Matrix、双行 MXU、DEQACC、PBUF/BFIFO 和 OACC，完成 QK=55、PV=55，并逐项检查最终 51×256 个有效输出。该TB的 P/Q/K/V 数值用于验证矩阵和累加地址；真实 Mask/Softmax 算术仍由后续VPU/SFU实现替换。
+- `dea8_attention_matrix_v3` 的逻辑 `a_id/b_id` 不再承担 FIFO 顺序检查；每次 QK/PV command 内部使用独立的 A/B transport stream counter，避免 Q 源、PBUF 源、K/V block 地址混用。
+- `dea8_acc_store_v3` 将 FACC 与 OACC 组织为 16-lane vector memories：FACC 标记为 distributed/LUTRAM 候选，OACC 标记为 block RAM 候选；DEQACC 与结果读取共享一个物理读选择器，写端为单写口。最终 BRAM/LUTRAM 数量仍需 Vivado 综合确认。
 - 当前目标是先证明接口粒度、数据/scale 对齐、双行 MXU 算术、奇偶累加存储和最终 commit；综合、布局布线和 250 MHz 时序留到下一阶段。
+- `tb_v3_attention_55` 实测每个 QK/PV Matrix Job 为 455 拍，其中核心双行 MXU 发射为 416 拍，其余为TB模拟的装载、Job交接和流水排空；全序列共 54860 拍。该实测值用于当前仿真基线，不能替代综合后的硬件时序。

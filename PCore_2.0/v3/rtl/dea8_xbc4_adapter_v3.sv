@@ -13,8 +13,15 @@ module dea8_xbc4_adapter_v3 (
 );
   logic [PAIR_BITS-1:0] pair_base;
   assign pair_base=PAIR_BITS'(in_entry.group_idx<<1);
-  assign in_ready=!reset&&!clear&&out_ready[0]&&out_ready[1];
-  assign out_valid={2{in_valid&&in_ready}};
+  logic pair0_present,pair1_present;
+  assign pair0_present=|in_entry.row_valid[1:0];
+  assign pair1_present=|in_entry.row_valid[3:2];
+  // A final A4 beat may contain only one real pair when M/2 is odd.  The
+  // absent second pair must not create a phantom FIFO push, and therefore it
+  // must not hold the input side hostage either.
+  assign in_ready=!reset&&!clear&&out_ready[0]&&(!pair1_present||out_ready[1]);
+  assign out_valid[0]=in_valid&&in_ready&&pair0_present;
+  assign out_valid[1]=in_valid&&in_ready&&pair1_present;
   always_comb begin
     for(int p=0;p<2;p++) begin
       out_entry[p].row[0]='0;out_entry[p].row[1]='0;

@@ -9,7 +9,7 @@ module tb_v3_deqacc32;
   logic commit_valid,done; pair_meta_t commit_meta;
   logic result_rd_data_valid; logic [15:0][31:0] result_even_data,result_odd_data;
   logic dbg_valid,dbg_parity; acc_sel_e dbg_sel; logic [9:0] dbg_addr; logic [3:0] dbg_lane; logic [31:0] dbg_data;
-  int commits;
+  int commits,cycle_no,first_rsp_cycle,first_commit_cycle;
   function automatic logic [31:0] even_one(input int lane,input int exponent);
     return pack_scaled32(0,(16+lane)<<27,exponent,0,0);
   endfunction
@@ -39,9 +39,18 @@ module tb_v3_deqacc32;
   endtask
 
   // Sample after NBA updates; commit_valid is the stage-4 registered output.
-  always @(posedge clk) #1 if(commit_valid) commits++;
+  always @(posedge clk) begin
+    #1;
+    if(rsp_valid&&first_rsp_cycle<0) first_rsp_cycle=cycle_no;
+    if(commit_valid) begin
+      commits++;
+      if(first_commit_cycle<0) first_commit_cycle=cycle_no;
+    end
+    cycle_no++;
+  end
   initial begin
-    rsp_valid=0;commits=0;dbg_valid=0;dbg_sel=ACC_FACC_A;dbg_parity=0;dbg_addr=0;dbg_lane=0;
+    rsp_valid=0;commits=0;cycle_no=0;first_rsp_cycle=-1;first_commit_cycle=-1;
+    dbg_valid=0;dbg_sel=ACC_FACC_A;dbg_parity=0;dbg_addr=0;dbg_lane=0;
     repeat(20) @(negedge clk);reset=0;
     for(int p=0;p<PAIRS;p++) begin
       @(negedge clk);rsp_valid=1;rsp='0;rsp.row_valid=row_mask(p);
@@ -58,6 +67,9 @@ module tb_v3_deqacc32;
     @(negedge clk);rsp_valid=0;
     wait(done);#1;
     if(commits!=PAIRS) $fatal(1,"DEQACC commit count=%0d",commits);
+    if(first_commit_cycle-first_rsp_cycle!=4)
+      $fatal(1,"DEQACC edge latency=%0d, expected D0..D4 edge delta 4",
+        first_commit_cycle-first_rsp_cycle);
     dbg_valid=1;dbg_sel=ACC_FACC_A;dbg_parity=0;dbg_addr=0;dbg_lane=0;#1;
     if(dbg_data!==pack_scaled32(0,32'h80000000,-6,0,0)) $fatal(1,"FACC even value mismatch %h",dbg_data);
     dbg_lane=1;#1;
@@ -109,7 +121,8 @@ module tb_v3_deqacc32;
     if(dbg_data!==even_one(1,-6)) $fatal(1,"FACC B lane1 mismatch %h",dbg_data);
     dbg_lane=15; #1;
     if(dbg_data!==even_one(15,-6)) $fatal(1,"FACC B lane15 mismatch %h",dbg_data);
-    $display("tb_v3_deqacc32 PASS commits=%0d latency=5 FACC_A/FACC_B/OACC=1",commits);
+    $display("tb_v3_deqacc32 PASS commits=%0d latency=5 edge_delta=%0d FACC_A/FACC_B/OACC=1",
+      commits,first_commit_cycle-first_rsp_cycle);
     $finish;
   end
   initial begin #100000;$fatal(1,"v3 DEQACC watchdog"); end

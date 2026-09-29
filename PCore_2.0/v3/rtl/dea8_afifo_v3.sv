@@ -14,7 +14,10 @@ module dea8_afifo_v3 #(parameter int DEPTH=AFIFO_DEPTH) (
   output a2_t out_entry,
   output logic protocol_error,
   output logic [$clog2(DEPTH+1)-1:0] count,
-  output logic [$clog2(DEPTH/PAIRS+1)-1:0] complete_tiles
+  // The configured M can be smaller than the architectural default.  Size
+  // the credit counter for the FIFO capacity rather than for one fixed
+  // 51-row configuration.
+  output logic [$clog2(DEPTH+1)-1:0] complete_tiles
 );
   localparam int PTR_BITS=$clog2(DEPTH);
   logic [PTR_BITS-1:0] head,tail;
@@ -56,11 +59,14 @@ module dea8_afifo_v3 #(parameter int DEPTH=AFIFO_DEPTH) (
   assign next_pair=finish0 ? '0 : expected_pair+1'b1;
   assign next_tile=finish0 ? expected_tile+1'b1 : expected_tile;
   assign finish1=push1 && next_pair==active_pairs-1;
+  // slot identifies the producer-side QOZ/PBUF bank and may legitimately
+  // change at a Job boundary.  FIFO order is checked with pair/tile/row mask;
+  // bank ownership is checked by Matrix Core against the command stream ID.
   assign bad0=push0 && (in_entry[0].pair_idx!=expected_pair ||
-    in_entry[0].tile_idx!=expected_tile || (have_context && in_entry[0].slot!=expected_slot) ||
+    in_entry[0].tile_idx!=expected_tile ||
     in_entry[0].row_valid!=expected_mask || in_entry[0].reserved!=0);
   assign bad1=push1 && (in_entry[1].pair_idx!=next_pair ||
-    in_entry[1].tile_idx!=next_tile || (have_context && in_entry[1].slot!=expected_slot) ||
+    in_entry[1].tile_idx!=next_tile ||
     in_entry[1].row_valid!=((next_pair==active_pairs-1 && rows_cfg[0]) ? 2'b01 : 2'b11) ||
     in_entry[1].reserved!=0);
 

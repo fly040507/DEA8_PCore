@@ -27,7 +27,9 @@ module tb_v3_matrix;
   dea8_matrix_v3 dut(
     .clk,.reset,.clear,.xbc_valid,.xbc_ready,.xbc_entry,
     .hbm_valid,.hbm_ready,.hbm_entry,.kv_valid,.kv_ready,.kv_entry,.b_source,
-    .job_start,.job_a_tile_idx(job_tile_idx),.job_b_tile_idx(job_tile_idx),.job_tiles,.job_m_rows((PAIR_BITS+1)'(ROWS)),.job_epoch,.job_head,.job_nt,
+    .job_start,.job_a_tile_idx(job_tile_idx),.job_b_tile_idx(job_tile_idx),
+    .job_a_stream_idx(job_tile_idx),.job_b_stream_idx(job_tile_idx),
+    .job_tiles,.job_m_rows((PAIR_BITS+1)'(ROWS)),.job_epoch,.job_head,.job_nt,
     .job_nt_per_tile(1'b0),.job_clear_each_tile(1'b0),.job_final_k,
     .job_exp_fold,.job_acc_sel,.job_add_old,.job_ready,.job_busy,
     .commit_valid,.done,.commit_meta,.dbg_valid,.dbg_sel,.dbg_parity,
@@ -116,14 +118,12 @@ module tb_v3_matrix;
           for(int g=0;g<XBC_GROUPS;g++) send_a4(t,g);
       end
       begin
-        // Tile 0 enters through the HBM-facing path; the remaining Tiles
-        // enter through the K/V path.  The loader must release and reuse both
-        // stationary banks while this single job is still active.
+        // A Matrix Job owns one B source.  Keep the source fixed for the
+        // whole job; source switching is a new-job operation.
         b_source=B_HBM;
         for(int g=0;g<8;g++) send_b2(0,g,0);
-        b_source=B_KVB;
         for(int t=1;t<TEST_TILES;t++)
-          for(int g=0;g<8;g++) send_b2(t,g,1);
+          for(int g=0;g<8;g++) send_b2(t,g,0);
       end
     join
 

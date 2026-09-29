@@ -1,0 +1,126 @@
+`timescale 1ns/1ps
+import pcore3_pkg::*;
+
+// Direct scheduler <-> Attention Matrix integration for two KV blocks.  The
+// VPU/SFU are deliberately modeled as one-cycle command consumers; the test
+// focuses on command context, stream sequencing, PBUF ownership and the real
+// Matrix completion handshake.
+module tb_v3_attention_system;
+  localparam int BLOCKS=2;
+  logic clk=0; always #2 clk=~clk;
+  logic reset=1,clear=0;
+  logic start_valid,start_ready,busy;
+  logic [2:0] start_head=2; logic [EPOCH_BITS-1:0] start_epoch=4'h5;
+  logic done_valid,done_ready=1;
+  logic matrix_valid,matrix_ready; matrix_cmd_t matrix_cmd;
+  logic matrix_done_valid,matrix_done_ready; matrix_cmd_t matrix_done;
+  logic vpu_valid,vpu_ready=1; vpu_cmd_t vpu_cmd;
+  logic vpu_done_valid,vpu_done_ready; vpu_cmd_t vpu_done;
+  logic sfu_valid,sfu_ready=1; sfu_cmd_t sfu_cmd;
+  logic sfu_done_valid,sfu_done_ready; sfu_cmd_t sfu_done;
+  logic xbc_valid,xbc_ready; xbc4_t xbc_entry;
+  logic replay_load_valid,replay_load_ready; xbc4_t replay_load_entry;
+  logic hbm_valid,hbm_ready; b2_t hbm_entry;
+  logic kv_valid,kv_ready; b2_t kv_entry;
+  logic a_error,b_error; int matrix_accepts,matrix_done_count;
+  logic [TILE_BITS-1:0] a_stream_next,b_stream_next;
+
+  dea8_attention_scheduler_v3 #(.BLOCKS(BLOCKS)) scheduler(
+    .clk,.reset,.clear,.start_valid,.start_ready,.busy,.start_head,.start_epoch,
+    .done_valid,.done_ready,.matrix_valid,.matrix_ready,.matrix_cmd,
+    .matrix_done_valid,.matrix_done_ready,.matrix_done,
+    .vpu_valid,.vpu_ready,.vpu_cmd,.vpu_done_valid,.vpu_done_ready,.vpu_done,
+    .sfu_valid,.sfu_ready,.sfu_cmd,.sfu_done_valid,.sfu_done_ready,.sfu_done);
+
+  dea8_attention_matrix_v3 matrix(
+    .clk,.reset,.clear,.cmd_valid(matrix_valid),.cmd_ready(matrix_ready),.cmd(matrix_cmd),
+    .done_valid(matrix_done_valid),.done_ready(matrix_done_ready),.done_cmd(matrix_done),
+    .xbc_valid,.xbc_ready,.xbc_entry,
+    .replay_load_valid,.replay_load_ready,.replay_load_entry,
+    .hbm_valid,.hbm_ready,.hbm_entry,.kv_valid,.kv_ready,.kv_entry,.b_source(B_HBM),
+    .a_protocol_error(a_error),.b_protocol_error(b_error),
+    .result_rd_owner(ACC_READ_RESULT),.result_rd_valid(1'b0),.result_rd_sel(ACC_OACC),
+    .result_rd_addr('0),.result_rd_data_valid(),.result_even_data(),.result_odd_data(),
+    .dbg_valid(1'b0),.dbg_sel(ACC_OACC),.dbg_parity(1'b0),.dbg_addr('0),.dbg_lane('0),.dbg_data());
+
+  function automatic qvec16_t qv(input int value);
+    qvec16_t t; begin t='0;t.scale=128;for(int k=0;k<TILE;k++)t.data[k*8+:8]=value[7:0];return t;end
+  endfunction
+
+  task automatic send_replay(input int slot,input int group);
+    replay_load_entry='0;replay_load_entry.slot=slot[0];replay_load_entry.group_idx=group;
+    replay_load_entry.tile_idx=slot;replay_load_entry.row_valid=(group==XBC_GROUPS-1)?4'b0111:4'b1111;
+    for(int r=0;r<4;r++)replay_load_entry.row[r]=qv(1);
+    do begin @(negedge clk);replay_load_valid=1;end while(!replay_load_ready);
+    @(negedge clk);replay_load_valid=0;
+  endtask
+
+  task automatic send_a(input int tile,input int group);
+    xbc_entry='0; xbc_entry.tile_idx=tile[TILE_BITS-1:0];xbc_entry.group_idx=group;
+    xbc_entry.row_valid=(group==XBC_GROUPS-1)?4'b0111:4'b1111;
+    for(int r=0;r<4;r++)xbc_entry.row[r]=qv(r==1?2:1);
+    do begin @(negedge clk);xbc_valid=1;end while(!xbc_ready);
+    @(negedge clk);xbc_valid=0;
+  endtask
+
+  task automatic send_b(input int tile,input int group);
+    hbm_entry='0;hbm_entry.tile_idx=tile[TILE_BITS-1:0];hbm_entry.group_idx=group;hbm_entry.epoch=start_epoch;
+    hbm_entry.col[0]=qv(1);hbm_entry.col[1]=qv(1);
+    do begin @(negedge clk);hbm_valid=1;end while(!hbm_ready);
+    @(negedge clk);hbm_valid=0;
+  endtask
+
+  task automatic produce_matrix_job(input matrix_cmd_t c,input int a_base,input int b_base);
+    fork
+      begin
+        if(c.op==MATRIX_QK)
+          for(int t=0;t<ATTN_K_TILES;t++)for(int g=0;g<XBC_GROUPS;g++)send_a(a_base+t,g);
+      end
+      begin
+        for(int t=0;t<ATTN_K_TILES;t++)for(int g=0;g<8;g++)send_b(b_base+t,g);
+      end
+    join
+  endtask
+
+  // Immediate one-cycle VPU/SFU models, with context returned unchanged.
+  always_ff @(posedge clk) begin
+    if(reset||clear) begin
+      vpu_done_valid<=0;sfu_done_valid<=0;
+    end else begin
+      vpu_done_valid<=0;sfu_done_valid<=0;
+      if(vpu_valid&&vpu_ready) begin vpu_done<=vpu_cmd;vpu_done_valid<=1;end
+      if(sfu_valid&&sfu_ready) begin sfu_done<=sfu_cmd;sfu_done_valid<=1;end
+    end
+  end
+
+  always @(posedge clk) begin
+    if(!reset&&!clear&&matrix_valid&&matrix_ready) begin
+      matrix_accepts++;
+      fork
+        produce_matrix_job(matrix_cmd,a_stream_next,b_stream_next);
+      join_none
+      a_stream_next<=a_stream_next+ATTN_K_TILES;
+      b_stream_next<=b_stream_next+ATTN_K_TILES;
+    end
+    if(!reset&&!clear&&matrix_done_valid&&matrix_done_ready) matrix_done_count++;
+  end
+
+  initial begin
+    start_valid=0;xbc_valid=0;replay_load_valid=0;hbm_valid=0;kv_valid=0;
+    matrix_accepts=0;matrix_done_count=0;a_stream_next=0;b_stream_next=0;
+    repeat(20)@(negedge clk);reset=0;
+    // Fill both PBUF banks before the scheduler starts.  The matrix adapter
+    // still checks bank selection at each PV command boundary.
+    for(int g=0;g<XBC_GROUPS;g++)send_replay(0,g);
+    for(int g=0;g<XBC_GROUPS;g++)send_replay(1,g);
+    @(negedge clk);start_valid=1;
+    @(negedge clk);start_valid=0;
+    wait(done_valid);
+    if(matrix_accepts!=4||matrix_done_count!=4)
+      $fatal(1,"scheduler/matrix count accept=%0d done=%0d",matrix_accepts,matrix_done_count);
+    if(a_error||b_error) $fatal(1,"scheduler/matrix protocol error a=%0d b=%0d",a_error,b_error);
+    $display("tb_v3_attention_system PASS scheduler_matrix_blocks=%0d QK=2 PV=2 PBUF=2",matrix_done_count);
+    $finish;
+  end
+  initial begin #250000;$fatal(1,"attention system watchdog");end
+endmodule

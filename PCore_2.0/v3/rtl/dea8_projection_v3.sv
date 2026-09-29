@@ -56,6 +56,7 @@ module dea8_projection_v3 #(
     .hbm_valid,.hbm_ready,.hbm_entry,
     .kv_valid(1'b0),.kv_ready(),.kv_entry('0),.b_source(B_HBM),
     .job_start(matrix_job_start),.job_a_tile_idx('0),.job_b_tile_idx('0),
+    .job_a_stream_idx('0),.job_b_stream_idx('0),
     .job_tiles((TILE_BITS+1)'(K_TILES)),.job_m_rows((PAIR_BITS+1)'(ROWS)),
     .job_epoch,.job_head,.job_nt(matrix_launch_tile),
     .job_nt_per_tile(1'b0),.job_clear_each_tile(1'b0),

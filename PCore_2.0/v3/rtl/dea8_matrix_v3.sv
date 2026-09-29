@@ -13,6 +13,10 @@ module dea8_matrix_v3 (
   input logic job_start,
   input logic [TILE_BITS-1:0] job_a_tile_idx,
   input logic [TILE_BITS-1:0] job_b_tile_idx,
+  // Logical matrix IDs and FIFO transport IDs are independent.  The latter
+  // are used only for ingress ordering and stationary-bank ownership.
+  input logic [TILE_BITS-1:0] job_a_stream_idx,
+  input logic [TILE_BITS-1:0] job_b_stream_idx,
   input logic [TILE_BITS:0] job_tiles,
   input logic [PAIR_BITS:0] job_m_rows,
   input logic [EPOCH_BITS-1:0] job_epoch,
@@ -42,7 +46,7 @@ module dea8_matrix_v3 (
   logic a_tile_available,a_running,a_out_valid,a_reserve; a2_t a_head;
   logic [PAIR_BITS:0] rows_q,pairs_q;
   logic [6:0] a_count;
-  logic [$clog2(AFIFO_DEPTH/PAIRS+1)-1:0] a_complete;
+  logic [$clog2(AFIFO_DEPTH+1)-1:0] a_complete;
   dea8_xbc4_adapter_v3 xbc_adapter(
     .clk,.reset,.clear,.in_valid(xbc_valid),.in_ready(xbc_ready),.in_entry(xbc_entry),
     .out_valid(a2_valid),.out_ready(a2_ready),.out_entry(a2_entry));
@@ -55,10 +59,14 @@ module dea8_matrix_v3 (
 
   logic b_in_valid,b_in_ready,b_out_valid,b_out_ready,b_tile_available,b_protocol;
   b2_t b_in_entry,b_head; logic [6:0] b_count; logic [3:0] b_complete;
-  assign b_in_valid=(b_source==B_KVB)?kv_valid:hbm_valid;
-  assign b_in_entry=(b_source==B_KVB)?kv_entry:hbm_entry;
-  assign hbm_ready=(b_source==B_HBM)&&b_in_ready;
-  assign kv_ready=(b_source==B_KVB)&&b_in_ready;
+  b_source_e b_source_q;
+  // A matrix Job owns its B source for its entire lifetime.  Live switching
+  // between HBM and KVB would make the FIFO order depend on an asynchronous
+  // external control signal.
+  assign b_in_valid=(b_source_q==B_KVB)?kv_valid:hbm_valid;
+  assign b_in_entry=(b_source_q==B_KVB)?kv_entry:hbm_entry;
+  assign hbm_ready=(b_source_q==B_HBM)&&b_in_ready;
+  assign kv_ready=(b_source_q==B_KVB)&&b_in_ready;
   dea8_bfifo_v3 b_fifo(
     .clk,.reset,.clear,.in_valid(b_in_valid),.in_ready(b_in_ready),.in_entry(b_in_entry),
     .out_valid(b_out_valid),.out_ready(b_out_ready),.out_entry(b_head),
@@ -87,6 +95,7 @@ module dea8_matrix_v3 (
   // Latched job configuration and Tile sequence.
   logic job_busy_q;
   logic [TILE_BITS-1:0] base_a_tile_q,base_b_tile_q;
+  logic [TILE_BITS-1:0] base_a_stream_q,base_b_stream_q;
   logic [TILE_BITS:0] tiles_q,tile_seq_q;
   logic tile_started_q;
   logic [EPOCH_BITS-1:0] epoch_q; logic [2:0] head_q;
@@ -96,27 +105,42 @@ module dea8_matrix_v3 (
   acc_sel_e acc_sel_q; logic add_old_q;
   logic job_accept,tile_issue_last;
   logic [TILE_BITS:0] current_a_ext,current_b_ext,next_a_ext,next_b_ext;
+  logic [TILE_BITS:0] current_a_stream_ext,current_b_stream_ext;
+  logic [TILE_BITS:0] next_a_stream_ext,next_b_stream_ext;
   logic [TILE_BITS-1:0] current_a,current_b,next_a,next_b;
+  logic [TILE_BITS-1:0] current_a_stream,current_b_stream;
+  logic [TILE_BITS-1:0] next_a_stream,next_b_stream;
   logic req_valid,req_bank; pair_meta_t req_meta;
   assign job_ready=!job_busy_q;
   assign job_busy=job_busy_q;
   assign job_accept=job_start&&job_ready&&(job_tiles!=0);
   assign current_a_ext={1'b0,base_a_tile_q}+tile_seq_q;
   assign current_b_ext={1'b0,base_b_tile_q}+tile_seq_q;
+  assign current_a_stream_ext={1'b0,base_a_stream_q}+tile_seq_q;
+  assign current_b_stream_ext={1'b0,base_b_stream_q}+tile_seq_q;
   assign next_a_ext=current_a_ext+1'b1;
   assign next_b_ext=current_b_ext+1'b1;
+  assign next_a_stream_ext=current_a_stream_ext+1'b1;
+  assign next_b_stream_ext=current_b_stream_ext+1'b1;
   assign current_a=current_a_ext[TILE_BITS-1:0];
   assign current_b=current_b_ext[TILE_BITS-1:0];
+  assign current_a_stream=current_a_stream_ext[TILE_BITS-1:0];
+  assign current_b_stream=current_b_stream_ext[TILE_BITS-1:0];
   assign next_a=next_a_ext[TILE_BITS-1:0];
   assign next_b=next_b_ext[TILE_BITS-1:0];
-  assign req_bank=current_b[0];
+  assign next_a_stream=next_a_stream_ext[TILE_BITS-1:0];
+  assign next_b_stream=next_b_stream_ext[TILE_BITS-1:0];
+  assign req_bank=current_b_stream[0];
+  logic a_tile_match;
+  assign a_tile_match=a_head.tile_idx==current_a_stream;
   assign a_reserve=job_busy_q&&(
-    (!tile_started_q&&!a_running&&tile_seq_q<tiles_q&&a_tile_available&&
-      bank_ready[req_bank]&&bank_tile[req_bank]==current_b) ||
+     (!tile_started_q&&!a_running&&tile_seq_q<tiles_q&&a_tile_available&&
+      a_tile_match&&bank_ready[req_bank]&&bank_tile[req_bank]==current_b_stream) ||
     (a_running&&a_out_valid&&a_head.pair_idx==pairs_q-1&&
       tile_seq_q+1'b1<tiles_q&&a_tile_available&&
-      bank_ready[next_b[0]]&&bank_tile[next_b[0]]==next_b));
-  assign req_valid=job_busy_q&&a_running&&a_out_valid;
+      a_head.tile_idx==current_a_stream&&
+      bank_ready[next_b_stream[0]]&&bank_tile[next_b_stream[0]]==next_b_stream));
+  assign req_valid=job_busy_q&&a_running&&a_out_valid&&a_tile_match;
   assign tile_issue_last=req_valid&&(a_head.pair_idx==pairs_q-1);
   always_comb begin
     req_meta='0;req_meta.epoch=epoch_q;req_meta.head=head_q;req_meta.tile_idx=current_b;
@@ -130,7 +154,8 @@ module dea8_matrix_v3 (
   end
   always_ff @(posedge clk) begin
     if(reset||clear) begin
-      job_busy_q<=0;base_a_tile_q<=0;base_b_tile_q<=0;tiles_q<=0;tile_seq_q<=0;tile_started_q<=0;epoch_q<=0;head_q<=0;
+      job_busy_q<=0;base_a_tile_q<=0;base_b_tile_q<=0;base_a_stream_q<=0;base_b_stream_q<=0;
+      tiles_q<=0;tile_seq_q<=0;tile_started_q<=0;epoch_q<=0;head_q<=0;b_source_q<=B_HBM;
       rows_q<=ROWS;pairs_q<=PAIRS;
       final_k_q<=0;nt_q<=0;nt_per_tile_q<=0;clear_each_tile_q<=0;
       exp_fold_q<=0;acc_sel_q<=ACC_FACC_A;add_old_q<=0;
@@ -141,6 +166,9 @@ module dea8_matrix_v3 (
         job_busy_q<=1;
         base_a_tile_q<=job_a_tile_idx;
         base_b_tile_q<=job_b_tile_idx;
+        base_a_stream_q<=job_a_stream_idx;
+        base_b_stream_q<=job_b_stream_idx;
+        b_source_q<=b_source;
         tiles_q<=job_tiles;tile_seq_q<=0;tile_started_q<=0;
         rows_q<=(job_m_rows==0)?ROWS:job_m_rows;
         pairs_q<=(((job_m_rows==0)?ROWS:job_m_rows) + 1'b1)>>1;
