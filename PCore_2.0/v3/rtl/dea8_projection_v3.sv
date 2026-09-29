@@ -18,6 +18,7 @@ module dea8_projection_v3 #(
   // Projection output stream.  VPU performs the later FP32-to-INT8
   // quantization before writing the physical QOZ buffer.
   output logic qoz_wr_valid,
+  input logic qoz_wr_ready,
   output logic [3:0] qoz_wr_tile,
   output logic [PAIR_BITS-1:0] qoz_wr_pair,
   output logic [1:0] qoz_wr_row_valid,
@@ -49,6 +50,7 @@ module dea8_projection_v3 #(
   logic matrix_done_q;
   logic matrix_done_pulse;
   logic matrix_inflight_q;
+  logic read_pending_q,completion_pending_q;
 
   dea8_matrix_v3 matrix(
     .clk,.reset,.clear,
@@ -81,7 +83,8 @@ module dea8_projection_v3 #(
   // number is captured when the request is issued; the output pulse itself
   // is registered below so a simultaneous matrix completion cannot change
   // the tile tag seen by the consumer.
-  assign result_rd_valid=(state_q==S_OVERLAP)&&matrix_finished_q&&!read_last_requested_q;
+  assign result_rd_valid=(state_q==S_OVERLAP)&&matrix_finished_q&&!read_last_requested_q&&
+    !read_pending_q&&(!qoz_wr_valid_q||qoz_wr_ready);
   assign result_rd_sel=read_tile_q[0]?ACC_FACC_B:ACC_FACC_A;
   assign result_rd_addr={{(10-PAIR_BITS){1'b0}},read_pair_q};
   assign qoz_wr_valid=qoz_wr_valid_q;
@@ -98,25 +101,30 @@ module dea8_projection_v3 #(
       read_finished_q<=0;next_pending_q<=0;done<=0;
       matrix_done_q<=0;
       matrix_inflight_q<=0;
+      read_pending_q<=0;completion_pending_q<=0;
       qoz_wr_valid_q<=0;qoz_wr_tile_q<='0;qoz_wr_pair_q<='0;qoz_wr_row_valid_q<='0;
       qoz_wr_even_q<='0;qoz_wr_odd_q<='0;
     end else begin
       done<=0;
       matrix_done_q<=matrix_done;
-      qoz_wr_valid_q<=0;
+      if(qoz_wr_valid_q&&qoz_wr_ready) begin
+        qoz_wr_valid_q<=0;
+        if(qoz_wr_pair_q==PAIRS-1) read_finished_q<=1;
+      end
       if(result_rd_valid&&result_rd_ready) begin
+        read_pending_q<=1;
         response_pair_q<=read_pair_q;
         if(read_pair_q==PAIRS-1) read_last_requested_q<=1;
         else read_pair_q<=read_pair_q+1'b1;
       end
       if(result_rd_data_valid) begin
+        read_pending_q<=0;
         qoz_wr_valid_q<=1;
         qoz_wr_tile_q<=read_tile_q;
         qoz_wr_pair_q<=response_pair_q;
         qoz_wr_row_valid_q<=row_mask(response_pair_q);
         qoz_wr_even_q<=result_even_data;
         qoz_wr_odd_q<=result_odd_data;
-        if(read_last_requested_q) read_finished_q<=1;
       end
       case(state_q)
         S_IDLE: if(start) begin
@@ -139,14 +147,16 @@ module dea8_projection_v3 #(
             // matrix_finished_q here; it is also the reader-active guard.
             next_pending_q<=0;matrix_inflight_q<=1;
           end
-          if(matrix_done_pulse) begin
+          if(matrix_done_pulse) begin completion_pending_q<=1;matrix_inflight_q<=0;end
+          if((matrix_done_pulse||completion_pending_q)&&read_finished_q) begin
+            completion_pending_q<=0;
             read_tile_q<=matrix_tile_q;read_pair_q<=0;response_pair_q<=0;
             matrix_finished_q<=1;read_last_requested_q<=0;read_finished_q<=0;
             matrix_inflight_q<=0;
             next_pending_q<=matrix_tile_q<N_TILES-1;
           end
           if(matrix_tile_q==N_TILES-1 && !matrix_inflight_q &&
-             matrix_finished_q && read_finished_q)
+              matrix_finished_q && read_finished_q && read_tile_q==matrix_tile_q && !completion_pending_q)
             state_q<=S_DONE;
         end
         // Keep completion asserted until the next request.  A level

@@ -1,6 +1,6 @@
 `timescale 1ns/1ps
 import pcore3_pkg::*;
-import dea8_fp32_v3_pkg::*;
+import fp32_legacy_ref_pkg::*;
 
 // Full Q Projection check: [51,1024] x [1024,256] -> [51,256].
 // A row0 is one and row1 is two.  B column c uses a distinct value
@@ -17,11 +17,18 @@ module tb_v3_projection;
   logic qoz_wr_valid; logic [3:0] qoz_wr_tile; logic [PAIR_BITS-1:0] qoz_wr_pair;
   logic [1:0] qoz_wr_row_valid; logic [15:0][31:0] qoz_even,qoz_odd;
   logic a_error,b_error; int outputs;
+  logic qoz_wr_ready=0,stalled=0;
+  logic [1034:0] held;
+  int cycles=0,beats=0;
+  always @(negedge clk) begin
+    cycles++;
+    qoz_wr_ready=(cycles%11>3)&&!(qoz_wr_tile==0&&cycles<4500);
+  end
 
   dea8_projection_v3 dut(
     .clk,.reset,.clear,.start,.job_epoch(epoch),.job_head(head),.job_exp_fold(exp_fold),
     .busy,.done,.xbc_valid,.xbc_ready,.xbc_entry,.hbm_valid,.hbm_ready,.hbm_entry,
-    .qoz_wr_valid,.qoz_wr_tile,.qoz_wr_pair,.qoz_wr_row_valid,
+    .qoz_wr_valid,.qoz_wr_ready,.qoz_wr_tile,.qoz_wr_pair,.qoz_wr_row_valid,
     .qoz_wr_even_fp32(qoz_even),.qoz_wr_odd_fp32(qoz_odd),
     .matrix_a_protocol_error(a_error),.matrix_b_protocol_error(b_error));
 
@@ -63,9 +70,14 @@ module tb_v3_projection;
   endtask
 
   always @(posedge clk) begin
-    #1;
-    if(qoz_wr_valid) begin
+    if(stalled && (!qoz_wr_valid||{qoz_wr_tile,qoz_wr_pair,qoz_wr_row_valid,qoz_even,qoz_odd}!==held))
+      $fatal(1,"Projection output changed under backpressure");
+    stalled=qoz_wr_valid&&!qoz_wr_ready;
+    held={qoz_wr_tile,qoz_wr_pair,qoz_wr_row_valid,qoz_even,qoz_odd};
+    if(qoz_wr_valid&&qoz_wr_ready) begin
       int global_col,bval;
+      if(qoz_wr_tile!=beats/PAIRS||qoz_wr_pair!=beats%PAIRS) $fatal(1,"Projection output reordered");
+      beats++;
       global_col=qoz_wr_tile*16;
       for(int n=0;n<16;n++) begin
         bval=((global_col+n)%15)+1;

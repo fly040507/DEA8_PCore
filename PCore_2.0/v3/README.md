@@ -2,7 +2,51 @@
 
 这一目录是独立于 `PCore_2.0/rtl` 的 v3 数据面。2026-09-29 按 `interaction/AI工具意见.docx` 接通本地 A 数据源、拆分 accumulator 端口，并完成 XSim 回归与 Vivado OOC 综合。
 
-**当前状态：14 项 XSim PASS；OACC 已推断为 BRAM；OOC 暴露 FP32 加法路径组合环和负时序裕量，尚未达到 250 MHz。**
+**当前状态（2026-09-29 晚间）：15 项 XSim PASS；Matrix request→D4 最大 435 拍；当前 Attention Matrix OOC 组合环为 0，但五级 DEQACC 时序仍未达标。**
+
+## 当前优化基线（优先于下文早期记录）
+
+- 冻结 `tb/fp32_legacy_ref_pkg.sv`，仅仿真使用。Projection、Matrix、DEQACC、Attention 的 golden 已改用冻结参考；新增 400256 组加法、76928 组 pack 对拍。该参考独立于本轮修改，不等于第三方 IEEE 全覆盖验证。
+- `dea8_fp32_v3_pkg.sv` 使用固定宽度 exponent/shift、单向中间变量、树形 leading-one/LZC 和分层 sticky barrel。DEQACC 保持 D0..D4 五级：D0 abs/exponent，D1 normalize/pack 与 ACC 读请求，D2 classify/compare/align，D3 add/sub、normalize、RNE、pack，D4 写回。`edge_delta=4` 已回归。
+- AFIFO：显式 288-bit parity BRAM，同步 look-ahead 读及同地址写旁路；外部 XBC 保留完整 Tile reservation，本地 committed source 使用 4-entry streaming credit。仅对保证持续供数的本地源启用，增加断流检查。
+- BFIFO：显式 288-bit 同步 BRAM，保持原 ready/valid 及完整 Tile 检查。Attention 在 Job 间允许固定 KVB 源预取；TB producer 通过真实 FIFO 背压提前供下一 Job 的 B，未推迟 command ready 隐藏等待。
+- PBUF：当前采用 even/odd 独立 BRAM，共 **8 RAMB36**，不是方案中估计的双端口合并布局 4 RAMB36。FF 已降至 69；后续可评估合并行布局，但本轮不宣称已经实现。
+- Projection 新增必接 `qoz_wr_ready`，输出 holding、未完成 RAM 请求跟踪和完成事件暂存；下游长时间暂停时不会覆盖上一 Tile。完整数值测试加入长背压、周期背压、数据保持和序号检查。
+- 本轮不做 Top/G-U，不调整 VPU/SFU 行级依赖。当前 TB 的 VPU RAM 访问已流水化，但算术仍是恒等 scale 模型；SFU 的原定延迟保留。
+
+### 周期验收与上层开销
+
+`reports/tb_v3_attention_55.txt` 同时记录 request、accept、first issue、最终 D4：
+
+| 指标 | 当前仿真值 | 解释 |
+| --- | ---: | --- |
+| request→D4 | 435 拍 | 满足本阶段 ≤437 拍目标；预取供数条件下测得 |
+| accept→wrapper done | 436 拍 | 比 D4 多一拍通知 |
+| 相邻 D4 间隔 | 437 或 472 拍 | 472 中的额外等待属于上层 QK_POST/ALPHA_EXP/P 生产链 |
+| 全 TB | 54619 拍 | 含预装载、非矩阵模型、尾部及最终 debug 核对，不是上板延迟 |
+
+55 QK + 55 PV，13056 个最终 OACC 数值全部通过；VPU 正式端口读 24310、写 22880，其中 Matrix busy 期间读 23370、写 22048。
+
+### 当前综合证据及未完成项
+
+当前源码的 Attention Matrix OOC：`reports/ooc_dea8_attention_matrix_v3/`，2026-09-29 21:22 完成，输入哈希在同目录 `sources_sha256.csv`。
+
+| 指标 | 早期基线 | 当前 |
+| --- | ---: | ---: |
+| Total LUT | 91777 | 53273 |
+| FF | 65427 | 34330 |
+| DSP | 256 | 256 |
+| RAMB36 / RAMB18 | 18 / 2 | 38 / 2 |
+| combinational loops | 4 | 0 |
+| WNS（4 ns，synthesis-only） | −6.472 ns | −2.647 ns |
+
+AFIFO：8 RAMB36、327 FF；BFIFO：4 RAMB36、320 FF；PBUF：8 RAMB36、69 FF。OACC 仍为 14 RAMB36 + 2 RAMB18，QOZ 为 4 RAMB36，FACC 保持 LUTRAM。
+
+`d2_timing.rpt`：4.754 ns；`d3_timing.rpt`：6.628 ns，均为含估算布线的 Data Path Delay。D2 相比先前 6.637 ns 改善，D3 未改善到目标；**五级、低于 4 ns 的收敛尚未完成**。没有增加正式流水级数，没有通过 timing exception 隐藏问题。
+
+下一步比较 close/far 双路径与流水调整；增加级数前需给出实测时序和完整周期收益。单 lane 与独立 DEQACC 的 OOC 文件为本轮中间版本，需按其哈希判断，不能代替当前 Attention top 报告。未执行 P&R/上板。
+
+以下为早期接口背景及历史记录；涉及旧资源、周期和组合环的数字由本节当前证据取代。
 
 ## 已实现
 

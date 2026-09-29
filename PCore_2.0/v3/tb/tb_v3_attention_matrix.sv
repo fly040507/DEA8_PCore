@@ -1,6 +1,6 @@
 `timescale 1ns/1ps
 import pcore3_pkg::*;
-import dea8_fp32_v3_pkg::*;
+import fp32_legacy_ref_pkg::*;
 
 module tb_v3_attention_matrix;
   logic clk=0; always #2 clk=~clk;

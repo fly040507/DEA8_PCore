@@ -13,6 +13,12 @@ read_xdc [file join $root core_clock.xdc]
 synth_design -top $top -part xcu50-fsvh2104-2-e -mode out_of_context
 report_utilization -hierarchical -file [file join $report utilization.rpt]
 report_timing_summary -delay_type max -max_paths 10 -file [file join $report timing.rpt]
+set pre [get_cells -quiet -hier -regexp {.*add_pre_q2_reg.*}]
+set sum [get_cells -quiet -hier -regexp {.*sum_q3_reg.*}]
+if {[llength $pre] && [llength $sum]} {
+    report_timing -from $pre -to $sum -max_paths 3 -file [file join $report d3_timing.rpt]
+    report_timing -to $pre -max_paths 3 -file [file join $report d2_timing.rpt]
+}
 report_ram_utilization -file [file join $report ram.rpt]
 write_checkpoint -force [file join $report synth.dcp]
 puts "V3_OOC_COMPLETE top=$top part=xcu50-fsvh2104-2-e period=4.000 synthesis_only=1"

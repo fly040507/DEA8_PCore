@@ -1,6 +1,6 @@
 `timescale 1ns/1ps
 import pcore3_pkg::*;
-import dea8_fp32_v3_pkg::*;
+import fp32_legacy_ref_pkg::*;
 
 // Full 55-KV-block matrix run. VPU/SFU arithmetic and external A/B/P supplies
 // are TB models; scheduler, ingress, MXU, DEQACC and accumulators are RTL.
@@ -36,6 +36,9 @@ module tb_v3_attention_55;
   logic [15:0][31:0] result_even_data,result_odd_data;
   logic vpu_wr_valid=0,vpu_wr_ready;acc_write_t vpu_wr;
   int vpu_reads=0,vpu_writes=0,overlap_reads=0,overlap_writes=0;
+  int request_cycle[0:JOBS-1],commit_cycle[0:JOBS-1],issue_cycle[0:JOBS-1];
+  int requests=0,d4s=0,issues_in_job=0,issue_jobs=0,max_d4_gap=0,max_request_latency=0;
+  bit request_seen=0;
 
   dea8_attention_scheduler_v3 #(.BLOCKS(BLOCKS)) scheduler(
     .clk,.reset,.clear,.start_valid,.start_ready,.busy,.start_head,.start_epoch,
@@ -201,6 +204,44 @@ module tb_v3_attention_55;
   endtask
 
   // One outstanding command per modeled unit. PBUF is populated by the VPU
+  task automatic vpu_vectors(input acc_sel_e sel,input int block,input bit write_back);
+    int total,issued,received,written,addr,pair_idx,nt;
+    logic accepted;
+    total=(sel==ACC_OACC)?PAIRS*TILE:PAIRS;issued=0;received=0;written=0;
+    @(negedge clk);
+    while(received<total||(write_back&&written<total)) begin
+      result_rd_valid=issued<total;result_rd_sel=sel;result_rd_addr=10'(issued);
+      @(posedge clk);
+      accepted=result_rd_valid&&result_rd_ready;
+      if(vpu_wr_valid) begin
+        if(!vpu_wr_ready) $fatal(1,"VPU scheduled write bank conflict");
+        written++;
+      end
+      #1;
+      if(result_rd_data_valid) begin
+        addr=received;pair_idx=(sel==ACC_OACC)?addr/16:addr;nt=(sel==ACC_OACC)?addr%16:0;
+        for(int n=0;n<16;n++) begin
+          if(result_even_data[n]!==((sel==ACC_OACC)?pv_expected(block,2*pair_idx,16*nt+n):qk_expected(block,2*pair_idx,n)))
+            $fatal(1,"pipelined VPU even mismatch block=%0d addr=%0d",block,addr);
+          if(result_odd_data[n]!==((2*pair_idx+1>=ROWS)?32'b0:
+            ((sel==ACC_OACC)?pv_expected(block,2*pair_idx+1,16*nt+n):qk_expected(block,2*pair_idx+1,n))))
+            $fatal(1,"pipelined VPU odd mismatch block=%0d addr=%0d",block,addr);
+        end
+        received++;
+      end
+      if(accepted) issued++;
+      @(negedge clk);
+      vpu_wr_valid=write_back&&accepted;
+      if(accepted) begin
+        vpu_wr='0;vpu_wr.sel=sel;vpu_wr.addr=10'(received-1);
+        vpu_wr.row_valid=row_mask((received-1)/16);
+        vpu_wr.data[0]=result_even_data;vpu_wr.data[1]=result_odd_data;
+      end
+    end
+    result_rd_valid=0;vpu_wr_valid=0;
+  endtask
+
+  // One outstanding command per modeled unit. PBUF is populated by the VPU
   // post-P model; SFU exp takes its specified 408 cycles independently.
   initial begin : vpu_model
     vpu_cmd_t c;
@@ -214,10 +255,9 @@ module tb_v3_attention_55;
           loads++;
           repeat(20) @(negedge clk);
         end else if(c.op==VPU_QK_POST) begin
-          for(int p=0;p<PAIRS;p++) vpu_read_vector(c.facc_bank?ACC_FACC_B:ACC_FACC_A,p,int'(c.block_id),0);
+          vpu_vectors(c.facc_bank?ACC_FACC_B:ACC_FACC_A,int'(c.block_id),0);
         end else if(c.op==VPU_OACC_SCALE||c.op==VPU_AFIN) begin
-          for(int a=0;a<PAIRS*TILE;a++)
-            vpu_read_vector(ACC_OACC,a,(c.op==VPU_AFIN)?BLOCKS-1:int'(c.block_id)-1,1);
+          vpu_vectors(ACC_OACC,(c.op==VPU_AFIN)?BLOCKS-1:int'(c.block_id)-1,1);
         end
         else repeat(20) @(negedge clk);
         @(negedge clk);vpu_done=c;vpu_done_valid=1;
@@ -244,6 +284,25 @@ module tb_v3_attention_55;
     int expected_block;
     matrix_op_e expected_op;
     cycle_count++;
+    if(matrix_valid&&!request_seen) begin
+      request_cycle[requests]=cycle_count;requests++;request_seen=1;
+    end
+    if(matrix_valid&&matrix_ready) request_seen=0;
+    if(matrix.matrix.req_valid) begin
+      if(issues_in_job==0) issue_cycle[issue_jobs]=cycle_count;
+      issues_in_job++;
+      if(issues_in_job==ATTN_ISSUES) begin issues_in_job=0;issue_jobs++;end
+    end
+    if(matrix.matrix_done) begin
+      commit_cycle[d4s]=cycle_count;
+      if(cycle_count-request_cycle[d4s]>max_request_latency) max_request_latency=cycle_count-request_cycle[d4s];
+      if(d4s>0&&d4s<JOBS-1&&cycle_count-commit_cycle[d4s-1]>max_d4_gap)
+        max_d4_gap=cycle_count-commit_cycle[d4s-1];
+      if(d4s<6) $display("ATTN_TRACE job=%0d req=%0d accept=%0d issue=%0d d4=%0d gap=%0d",
+        d4s,request_cycle[d4s],accepted_cycle[d4s],issue_cycle[d4s],cycle_count,
+        d4s==0?0:cycle_count-commit_cycle[d4s-1]);
+      d4s++;
+    end
     if(result_rd_valid&&result_rd_ready) begin
       vpu_reads++;
       if(matrix.matrix.job_busy) overlap_reads++;
@@ -270,7 +329,6 @@ module tb_v3_attention_55;
       accepted_cmd[accepts]=matrix_cmd;
       accepted_cycle[accepts]=cycle_count;
       accepts++;
-      fork produce_job(matrix_cmd,TILE_BITS'((accepts-1)*ATTN_K_TILES)); join_none
     end
     if(matrix_done_valid&&matrix_done_ready) begin
       int job_cycles;
@@ -311,10 +369,26 @@ module tb_v3_attention_55;
     // Row 51 is invalid and must not have acquired an OACC valid bit.
     for(int col=0;col<TILE*TILE;col++) read_check(ACC_OACC,ROWS,col,0,BLOCKS-1);
     dbg_valid=0;
+    $display("ATTN_CYCLES max_request_to_D4=%0d max_steady_D4_gap=%0d cold_request_to_D4=%0d jobs=%0d issue_jobs=%0d",
+      max_request_latency,max_d4_gap,commit_cycle[0]-request_cycle[0],d4s,issue_jobs);
     $display("VPU_RAM reads=%0d writes=%0d overlap_reads=%0d overlap_writes=%0d identity_scale_model=1",vpu_reads,vpu_writes,overlap_reads,overlap_writes);
     $display("tb_v3_attention_55 PASS QK=%0d PV=%0d P_loads=%0d A_beats=%0d B_beats=%0d final_values=%0d max_qk_cycles=%0d max_pv_cycles=%0d max_job_cycles=%0d total_cycles=%0d",
       BLOCKS,BLOCKS,loads,a_beats,b_beats,ROWS*TILE*TILE,max_qk_cycles,max_pv_cycles,maximum_job_cycles,cycle_count);
     $finish;
+  end
+  // KVB producer runs ahead of commands, bounded by real BFIFO/backpressure.
+  // The next Tile is fetched while the previous Matrix/VPU stage is active.
+  initial begin : kv_prefetch
+    int block;
+    wait(!reset);@(negedge clk);
+    for(int j=0;j<JOBS;j++) begin
+      if(j==0) block=0;
+      else if(j==JOBS-1) block=BLOCKS-1;
+      else if(j%2) block=(j+1)/2;
+      else block=j/2-1;
+      for(int t=0;t<ATTN_K_TILES;t++)for(int g=0;g<TILE/2;g++)
+        send_b(TILE_BITS'(j*ATTN_K_TILES+t),g,block);
+    end
   end
   initial begin #2000000;$fatal(1,"attention55 watchdog accept=%0d complete=%0d checked=%0d",accepts,completions,checked);end
 endmodule

@@ -8,15 +8,22 @@ source xsim.dir/tb_v3_attention_55_sim/xsim_script.tcl
 # xsim {tb_v3_attention_55_sim} -autoloadwcfg -runall
 Time resolution is 1 ps
 run -all
-attention55 progress jobs=20/110 cycle=16315
-attention55 progress jobs=40/110 cycle=33795
-attention55 progress jobs=60/110 cycle=51275
-attention55 progress jobs=80/110 cycle=68755
-attention55 progress jobs=100/110 cycle=86235
-VPU_RAM reads=24310 writes=22880 overlap_reads=9431 overlap_writes=8056 identity_scale_model=1
-tb_v3_attention_55 PASS QK=55 PV=55 P_loads=55 A_beats=416 B_beats=14080 final_values=13056 max_qk_cycles=458 max_pv_cycles=458 max_job_cycles=458 total_cycles=100833
-$finish called at time : 403414 ns : File "C:/Users/fly04/Desktop/VLA/PCore_2.0/v3/tb/tb_v3_attention_55.sv" Line 317
-run: Time (s): cpu = 00:00:00 ; elapsed = 00:03:29 . Memory (MB): peak = 239.410 ; gain = 0.000
+ATTN_TRACE job=0 req=420 accept=420 issue=428 d4=855 gap=0
+ATTN_TRACE job=1 req=857 accept=857 issue=865 d4=1292 gap=437
+ATTN_TRACE job=2 req=1329 accept=1329 issue=1337 d4=1764 gap=472
+ATTN_TRACE job=3 req=1801 accept=1801 issue=1809 d4=2236 gap=472
+ATTN_TRACE job=4 req=2238 accept=2238 issue=2246 d4=2673 gap=437
+ATTN_TRACE job=5 req=2710 accept=2710 issue=2718 d4=3145 gap=472
+attention55 progress jobs=20/110 cycle=9509
+attention55 progress jobs=40/110 cycle=18599
+attention55 progress jobs=60/110 cycle=27689
+attention55 progress jobs=80/110 cycle=36779
+attention55 progress jobs=100/110 cycle=45869
+ATTN_CYCLES max_request_to_D4=435 max_steady_D4_gap=472 cold_request_to_D4=435 jobs=110 issue_jobs=110
+VPU_RAM reads=24310 writes=22880 overlap_reads=23370 overlap_writes=22048 identity_scale_model=1
+tb_v3_attention_55 PASS QK=55 PV=55 P_loads=55 A_beats=416 B_beats=14080 final_values=13056 max_qk_cycles=436 max_pv_cycles=436 max_job_cycles=436 total_cycles=54619
+$finish called at time : 218558 ns : File "C:/Users/fly04/Desktop/VLA/PCore_2.0/v3/tb/tb_v3_attention_55.sv" Line 377
+run: Time (s): cpu = 00:00:00 ; elapsed = 00:03:35 . Memory (MB): peak = 239.332 ; gain = 0.000
 exit
-INFO: xsimkernel Simulation Memory Usage: 53052 KB (Peak: 53052 KB), Simulation CPU Usage: 206233 ms
-INFO: [Common 17-206] Exiting xsim at Tue Sep 29 17:04:57 2026...
+INFO: xsimkernel Simulation Memory Usage: 53296 KB (Peak: 53296 KB), Simulation CPU Usage: 211155 ms
+INFO: [Common 17-206] Exiting xsim at Tue Sep 29 21:20:54 2026...

@@ -15,14 +15,24 @@ module dea8_bfifo_v3 #(parameter int DEPTH=BFIFO_DEPTH) (
   output logic [$clog2(DEPTH/8+1)-1:0] complete_tiles
 );
   localparam int PTR_BITS=$clog2(DEPTH);
-  b2_t mem[0:DEPTH-1];
+  (* ram_style="block" *) logic [287:0] mem[0:DEPTH-1];
+  logic [287:0] ram_q,bypass_q;
+  logic bypass_valid_q;
+  logic [PTR_BITS-1:0] read_head;
   logic [PTR_BITS-1:0] head,tail;
   logic [2:0] expected_group;
   logic [TILE_BITS-1:0] expected_tile;
   logic [EPOCH_BITS-1:0] expected_epoch;
   logic have_context;
   logic pop_fire,bad;
-  assign out_entry=mem[head];
+  assign read_head=head+PTR_BITS'(pop_fire);
+  assign out_entry=b2_t'(bypass_valid_q?bypass_q:ram_q);
+  always_ff @(posedge clk) begin
+    ram_q<=mem[read_head];
+    if(in_valid&&in_ready&&!bad) mem[tail]<=in_entry;
+    bypass_valid_q<=in_valid&&in_ready&&!bad&&tail==read_head;
+    if(in_valid&&in_ready&&!bad&&tail==read_head) bypass_q<=in_entry;
+  end
   assign out_valid=count!=0;
   assign tile_available=!reset&&!clear&&!protocol_error&&complete_tiles!=0&&count>=8;
   assign in_ready=!reset&&!clear&&!protocol_error&&count<DEPTH;
@@ -37,7 +47,7 @@ module dea8_bfifo_v3 #(parameter int DEPTH=BFIFO_DEPTH) (
     end else begin
       if(bad) protocol_error<=1;
       if(in_valid&&in_ready&&!bad) begin
-        mem[tail]<=in_entry;tail<=tail+1'b1;
+        tail<=tail+1'b1;
         have_context<=1;
         if(expected_group==7) begin expected_group<=0;expected_tile<=expected_tile+1'b1;end
         else expected_group<=expected_group+1'b1;

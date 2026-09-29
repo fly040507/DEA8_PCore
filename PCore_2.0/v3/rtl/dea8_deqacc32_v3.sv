@@ -2,11 +2,8 @@ import pcore3_pkg::*;
 import dea8_fp32_v3_pkg::*;
 
 // D0: abs/exponent, D1: normalize + synchronous accumulator read request,
-// D2: pack partial + capture RAM response, D3: FP32 add/bypass,
-// D4: accumulator write + commit.  valid_q[0:3] describes the four
-// inter-stage registers; the D4 write is performed by acc_store on the same
-// edge for which valid_q[3] is asserted.  This avoids an extra holding stage
-// while retaining five architectural stages D0..D4.
+// D2: pack partial + classify/compare/align old and partial,
+// D3: mantissa add/sub + normalize/RNE/pack; D4: write + commit.
 module dea8_deqacc32_v3 (
   input logic clk,reset,clear,
   input logic rsp_valid,input mxu_rsp_t rsp,
@@ -27,6 +24,9 @@ module dea8_deqacc32_v3 (
   logic [1:0] row_valid_q[0:3];
   pair_meta_t meta_q[0:3];
   logic [1:0][15:0][31:0] mag_q0,normalized_q1,old_q2,partial_q2,sum_q3;
+  fp_add_pre_t add_pre_q2[0:1][0:15];
+  logic [31:0] partial_d2[0:1][0:15];
+  logic [1:0][15:0][31:0] packed_q1;
   logic [1:0][15:0] sign_q0,zero_q0,bad_q0;
   logic [1:0][15:0] sign_q1,zero_q1,bad_q1;
   logic signed [10:0] exponent_q0[0:1][0:15];
@@ -40,9 +40,9 @@ module dea8_deqacc32_v3 (
   logic [15:0][31:0] acc_rd_even,acc_rd_odd,acc_wr_even,acc_wr_odd;
   logic acc_wr_even_valid,acc_wr_odd_valid;
 
-  function automatic int lead32(input logic [31:0] value);
-    int lead; begin lead=0; for(int b=0;b<32;b++) if(value[b]) lead=b; return lead; end
-  endfunction
+  for(genvar r=0;r<2;r++) for(genvar n=0;n<16;n++) begin: add_prepare
+    assign partial_d2[r][n]=packed_q1[r][n];
+  end
 
   always_comb begin
     d0_mag='0;d0_sign='0;d0_zero='0;d0_bad='0;
@@ -52,7 +52,7 @@ module dea8_deqacc32_v3 (
       d0_zero[r][n]=(d0_mag[r][n]==0);
       d0_bad[r][n]=(&rsp.e_stream[r])||(&rsp.e_stat[n]);
       d0_exp[r][n]=$signed({1'b0,rsp.e_stream[r]})+$signed({1'b0,rsp.e_stat[n]})-
-        DOT_EXP_OFFSET+$signed(rsp.meta.exp_fold)+lead32(d0_mag[r][n]);
+        DOT_EXP_OFFSET+$signed(rsp.meta.exp_fold)+$signed({1'b0,lead32(d0_mag[r][n])});
     end
   end
 
@@ -85,13 +85,13 @@ module dea8_deqacc32_v3 (
       for(int s=0;s<4;s++) begin valid_q[s]<=0;row_valid_q[s]<='0;meta_q[s]<='0;end
       commit_valid<=0;done<=0;commit_meta<='0;
       mag_q0<='0;normalized_q1<='0;old_q2<='0;partial_q2<='0;sum_q3<='0;
+      packed_q1<='0;
       sign_q0<='0;zero_q0<='0;bad_q0<='0;sign_q1<='0;zero_q1<='0;bad_q1<='0;
       for(int r=0;r<2;r++) for(int n=0;n<16;n++) begin exponent_q0[r][n]<='0;exponent_q1[r][n]<='0;end
+      for(int r=0;r<2;r++) for(int n=0;n<16;n++) add_pre_q2[r][n]<='0;
     end else begin
       valid_q[0]<=rsp_valid;valid_q[1]<=valid_q[0];valid_q[2]<=valid_q[1];
       valid_q[3]<=valid_q[2];
-      // This registered pulse is the D4 commit notification.  acc_store sees
-      // acc_wr_valid/acc_wr_data from valid_q[3]/sum_q3 on this same edge.
       commit_valid<=valid_q[3];done<=valid_q[3]&&meta_q[3].last;commit_meta<=meta_q[3];
       if(rsp_valid) begin
         mag_q0<=d0_mag;sign_q0<=d0_sign;zero_q0<=d0_zero;bad_q0<=d0_bad;
@@ -101,6 +101,8 @@ module dea8_deqacc32_v3 (
       if(valid_q[0]) begin
         for(int r=0;r<2;r++) for(int n=0;n<16;n++) begin
           normalized_q1[r][n]<=zero_q0[r][n]?0:(mag_q0[r][n] << (31-lead32(mag_q0[r][n])));
+          packed_q1[r][n]<=pack_scaled32(sign_q0[r][n],
+            mag_q0[r][n] << (5'd31-lead32(mag_q0[r][n])),exponent_q0[r][n],zero_q0[r][n],bad_q0[r][n]);
           sign_q1[r][n]<=sign_q0[r][n];zero_q1[r][n]<=zero_q0[r][n];bad_q1[r][n]<=bad_q0[r][n];
           exponent_q1[r][n]<=exponent_q0[r][n];
         end
@@ -108,14 +110,15 @@ module dea8_deqacc32_v3 (
       end
       if(valid_q[1]) begin
         for(int r=0;r<2;r++) for(int n=0;n<16;n++) begin
-          partial_q2[r][n]<=pack_scaled32(sign_q1[r][n],normalized_q1[r][n],exponent_q1[r][n],zero_q1[r][n],bad_q1[r][n]);
+          partial_q2[r][n]<=partial_d2[r][n];
+          add_pre_q2[r][n]<=fp32_prepare(r==0?acc_rd_even[n]:acc_rd_odd[n],partial_d2[r][n]);
           old_q2[r][n]<=r==0?acc_rd_even[n]:acc_rd_odd[n];
         end
         row_valid_q[2]<=row_valid_q[1];meta_q[2]<=meta_q[1];
       end
       if(valid_q[2]) begin
         for(int r=0;r<2;r++) for(int n=0;n<16;n++)
-          sum_q3[r][n]<=meta_q[2].add_old?fp32_add(old_q2[r][n],partial_q2[r][n]):partial_q2[r][n];
+          sum_q3[r][n]<=meta_q[2].add_old?fp32_finish(add_pre_q2[r][n]):partial_q2[r][n];
         row_valid_q[3]<=row_valid_q[2];meta_q[3]<=meta_q[2];
       end
     end

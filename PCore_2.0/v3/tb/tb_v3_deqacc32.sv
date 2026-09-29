@@ -1,6 +1,6 @@
 `timescale 1ns/1ps
 import pcore3_pkg::*;
-import dea8_fp32_v3_pkg::*;
+import fp32_legacy_ref_pkg::*;
 
 module tb_v3_deqacc32;
   logic clk=0; always #2 clk=~clk;
@@ -68,7 +68,7 @@ module tb_v3_deqacc32;
     @(negedge clk);rsp_valid=0;
     wait(done);#1;
     if(commits!=PAIRS) $fatal(1,"DEQACC commit count=%0d",commits);
-    if(first_commit_cycle-first_rsp_cycle!=4)
+    if(first_commit_cycle-first_rsp_cycle!=DEQACC_PIPE_STAGES-1)
       $fatal(1,"DEQACC edge latency=%0d, expected D0..D4 edge delta 4",
         first_commit_cycle-first_rsp_cycle);
     dbg_valid=1;dbg_sel=ACC_FACC_A;dbg_parity=0;dbg_addr=0;dbg_lane=0;#1;

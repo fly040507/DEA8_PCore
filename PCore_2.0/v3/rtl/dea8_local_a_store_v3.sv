@@ -34,17 +34,21 @@ module dea8_local_a_store_v3 #(parameter int TILES=16,BANKS=1) (
   assign rd_ready=!reset&&!clear&&!protocol_error&&(!out_valid||out_ready)&&
     rd_bank<BANKS&&complete[rd_bank]&&rd_tile<TILES&&rd_pair<PAIRS;
   for(genvar b=0;b<BANKS;b++) begin: banks
-    qvec16_t even_mem[0:TILES*PAIRS-1];
-    qvec16_t odd_mem[0:TILES*(ROWS/2)-1];
+    (* ram_style="block" *) logic [135:0] even_mem[0:TILES*PAIRS-1];
+    (* ram_style="block" *) logic [135:0] odd_mem[0:TILES*(ROWS/2)-1];
+    logic [135:0] even_data_q,odd_data_q;
+    logic odd_present_q;
+    assign even_q[b]=qvec16_t'(even_data_q);
+    assign odd_q[b]=odd_present_q?qvec16_t'(odd_data_q):qvec16_t'('0);
     always_ff @(posedge clk) begin
       if(load_valid&&load_ready&&load_entry.slot==b) begin
         even_mem[load_entry.tile_idx*PAIRS+load_entry.pair_idx]<=load_entry.row[0];
         if(load_entry.row_valid[1]) odd_mem[load_entry.tile_idx*(ROWS/2)+load_entry.pair_idx]<=load_entry.row[1];
       end
       if(rd_valid&&rd_ready&&rd_bank==b) begin
-        even_q[b]<=even_mem[rd_tile*PAIRS+rd_pair];
-        if(rd_pair<ROWS/2) odd_q[b]<=odd_mem[rd_tile*(ROWS/2)+rd_pair];
-        else odd_q[b]<='0;
+        even_data_q<=even_mem[rd_tile*PAIRS+rd_pair];
+        if(rd_pair<ROWS/2) odd_data_q<=odd_mem[rd_tile*(ROWS/2)+rd_pair];
+        odd_present_q<=rd_pair<ROWS/2;
       end
     end
   end

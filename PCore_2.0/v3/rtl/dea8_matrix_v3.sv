@@ -62,7 +62,7 @@ module dea8_matrix_v3 #(parameter bit LOCAL_A=0) (
     assign a2_entry[1]='0;
     assign local_a_ready=a2_ready[0];
   end
-  dea8_afifo_v3 a_fifo(
+  dea8_afifo_v3 #(.STREAMING(LOCAL_A)) a_fifo(
     .clk,.reset,.clear,.pairs_cfg(pairs_q),.rows_cfg(rows_q),
     .in_valid(a2_valid),.in_ready(a2_ready),.in_entry(a2_entry),
     .reserve_tile(a_reserve),.tile_available(a_tile_available),.running(a_running),
@@ -72,13 +72,17 @@ module dea8_matrix_v3 #(parameter bit LOCAL_A=0) (
   logic b_in_valid,b_in_ready,b_out_valid,b_out_ready,b_tile_available,b_protocol;
   b2_t b_in_entry,b_head; logic [6:0] b_count; logic [3:0] b_complete;
   b_source_e b_source_q;
+  b_source_e ingress_b_source;
+  // A local-source wrapper owns a fixed external source between jobs, allowing
+  // next-job weights to fill the existing FIFO/banks before command acceptance.
+  assign ingress_b_source=(LOCAL_A&&!job_busy)?b_source:b_source_q;
   // A matrix Job owns its B source for its entire lifetime.  Live switching
   // between HBM and KVB would make the FIFO order depend on an asynchronous
   // external control signal.
-  assign b_in_valid=(b_source_q==B_KVB)?kv_valid:hbm_valid;
-  assign b_in_entry=(b_source_q==B_KVB)?kv_entry:hbm_entry;
-  assign hbm_ready=(b_source_q==B_HBM)&&b_in_ready;
-  assign kv_ready=(b_source_q==B_KVB)&&b_in_ready;
+  assign b_in_valid=(ingress_b_source==B_KVB)?kv_valid:hbm_valid;
+  assign b_in_entry=(ingress_b_source==B_KVB)?kv_entry:hbm_entry;
+  assign hbm_ready=(ingress_b_source==B_HBM)&&b_in_ready;
+  assign kv_ready=(ingress_b_source==B_KVB)&&b_in_ready;
   dea8_bfifo_v3 b_fifo(
     .clk,.reset,.clear,.in_valid(b_in_valid),.in_ready(b_in_ready),.in_entry(b_in_entry),
     .out_valid(b_out_valid),.out_ready(b_out_ready),.out_entry(b_head),
