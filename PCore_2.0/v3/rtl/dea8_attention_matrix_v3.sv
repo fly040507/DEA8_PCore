@@ -47,8 +47,13 @@ module dea8_attention_matrix_v3 (
      p_head[cmd.a_id[0]]==cmd.head&&p_block[cmd.a_id[0]]==cmd.block_id):
     (q_complete&&q_epoch[0]==cmd.epoch&&q_head[0]==cmd.head);
   assign source_stale=((cmd.op==MATRIX_PV)?p_complete[cmd.a_id[0]]:q_complete)&&!source_match;
-  assign cmd_ready=!reset&&!clear&&!a_protocol_error&&state_q==IDLE&&source_match&&!command_bad;
-  assign done_valid=state_q==DONE;
+  // A matrix completion and the next command may share one clock edge.  The
+  // wrapper accepts the next command while the old Matrix job is presenting
+  // its final DEQACC commit; the core itself starts on the following edge.
+  assign cmd_ready=!reset&&!clear&&!a_protocol_error&&
+    ((state_q==IDLE)||
+     (state_q==RUN&&matrix_done&&done_ready))&&source_match&&!command_bad;
+  assign done_valid=(state_q==DONE)||(state_q==RUN&&matrix_done);
   assign done_cmd=cmd_q;
   assign p_active=(state_q!=IDLE&&is_pv)?(2'b01<<cmd_q.a_id[0]):2'b0;
   assign p_release=(matrix_done&&is_pv)?(2'b01<<cmd_q.a_id[0]):2'b0;
@@ -100,8 +105,8 @@ module dea8_attention_matrix_v3 (
           else tile_q<=tile_q+1'b1;
         end else pair_q<=pair_q+1'b1;
       end
-      if(matrix_done) state_q<=DONE;
-      if(done_valid&&done_ready) state_q<=IDLE;
+      if(matrix_done&&!(cmd_valid&&cmd_ready)) state_q<=DONE;
+      if(done_valid&&done_ready&&!(cmd_valid&&cmd_ready)) state_q<=IDLE;
     end
   end
 endmodule

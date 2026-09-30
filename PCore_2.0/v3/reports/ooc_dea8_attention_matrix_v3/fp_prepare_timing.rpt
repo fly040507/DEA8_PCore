@@ -1,0 +1,227 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version      : Vivado v.2022.2 (win64) Build 3671981 Fri Oct 14 05:00:03 MDT 2022
+| Date              : Wed Sep 30 15:27:20 2026
+| Host              : FLY running 64-bit major release  (build 9200)
+| Command           : report_timing -to [get_cells -quiet -hier -filter {NAME =~ *pre_q1_reg*}] -max_paths 3 -file C:/Users/fly04/Desktop/VLA/PCore_2.0/v3/reports/ooc_dea8_attention_matrix_v3/fp_prepare_timing.rpt
+| Design            : dea8_attention_matrix_v3
+| Device            : xcu50-fsvh2104
+| Speed File        : -2  PRODUCTION 1.30 05-01-2022
+| Temperature Grade : E
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Timing Report
+
+Slack (MET) :             1.112ns  (required time - arrival time)
+  Source:                 matrix/deqacc/partial_q3_reg[0][10][25]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            matrix/deqacc/genblk1[0].lanes[10].lane/pre_q1_reg[small_x][18]/D
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.869ns  (logic 0.868ns (30.254%)  route 2.001ns (69.746%))
+  Logic Levels:           11  (CARRY8=1 LUT3=3 LUT4=2 LUT5=3 LUT6=2)
+  Clock Path Skew:        -0.009ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.021ns = ( 4.021 - 4.000 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  clk (IN)
+                         net (fo=49055, unset)        0.030     0.030    matrix/deqacc/clk
+                         FDRE                                         r  matrix/deqacc/partial_q3_reg[0][10][25]/C
+  -------------------------------------------------------------------    -------------------
+                         FDRE (Prop_FDRE_C_Q)         0.077     0.107 f  matrix/deqacc/partial_q3_reg[0][10][25]/Q
+                         net (fo=11, unplaced)        0.127     0.234    matrix/deqacc/genblk1[0].lanes[10].lane/Q[25]
+                         LUT4 (Prop_LUT4_I0_O)        0.100     0.334 f  matrix/deqacc/genblk1[0].lanes[10].lane/pre_q1[big_x][26]_i_5__23/O
+                         net (fo=1, unplaced)         0.185     0.519    matrix/deqacc/genblk1[0].lanes[10].lane/pre_q1[big_x][26]_i_5__23_n_0
+                         LUT4 (Prop_LUT4_I3_O)        0.038     0.557 r  matrix/deqacc/genblk1[0].lanes[10].lane/pre_q1[big_x][26]_i_2__23/O
+                         net (fo=9, unplaced)         0.216     0.773    matrix/deqacc/genblk1[0].lanes[10].lane/partial_q3_reg[0][10][24]
+                         LUT3 (Prop_LUT3_I1_O)        0.070     0.843 r  matrix/deqacc/genblk1[0].lanes[10].lane/pre_q1[small_x][0]_i_2__23/O
+                         net (fo=5, unplaced)         0.203     1.046    matrix/deqacc/genblk1[0].lanes[10].lane_n_0
+                         LUT3 (Prop_LUT3_I0_O)        0.038     1.084 r  matrix/deqacc/pre_q1[exponent][1]_i_10__23/O
+                         net (fo=1, unplaced)         0.020     1.104    matrix/deqacc/pre_q1[exponent][1]_i_10__23_n_0
+                         CARRY8 (Prop_CARRY8_S[0]_CO[3])
+                                                      0.186     1.290 r  matrix/deqacc/pre_q1_reg[exponent][1]_i_2__23/CO[3]
+                         net (fo=5, unplaced)         0.155     1.445    matrix/deqacc/genblk1[0].lanes[10].lane/CO[0]
+                         LUT5 (Prop_LUT5_I0_O)        0.053     1.498 r  matrix/deqacc/genblk1[0].lanes[10].lane/pre_q1[big_x][26]_i_4__23/O
+                         net (fo=84, unplaced)        0.266     1.764    matrix/deqacc/genblk1[0].lanes[10].lane/pre_q1[big_x][26]_i_4__23_n_0
+                         LUT6 (Prop_LUT6_I4_O)        0.038     1.802 r  matrix/deqacc/genblk1[0].lanes[10].lane/pre_q1[small_x][26]_i_8__23/O
+                         net (fo=17, unplaced)        0.230     2.032    matrix/deqacc/genblk1[0].lanes[10].lane/pre_q1[small_x][26]_i_8__23_n_0
+                         LUT3 (Prop_LUT3_I2_O)        0.070     2.102 f  matrix/deqacc/genblk1[0].lanes[10].lane/pre_q1[small_x][26]_i_2__23/O
+                         net (fo=14, unplaced)        0.226     2.328    matrix/deqacc/genblk1[0].lanes[10].lane/pre_q1[small_x][26]_i_2__23_n_0
+                         LUT5 (Prop_LUT5_I4_O)        0.070     2.398 f  matrix/deqacc/genblk1[0].lanes[10].lane/pre_q1[small_x][18]_i_3__23/O
+                         net (fo=1, unplaced)         0.140     2.538    matrix/deqacc/genblk1[0].lanes[10].lane/pre_q1[small_x][18]_i_3__23_n_0
+                         LUT5 (Prop_LUT5_I0_O)        0.090     2.628 f  matrix/deqacc/genblk1[0].lanes[10].lane/pre_q1[small_x][18]_i_2__23/O
+                         net (fo=2, unplaced)         0.185     2.813    matrix/deqacc/genblk1[0].lanes[10].lane/pre_q1[small_x][18]_i_2__23_n_0
+                         LUT6 (Prop_LUT6_I4_O)        0.038     2.851 r  matrix/deqacc/genblk1[0].lanes[10].lane/pre_q1[small_x][18]_i_1__23/O
+                         net (fo=1, unplaced)         0.048     2.899    matrix/deqacc/genblk1[0].lanes[10].lane/fp32_prepare[small_x]_return[18]
+                         FDRE                                         r  matrix/deqacc/genblk1[0].lanes[10].lane/pre_q1_reg[small_x][18]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r  
+                                                      0.000     4.000 r  clk (IN)
+                         net (fo=49055, unset)        0.021     4.021    matrix/deqacc/genblk1[0].lanes[10].lane/clk
+                         FDRE                                         r  matrix/deqacc/genblk1[0].lanes[10].lane/pre_q1_reg[small_x][18]/C
+                         clock pessimism              0.000     4.021    
+                         clock uncertainty           -0.035     3.986    
+                         FDRE (Setup_FDRE_C_D)        0.025     4.011    matrix/deqacc/genblk1[0].lanes[10].lane/pre_q1_reg[small_x][18]
+  -------------------------------------------------------------------
+                         required time                          4.011    
+                         arrival time                          -2.899    
+  -------------------------------------------------------------------
+                         slack                                  1.112    
+
+Slack (MET) :             1.112ns  (required time - arrival time)
+  Source:                 matrix/deqacc/partial_q3_reg[0][11][25]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            matrix/deqacc/genblk1[0].lanes[11].lane/pre_q1_reg[small_x][18]/D
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.869ns  (logic 0.868ns (30.254%)  route 2.001ns (69.746%))
+  Logic Levels:           11  (CARRY8=1 LUT3=3 LUT4=2 LUT5=3 LUT6=2)
+  Clock Path Skew:        -0.009ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.021ns = ( 4.021 - 4.000 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  clk (IN)
+                         net (fo=49055, unset)        0.030     0.030    matrix/deqacc/clk
+                         FDRE                                         r  matrix/deqacc/partial_q3_reg[0][11][25]/C
+  -------------------------------------------------------------------    -------------------
+                         FDRE (Prop_FDRE_C_Q)         0.077     0.107 f  matrix/deqacc/partial_q3_reg[0][11][25]/Q
+                         net (fo=11, unplaced)        0.127     0.234    matrix/deqacc/genblk1[0].lanes[11].lane/Q[25]
+                         LUT4 (Prop_LUT4_I0_O)        0.100     0.334 f  matrix/deqacc/genblk1[0].lanes[11].lane/pre_q1[big_x][26]_i_5__22/O
+                         net (fo=1, unplaced)         0.185     0.519    matrix/deqacc/genblk1[0].lanes[11].lane/pre_q1[big_x][26]_i_5__22_n_0
+                         LUT4 (Prop_LUT4_I3_O)        0.038     0.557 r  matrix/deqacc/genblk1[0].lanes[11].lane/pre_q1[big_x][26]_i_2__22/O
+                         net (fo=9, unplaced)         0.216     0.773    matrix/deqacc/genblk1[0].lanes[11].lane/partial_q3_reg[0][11][24]
+                         LUT3 (Prop_LUT3_I1_O)        0.070     0.843 r  matrix/deqacc/genblk1[0].lanes[11].lane/pre_q1[small_x][0]_i_2__22/O
+                         net (fo=5, unplaced)         0.203     1.046    matrix/deqacc/genblk1[0].lanes[11].lane_n_0
+                         LUT3 (Prop_LUT3_I0_O)        0.038     1.084 r  matrix/deqacc/pre_q1[exponent][1]_i_10__22/O
+                         net (fo=1, unplaced)         0.020     1.104    matrix/deqacc/pre_q1[exponent][1]_i_10__22_n_0
+                         CARRY8 (Prop_CARRY8_S[0]_CO[3])
+                                                      0.186     1.290 r  matrix/deqacc/pre_q1_reg[exponent][1]_i_2__22/CO[3]
+                         net (fo=5, unplaced)         0.155     1.445    matrix/deqacc/genblk1[0].lanes[11].lane/CO[0]
+                         LUT5 (Prop_LUT5_I0_O)        0.053     1.498 r  matrix/deqacc/genblk1[0].lanes[11].lane/pre_q1[big_x][26]_i_4__22/O
+                         net (fo=84, unplaced)        0.266     1.764    matrix/deqacc/genblk1[0].lanes[11].lane/pre_q1[big_x][26]_i_4__22_n_0
+                         LUT6 (Prop_LUT6_I4_O)        0.038     1.802 r  matrix/deqacc/genblk1[0].lanes[11].lane/pre_q1[small_x][26]_i_8__22/O
+                         net (fo=17, unplaced)        0.230     2.032    matrix/deqacc/genblk1[0].lanes[11].lane/pre_q1[small_x][26]_i_8__22_n_0
+                         LUT3 (Prop_LUT3_I2_O)        0.070     2.102 f  matrix/deqacc/genblk1[0].lanes[11].lane/pre_q1[small_x][26]_i_2__22/O
+                         net (fo=14, unplaced)        0.226     2.328    matrix/deqacc/genblk1[0].lanes[11].lane/pre_q1[small_x][26]_i_2__22_n_0
+                         LUT5 (Prop_LUT5_I4_O)        0.070     2.398 f  matrix/deqacc/genblk1[0].lanes[11].lane/pre_q1[small_x][18]_i_3__22/O
+                         net (fo=1, unplaced)         0.140     2.538    matrix/deqacc/genblk1[0].lanes[11].lane/pre_q1[small_x][18]_i_3__22_n_0
+                         LUT5 (Prop_LUT5_I0_O)        0.090     2.628 f  matrix/deqacc/genblk1[0].lanes[11].lane/pre_q1[small_x][18]_i_2__22/O
+                         net (fo=2, unplaced)         0.185     2.813    matrix/deqacc/genblk1[0].lanes[11].lane/pre_q1[small_x][18]_i_2__22_n_0
+                         LUT6 (Prop_LUT6_I4_O)        0.038     2.851 r  matrix/deqacc/genblk1[0].lanes[11].lane/pre_q1[small_x][18]_i_1__22/O
+                         net (fo=1, unplaced)         0.048     2.899    matrix/deqacc/genblk1[0].lanes[11].lane/fp32_prepare[small_x]_return[18]
+                         FDRE                                         r  matrix/deqacc/genblk1[0].lanes[11].lane/pre_q1_reg[small_x][18]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r  
+                                                      0.000     4.000 r  clk (IN)
+                         net (fo=49055, unset)        0.021     4.021    matrix/deqacc/genblk1[0].lanes[11].lane/clk
+                         FDRE                                         r  matrix/deqacc/genblk1[0].lanes[11].lane/pre_q1_reg[small_x][18]/C
+                         clock pessimism              0.000     4.021    
+                         clock uncertainty           -0.035     3.986    
+                         FDRE (Setup_FDRE_C_D)        0.025     4.011    matrix/deqacc/genblk1[0].lanes[11].lane/pre_q1_reg[small_x][18]
+  -------------------------------------------------------------------
+                         required time                          4.011    
+                         arrival time                          -2.899    
+  -------------------------------------------------------------------
+                         slack                                  1.112    
+
+Slack (MET) :             1.112ns  (required time - arrival time)
+  Source:                 matrix/deqacc/partial_q3_reg[0][12][25]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            matrix/deqacc/genblk1[0].lanes[12].lane/pre_q1_reg[small_x][18]/D
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.869ns  (logic 0.868ns (30.254%)  route 2.001ns (69.746%))
+  Logic Levels:           11  (CARRY8=1 LUT3=3 LUT4=2 LUT5=3 LUT6=2)
+  Clock Path Skew:        -0.009ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.021ns = ( 4.021 - 4.000 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  clk (IN)
+                         net (fo=49055, unset)        0.030     0.030    matrix/deqacc/clk
+                         FDRE                                         r  matrix/deqacc/partial_q3_reg[0][12][25]/C
+  -------------------------------------------------------------------    -------------------
+                         FDRE (Prop_FDRE_C_Q)         0.077     0.107 f  matrix/deqacc/partial_q3_reg[0][12][25]/Q
+                         net (fo=11, unplaced)        0.127     0.234    matrix/deqacc/genblk1[0].lanes[12].lane/Q[25]
+                         LUT4 (Prop_LUT4_I0_O)        0.100     0.334 f  matrix/deqacc/genblk1[0].lanes[12].lane/pre_q1[big_x][26]_i_5__21/O
+                         net (fo=1, unplaced)         0.185     0.519    matrix/deqacc/genblk1[0].lanes[12].lane/pre_q1[big_x][26]_i_5__21_n_0
+                         LUT4 (Prop_LUT4_I3_O)        0.038     0.557 r  matrix/deqacc/genblk1[0].lanes[12].lane/pre_q1[big_x][26]_i_2__21/O
+                         net (fo=9, unplaced)         0.216     0.773    matrix/deqacc/genblk1[0].lanes[12].lane/partial_q3_reg[0][12][24]
+                         LUT3 (Prop_LUT3_I1_O)        0.070     0.843 r  matrix/deqacc/genblk1[0].lanes[12].lane/pre_q1[small_x][0]_i_2__21/O
+                         net (fo=5, unplaced)         0.203     1.046    matrix/deqacc/genblk1[0].lanes[12].lane_n_0
+                         LUT3 (Prop_LUT3_I0_O)        0.038     1.084 r  matrix/deqacc/pre_q1[exponent][1]_i_10__21/O
+                         net (fo=1, unplaced)         0.020     1.104    matrix/deqacc/pre_q1[exponent][1]_i_10__21_n_0
+                         CARRY8 (Prop_CARRY8_S[0]_CO[3])
+                                                      0.186     1.290 r  matrix/deqacc/pre_q1_reg[exponent][1]_i_2__21/CO[3]
+                         net (fo=5, unplaced)         0.155     1.445    matrix/deqacc/genblk1[0].lanes[12].lane/CO[0]
+                         LUT5 (Prop_LUT5_I0_O)        0.053     1.498 r  matrix/deqacc/genblk1[0].lanes[12].lane/pre_q1[big_x][26]_i_4__21/O
+                         net (fo=84, unplaced)        0.266     1.764    matrix/deqacc/genblk1[0].lanes[12].lane/pre_q1[big_x][26]_i_4__21_n_0
+                         LUT6 (Prop_LUT6_I4_O)        0.038     1.802 r  matrix/deqacc/genblk1[0].lanes[12].lane/pre_q1[small_x][26]_i_8__21/O
+                         net (fo=17, unplaced)        0.230     2.032    matrix/deqacc/genblk1[0].lanes[12].lane/pre_q1[small_x][26]_i_8__21_n_0
+                         LUT3 (Prop_LUT3_I2_O)        0.070     2.102 f  matrix/deqacc/genblk1[0].lanes[12].lane/pre_q1[small_x][26]_i_2__21/O
+                         net (fo=14, unplaced)        0.226     2.328    matrix/deqacc/genblk1[0].lanes[12].lane/pre_q1[small_x][26]_i_2__21_n_0
+                         LUT5 (Prop_LUT5_I4_O)        0.070     2.398 f  matrix/deqacc/genblk1[0].lanes[12].lane/pre_q1[small_x][18]_i_3__21/O
+                         net (fo=1, unplaced)         0.140     2.538    matrix/deqacc/genblk1[0].lanes[12].lane/pre_q1[small_x][18]_i_3__21_n_0
+                         LUT5 (Prop_LUT5_I0_O)        0.090     2.628 f  matrix/deqacc/genblk1[0].lanes[12].lane/pre_q1[small_x][18]_i_2__21/O
+                         net (fo=2, unplaced)         0.185     2.813    matrix/deqacc/genblk1[0].lanes[12].lane/pre_q1[small_x][18]_i_2__21_n_0
+                         LUT6 (Prop_LUT6_I4_O)        0.038     2.851 r  matrix/deqacc/genblk1[0].lanes[12].lane/pre_q1[small_x][18]_i_1__21/O
+                         net (fo=1, unplaced)         0.048     2.899    matrix/deqacc/genblk1[0].lanes[12].lane/fp32_prepare[small_x]_return[18]
+                         FDRE                                         r  matrix/deqacc/genblk1[0].lanes[12].lane/pre_q1_reg[small_x][18]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r  
+                                                      0.000     4.000 r  clk (IN)
+                         net (fo=49055, unset)        0.021     4.021    matrix/deqacc/genblk1[0].lanes[12].lane/clk
+                         FDRE                                         r  matrix/deqacc/genblk1[0].lanes[12].lane/pre_q1_reg[small_x][18]/C
+                         clock pessimism              0.000     4.021    
+                         clock uncertainty           -0.035     3.986    
+                         FDRE (Setup_FDRE_C_D)        0.025     4.011    matrix/deqacc/genblk1[0].lanes[12].lane/pre_q1_reg[small_x][18]
+  -------------------------------------------------------------------
+                         required time                          4.011    
+                         arrival time                          -2.899    
+  -------------------------------------------------------------------
+                         slack                                  1.112    
+
+
+
+

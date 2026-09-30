@@ -40,7 +40,9 @@ module dea8_attention_scheduler_v3 #(
   vpu_cmd_t vpu_inflight_q;
   sfu_cmd_t sfu_inflight_q;
   logic [TAIL_BITS-1:0] tail_remaining_q;
-  logic advance,matrix_complete;
+  logic advance,matrix_complete,matrix_handoff;
+  phase_e launch_phase;
+  logic [5:0] launch_block;
   logic [5:0] post_block;
 
   assign start_ready=!reset&&!clear&&(phase_q==IDLE);
@@ -64,29 +66,44 @@ module dea8_attention_scheduler_v3 #(
       default: ;
     endcase
 
+    launch_phase=phase_q;
+    launch_block=b_q;
+    matrix_handoff=1'b0;
+    if(advance) begin
+      case(phase_q)
+        FIRST_QK: begin launch_phase=NEXT_QK;matrix_handoff=1'b1;end
+        NEXT_QK: begin launch_phase=RUN_PV;matrix_handoff=1'b1;end
+        RUN_PV: if(b_q!=BLOCKS-2) begin
+          launch_phase=NEXT_QK;launch_block=b_q+1'b1;matrix_handoff=1'b1;
+        end
+        TAIL_SCALE: begin launch_phase=TAIL_PV;matrix_handoff=1'b1;end
+        default: ;
+      endcase
+    end
+
     matrix_cmd='0;
     matrix_cmd.mode=MAT_ATTENTION;
-    matrix_cmd.op=(phase_q==RUN_PV||phase_q==TAIL_PV)?MATRIX_PV:MATRIX_QK;
-    matrix_cmd.block_id=(phase_q==NEXT_QK)?b_q+1'b1:b_q;
+    matrix_cmd.op=(launch_phase==RUN_PV||launch_phase==TAIL_PV)?MATRIX_PV:MATRIX_QK;
+    matrix_cmd.block_id=(launch_phase==NEXT_QK)?launch_block+1'b1:launch_block;
     matrix_cmd.epoch=epoch_q;matrix_cmd.head=head_q;
     matrix_cmd.m_rows=ROWS;
     // QK advances Q and K together.  PV reuses P tile 0 while the V-side
     // output-tile window starts at a separate ID range.
     // These are logical source IDs, not FIFO transport counters.  Q is the
     // same QOZ source for every QK block; each KV block owns a K/V window.
-    matrix_cmd.a_id=(matrix_cmd.op==MATRIX_PV)?b_q:6'd0;
+    matrix_cmd.a_id=(matrix_cmd.op==MATRIX_PV)?LOGICAL_ID_BITS'(launch_block):LOGICAL_ID_BITS'(0);
     // NEXT_QK launches block b_q+1 while b_q is still the completed PV
     // block.  Its B logical window must advance together with block_id;
     // RUN_PV uses the current completed block's V window.
-    matrix_cmd.b_id=LOGICAL_ID_BITS'(((phase_q==NEXT_QK)?(b_q+1'b1):b_q)*ATTN_K_TILES);
-    matrix_cmd.out_tile=(matrix_cmd.op==MATRIX_PV)?b_q:0;
+    matrix_cmd.b_id=LOGICAL_ID_BITS'(((launch_phase==NEXT_QK)?matrix_cmd.block_id:launch_block)*ATTN_K_TILES);
+    matrix_cmd.out_tile=(matrix_cmd.op==MATRIX_PV)?LOGICAL_ID_BITS'(launch_block):0;
     matrix_cmd.acc_sel=matrix_cmd.op==MATRIX_QK?
       (matrix_cmd.block_id[0]?ACC_FACC_B:ACC_FACC_A):ACC_OACC;
     matrix_cmd.add_old=matrix_cmd.op==MATRIX_PV && matrix_cmd.block_id!=0;
     matrix_cmd.result_last=1;
-    matrix_cmd.job_last=phase_q==TAIL_PV;
+    matrix_cmd.job_last=launch_phase==TAIL_PV;
     matrix_cmd.exp_fold=matrix_cmd.op==MATRIX_QK?-4:0;
-    matrix_valid=!reset&&!clear&&!matrix_sent_q &&
+    matrix_valid=!reset&&!clear&&(matrix_handoff||!matrix_sent_q) &&
       (phase_q==FIRST_QK||phase_q==NEXT_QK||phase_q==RUN_PV||phase_q==TAIL_PV);
 
     vpu_cmd='0;sfu_cmd='0;
@@ -151,7 +168,8 @@ module dea8_attention_scheduler_v3 #(
         head_q<=start_head;epoch_q<=start_epoch;
       end
       if(advance) begin
-        matrix_sent_q<=0;matrix_finished_q<=0;
+        matrix_sent_q<=matrix_handoff&&matrix_valid&&matrix_ready;
+        matrix_finished_q<=0;
         vpu_sent_q<=0;vpu_finished_q<=0;sfu_sent_q<=0;sfu_finished_q<=0;
         case(phase_q)
           FIRST_QK: begin phase_q<=NEXT_QK;post_q<=POST_QK;end

@@ -51,7 +51,10 @@ module tb_v3_attention_scheduler;
         else begin sfu_done<=s_hold;sfu_done_valid<=1;end
       end
       if(matrix_valid&&matrix_ready) begin
-        if(m_active)$fatal(1,"matrix model overlap");
+        // A real matrix wrapper can retire the old job and accept the next
+        // command on this edge.  Model that one-entry handoff explicitly.
+        if(m_active&&!(matrix_done_valid&&matrix_done_ready))
+          $fatal(1,"matrix model overlap");
         m_hold<=matrix_cmd;m_delay<=5;m_active<=1;
         matrix_accept_cycle[m_count]=cycle_count;
         matrix_block[m_count]=matrix_cmd.block_id;

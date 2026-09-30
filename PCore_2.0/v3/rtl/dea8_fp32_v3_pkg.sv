@@ -65,6 +65,27 @@ package dea8_fp32_v3_pkg;
     logic [27:0] big_x,small_x;
   } fp_add_pre_t;
 
+  typedef struct packed {
+    logic special;
+    logic [31:0] special_value;
+    logic sign_result,zero_sign;
+    logic [8:0] exponent;
+    logic [27:0] sum_raw;
+  } fp_add_raw_t;
+
+  // The normalization pipeline is split at the normalized significand.  The
+  // first stage performs leading-zero detection and the bounded shift; the
+  // second stage only performs RNE, exponent correction and special packing.
+  // Keeping this intermediate explicit prevents Vivado from rebuilding the
+  // complete normalize/round cone between two registers.
+  typedef struct packed {
+    logic special;
+    logic [31:0] special_value;
+    logic sign_result,zero_sign,is_zero;
+    logic [8:0] exponent_norm;
+    logic [27:0] sum_norm;
+  } fp_norm_mid_t;
+
   function automatic fp_add_pre_t fp32_prepare(input logic [31:0] a,b);
     fp_add_pre_t p;
     logic [7:0] ea,eb,big_e,small_e,diff;
@@ -117,12 +138,98 @@ package dea8_fp32_v3_pkg;
     return {p.sign_result,exp_field,round_final[22:0]};
   endfunction
 
+  // Arithmetic is kept separate from normalization so a lane-local pipeline
+  // can place a register between compare/align, add/sub, and normalize/pack.
+  function automatic fp_add_raw_t fp32_add_raw(input fp_add_pre_t p);
+    fp_add_raw_t r;
+    r.special=p.special;
+    r.special_value=p.special_value;
+    r.sign_result=p.sign_result;
+    r.zero_sign=p.zero_sign;
+    r.exponent=p.exponent;
+    r.sum_raw=p.subtract?(p.big_x-p.small_x):(p.big_x+p.small_x);
+    return r;
+  endfunction
+
+  function automatic fp_norm_mid_t fp32_normalize_mid(input fp_add_raw_t r);
+    fp_norm_mid_t m;
+    logic [27:0] sum_raw;
+    logic [27:0] sum_norm;
+    logic [4:0] norm_shift,wanted_shift;
+    logic z16,z8,z4,z2;
+    logic [31:0] l0,l16,l8,l4,l2,l1;
+    begin
+      m='0;
+      m.special=r.special;
+      m.special_value=r.special_value;
+      m.sign_result=r.sign_result;
+      m.zero_sign=r.zero_sign;
+      sum_raw=r.sum_raw;
+
+      l0={sum_raw[26:0],5'b0};
+      z16=!(|l0[31:16]);l16=z16?{l0[15:0],16'b0}:l0;
+      z8=!(|l16[31:24]);l8=z8?{l16[23:0],8'b0}:l16;
+      z4=!(|l8[31:28]);l4=z4?{l8[27:0],4'b0}:l8;
+      z2=!(|l4[31:30]);l2=z2?{l4[29:0],2'b0}:l4;
+      l1=l2[31]?l2:{l2[30:0],1'b0};
+      wanted_shift={z16,z8,z4,z2,!l2[31]};
+      norm_shift=({4'b0,wanted_shift}>(r.exponent-9'd1))?
+        5'(r.exponent-9'd1):wanted_shift;
+      m.sum_norm=sum_raw[27]?{1'b0,sum_raw[27:2],sum_raw[1]|sum_raw[0]}:
+        (({4'b0,wanted_shift}>(r.exponent-9'd1))?
+          (sum_raw<<5'(r.exponent-9'd1)):{1'b0,l1[31:5]});
+      m.exponent_norm=sum_raw[27]?(r.exponent+9'd1):
+        (r.exponent-{4'b0,norm_shift});
+      m.is_zero=(sum_raw==0);
+      return m;
+    end
+  endfunction
+
+  function automatic logic [31:0] fp32_pack_mid(input fp_norm_mid_t m);
+    logic [24:0] round_raw,round_final;
+    logic [8:0] exponent_final;
+    logic [7:0] exp_field;
+    begin
+      round_raw={1'b0,m.sum_norm[26:3]}+
+        25'(m.sum_norm[2]&&(m.sum_norm[1]||m.sum_norm[0]||m.sum_norm[3]));
+      round_final=round_raw[24]?(round_raw>>1):round_raw;
+      exponent_final=m.exponent_norm+9'(round_raw[24]);
+      exp_field=(exponent_final==1&&!round_final[23])?8'b0:exponent_final[7:0];
+      if(m.special) return m.special_value;
+      if(m.is_zero) return {m.zero_sign,31'b0};
+      if(exponent_final>=255) return {m.sign_result,FP_INF[30:0]};
+      return {m.sign_result,exp_field,round_final[22:0]};
+    end
+  endfunction
+
+  function automatic fp_norm_mid_t fp32_normalize_mid_from_pre(
+    input fp_add_pre_t p,input logic [27:0] sum_raw);
+    fp_add_raw_t r;
+    begin
+      r='0;r.special=p.special;r.special_value=p.special_value;
+      r.sign_result=p.sign_result;r.zero_sign=p.zero_sign;
+      r.exponent=p.exponent;r.sum_raw=sum_raw;
+      return fp32_normalize_mid(r);
+    end
+  endfunction
+
+  function automatic logic [31:0] fp32_finish_raw(input fp_add_raw_t r);
+    fp_add_pre_t p;
+    p='0;
+    p.special=r.special;
+    p.special_value=r.special_value;
+    p.sign_result=r.sign_result;
+    p.zero_sign=r.zero_sign;
+    p.exponent=r.exponent;
+    return fp32_normalize(p,r.sum_raw);
+  endfunction
+
   function automatic logic [31:0] fp32_add(input logic [31:0] a,b);
     fp_add_pre_t p;
     p=fp32_prepare(a,b);
-    return fp32_normalize(p,p.subtract?(p.big_x-p.small_x):(p.big_x+p.small_x));
+    return fp32_finish_raw(fp32_add_raw(p));
   endfunction
   function automatic logic [31:0] fp32_finish(input fp_add_pre_t p);
-    return fp32_normalize(p,p.subtract?(p.big_x-p.small_x):(p.big_x+p.small_x));
+    return fp32_finish_raw(fp32_add_raw(p));
   endfunction
 endpackage

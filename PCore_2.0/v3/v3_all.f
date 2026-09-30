@@ -1,5 +1,7 @@
 rtl/pcore3_pkg.sv
 rtl/dea8_fp32_v3_pkg.sv
+rtl/dea8_fp32_acc_lane_v4.sv
+rtl/dea8_deqacc32_v4.sv
 rtl/dea8_fp32_add_v2.sv
 rtl/dea8_pe_2row_v3.sv
 rtl/dea8_mxu_2row_v3.sv

@@ -1,5 +1,5 @@
 param(
-  [string]$Top="dea8_deqacc32_v3",
+  [string]$Top="dea8_deqacc32_v4",
   [string]$VivadoRoot="D:\Xilinx\Vivado\2022.2"
 )
 $ErrorActionPreference="Stop"
@@ -14,7 +14,7 @@ $before | ForEach-Object { "$($_.Hash),$($_.Path.Substring($here.Length+1))" } |
 "RUNNING top=$Top time=$(Get-Date -Format o)" | Set-Content (Join-Path $report "status.txt") -Encoding UTF8
 Push-Location $here
 try {
-  & (Join-Path $VivadoRoot "bin\vivado.bat") -mode batch -source synth_v3_ooc.tcl -log "$report\run.log" -journal "$report\run.jou" -tclargs $Top
+  & (Join-Path $VivadoRoot "bin\vivado.bat") -mode batch -source synth_v3_ooc.tcl -log "$report\run.log" -journal "$report\run.jou" -tclargs $Top ($here -replace '\\','/')
   if($LASTEXITCODE){throw "Vivado OOC failed: $Top"}
   $after=$inputs | Sort-Object FullName | Get-FileHash -Algorithm SHA256
   if(Compare-Object ($before | ForEach-Object Hash) ($after | ForEach-Object Hash)){throw "Inputs changed during OOC"}
