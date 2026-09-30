@@ -218,7 +218,7 @@ module dea8_matrix_v3 #(parameter bit LOCAL_A=0) (
   dea8_mxu_2row_v3 mxu(
     .clk,.reset,.clear,.req_valid(req_valid),.req_bank(req_bank),.req(a_head),.req_meta(req_meta),
     .load_valid,.load_bank,.load_column,.load_entry(serializer_out),.rsp_valid(mxu_rsp_valid),.rsp(mxu_rsp));
-  dea8_deqacc32_v4 deqacc(
+  dea8_deqacc32_v5 deqacc(
     .clk,.reset,.clear,.rsp_valid(mxu_rsp_valid),.rsp(mxu_rsp),.commit_valid,.done,.commit_meta,
     .result_rd_owner,.result_rd_valid(result_rd_valid&&result_bank_free),
     .result_rd_ready(store_result_ready),.result_rd_sel,.result_rd_addr,

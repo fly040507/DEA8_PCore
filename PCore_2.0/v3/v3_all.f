@@ -1,5 +1,7 @@
 rtl/pcore3_pkg.sv
 rtl/dea8_fp32_v3_pkg.sv
+rtl/dea8_fp32_acc_lane_v5.sv
+rtl/dea8_deqacc32_v5.sv
 rtl/dea8_fp32_acc_lane_v4.sv
 rtl/dea8_deqacc32_v4.sv
 rtl/dea8_fp32_add_v2.sv
@@ -20,6 +22,8 @@ rtl/dea8_deqacc32_v3.sv
 rtl/dea8_acc_store_v3.sv
 tb/tb_v3_ingress.sv
 tb/fp32_legacy_ref_pkg.sv
+tb/tb_fp32_acc_lane_v5.sv
+tb/tb_deqacc32_v5_stream.sv
 tb/tb_v3_fp32_equiv.sv
 tb/tb_v3_bpath.sv
 tb/tb_v3_bfifo_stream.sv

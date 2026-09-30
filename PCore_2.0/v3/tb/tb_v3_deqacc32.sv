@@ -16,7 +16,7 @@ module tb_v3_deqacc32;
   function automatic logic [31:0] odd_one(input int lane,input int exponent);
     return pack_scaled32(0,(32+lane)<<26,exponent,0,0);
   endfunction
-  dea8_deqacc32_v4 dut(.clk,.reset,.clear,.rsp_valid,.rsp,.commit_valid,.done,.commit_meta,
+  dea8_deqacc32_v5 dut(.clk,.reset,.clear,.rsp_valid,.rsp,.commit_valid,.done,.commit_meta,
     .vpu_wr_valid(1'b0),.vpu_wr('0),.vpu_wr_ready(),.result_rd_ready(),
     .result_rd_owner(ACC_READ_DEQACC),.result_rd_valid(1'b0),.result_rd_sel(ACC_FACC_A),
     .result_rd_addr(10'b0),.result_rd_data_valid,.result_even_data,.result_odd_data,

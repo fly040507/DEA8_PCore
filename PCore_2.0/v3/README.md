@@ -1,5 +1,45 @@
 # PCore 2.0 v3 数据面
 
+## 当前 DEQACC v5（2026-09-30 17:37）
+
+当前 Matrix 已接 `dea8_deqacc32_v5`；v4 源码和报告保留为历史基线。以下本节优先于后面的旧冻结记录。
+
+- 固定 **10 级 D0..D9**，`edge_delta=9`，32 lanes、每拍一组 row-pair。
+- D0 normalize/exponent；D1 partial shift/GRS 与 ACC 读请求；D2 partial round/pack 与对应 RAM 响应；D3 decode/order；D4 align；D5 add/sub + coarse LZC；D6 fine LZC/shift control；D7 normalize shift；D8 round/pack；D9 RAM write/commit。
+- 新增 `dea8_fp32_acc_lane_v5`，阶段 payload 用 packed token；metadata/row mask 固定延迟传递。`add_old=0` 同延迟旁路，RAM old 输入置零。
+- 增加 RAM response 对齐、lane valid 对齐、同地址未提交 RAW hazard 断言。
+- 17 项 XSim 回归通过：单 lane **1000000** 笔；32-lane **5000** 个连续 pair；Projection、Matrix64、Attention55 均通过，最终 13056 个 OACC 值匹配。Attention 调度本轮未改；周期随 DEQACC 增加一拍，当前 request→最终 commit 为440拍。
+
+### v5 综合分级路径
+
+Vivado 2022.2 / XCU50-2 / 4 ns；Data Path Delay 含综合估算布线。D0 采用同钟零外部输入延迟进行 OOC 输入路径测量，不代表真实上游布线预算。
+
+| 边界 | Logic ns | Route ns | Total ns |
+| --- | ---: | ---: | ---: |
+| D0 INT normalize | 1.120 | 2.138 | **3.258** |
+| D1 partial prepare | 0.760 | 2.334 | **3.094** |
+| D2 partial finish/RAM response | 0.786 | 1.516 | 2.302 |
+| D3 decode/order | 0.808 | 1.438 | 2.246 |
+| D4 align | 0.472 | 0.854 | 1.326 |
+| D5 add/coarse LZC | 0.590 | 1.397 | 1.987 |
+| D6 shift control | 0.875 | 1.676 | 2.551 |
+| D7 normalize shift | 0.362 | 0.762 | 1.124 |
+| D8 round/pack | 0.624 | 1.052 | 1.676 |
+
+主要算术级均低于3.3ns；D0/D1 尚未低于3ns。较轻级保留独立边界，不人为增加逻辑。综合 WNS **+0.753ns**、TNS=0、loops=0；资源 **38180 LUT、21270 FF、1184 LUTRAM、2244 SRL、14 RAMB36+2 RAMB18**。
+
+### 实现级结果与适用范围
+
+`reports/ooc_dea8_deqacc32_v5/` 保存当前源码哈希、分级综合报告、placed/routed 报告和 checkpoint。
+
+- OOC place+route 已实际运行；routed WNS **+0.331ns**、TNS=0；WHS **+0.041ns**、THS=0；router failed nets=0。
+- 这是独立模块内部4ns时序的实现证据，不是完整PCore或上板签核。OOC 缺少 `HD.CLK_SRC` 和外部 `HD.PARTPIN_LOCS`，端口接入布线与真实时钟树仍需上层集成确认；输出接口未施加板级时序预算。
+- routed 最差 Data Path Delay 3.649ns。**3.3ns门槛在本轮指综合算术级；不声称所有布线后路径低于3.3ns。**
+- 流式测试与完整回归日志在 `reports/tb_fp32_acc_lane_v5.txt`、`reports/tb_deqacc32_v5_stream.txt`、`reports/v3_simulation_summary.txt`。
+- 复现：`run_v3_ooc.ps1 -Top dea8_deqacc32_v5`；之后用 Vivado batch 执行 `implement_deqacc_v5.tcl`，Tcl 参数传 v3 绝对路径。
+
+后续优先核对上层实际时钟/接口布局下的D0及RAM路径余量；当前无需为DEQACC继续改变Attention调度。
+
 这一目录是独立于 `PCore_2.0/rtl` 的 v3 数据面。2026-09-30 按当前 Attention 调度方案完成双行 MXU、Projection、Attention Matrix/55-block 测试，以及 U50 DEQACC OOC 综合。
 
 **当前状态（2026-09-30）：15 项 XSim PASS；Projection `[51,1024]×[1024,256]` 通过；Attention `QK=55、PV=55` 通过；DEQACC 独立 OOC 为 `WNS=+0.181ns`，Attention Matrix 顶层 OOC 为 `WNS=+0.291ns`，二者均 `TNS=0`。当前仍未做布局布线和上板。**

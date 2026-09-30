@@ -13,7 +13,7 @@ package pcore3_pkg;
   // The external completion point includes the synchronous accumulator RAM
   // D0..D8: abs/pack, synchronous read response, lane-local FP32 add,
     // split normalize/pack, and registered accumulator commit.
-  parameter int DEQACC_PIPE_STAGES=9;
+  parameter int DEQACC_PIPE_STAGES=10;
   parameter int MATRIX_PIPE_DRAIN=MXU_PIPE_STAGES+DEQACC_PIPE_STAGES;
   parameter int MATRIX_SWITCH_CYCLES=1;
   parameter int MATRIX_STEADY_BUDGET=ATTN_ISSUES+MATRIX_PIPE_DRAIN+MATRIX_SWITCH_CYCLES;
