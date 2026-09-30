@@ -7,7 +7,7 @@ module tb_fp32_acc_lane_v5;
   logic [5:0] valids=0;
   logic [31:0] rng=32'h12345678;
   int checked=0;
-  dea8_fp32_acc_lane_v5 dut(.*);
+  DEQACC_3_3ns_lane dut(.*);
   function automatic logic [31:0] next_rng(input logic [31:0] x);
     logic [31:0] a,b;
     a=x^(x<<13);b=a^(a>>17);return b^(b<<5);
@@ -44,6 +44,14 @@ module tb_fp32_acc_lane_v5;
     end
     in_valid=0;repeat(8) @(negedge clk);
     if(checked!=1000000) $fatal(1,"lane throughput count %0d",checked);
+    // Cancel a nonempty pipeline; payload is deliberately not reset.
+    in_valid=1;repeat(3)@(negedge clk);clear=1;
+    @(negedge clk);clear=0;in_valid=0;
+    repeat(8)@(negedge clk);
+    if(checked!=1000000) $fatal(1,"clear leaked cancelled transactions");
+    for(int i=0;i<16;i++)begin in_valid=1;partial_value=32'h3f800000;old_value=32'h3f800000;add_old=i[0];@(negedge clk);end
+    in_valid=0;repeat(8)@(negedge clk);
+    if(checked!=1000016) $fatal(1,"post-clear restart count");
     $display("tb_fp32_acc_lane_v5 PASS transactions=%0d latency=6 II=1",checked);$finish;
   end
 endmodule

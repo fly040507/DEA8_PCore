@@ -1,7 +1,8 @@
 rtl/pcore3_pkg.sv
 rtl/dea8_fp32_v3_pkg.sv
-rtl/dea8_fp32_acc_lane_v5.sv
-rtl/dea8_deqacc32_v5.sv
+rtl/DEQACC_3.3ns_lane.sv
+rtl/DEQACC_3.3ns.sv
+rtl/DEQACC_3.3ns_timing_shell.sv
 rtl/dea8_fp32_acc_lane_v4.sv
 rtl/dea8_deqacc32_v4.sv
 rtl/dea8_fp32_add_v2.sv

@@ -1,0 +1,73 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.
+----------------------------------------------------------------------------------------------------------------------------
+| Tool Version      : Vivado v.2022.2 (win64) Build 3671981 Fri Oct 14 05:00:03 MDT 2022
+| Date              : Wed Sep 30 18:07:57 2026
+| Host              : FLY running 64-bit major release  (build 9200)
+| Command           : report_timing -to [get_cells -quiet -hier -filter {NAME =~ *norm_q_reg*}] -max_paths 1 -return_string
+| Design            : DEQACC_3_3ns_timing_shell
+| Device            : xcu50-fsvh2104
+| Speed File        : -2  PRODUCTION 1.30 05-01-2022
+| Temperature Grade : E
+----------------------------------------------------------------------------------------------------------------------------
+
+Timing Report
+
+Slack (MET) :             2.857ns  (required time - arrival time)
+  Source:                 core/genblk1[0].lanes[0].lane/control_q_reg[shift][3]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/genblk1[0].lanes[0].lane/norm_q_reg[norm][sum_norm][19]/D
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        1.124ns  (logic 0.362ns (32.206%)  route 0.762ns (67.794%))
+  Logic Levels:           4  (LUT3=1 LUT5=2 LUT6=1)
+  Clock Path Skew:        -0.009ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.021ns = ( 4.021 - 4.000 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  clk (IN)
+                         net (fo=29010, unset)        0.030     0.030    core/genblk1[0].lanes[0].lane/clk
+                         FDRE                                         r  core/genblk1[0].lanes[0].lane/control_q_reg[shift][3]/C
+  -------------------------------------------------------------------    -------------------
+                         FDRE (Prop_FDRE_C_Q)         0.077     0.107 r  core/genblk1[0].lanes[0].lane/control_q_reg[shift][3]/Q
+                         net (fo=34, unplaced)        0.153     0.260    core/genblk1[0].lanes[0].lane/control_q_reg[shift][3]
+                         LUT5 (Prop_LUT5_I1_O)        0.139     0.399 r  core/genblk1[0].lanes[0].lane/norm_q[norm][sum_norm][25]_i_3/O
+                         net (fo=3, unplaced)         0.191     0.590    core/genblk1[0].lanes[0].lane/norm_q[norm][sum_norm][25]_i_3_n_0
+                         LUT6 (Prop_LUT6_I5_O)        0.038     0.628 r  core/genblk1[0].lanes[0].lane/norm_q[norm][sum_norm][21]_i_3/O
+                         net (fo=2, unplaced)         0.185     0.813    core/genblk1[0].lanes[0].lane/norm_q[norm][sum_norm][21]_i_3_n_0
+                         LUT3 (Prop_LUT3_I2_O)        0.070     0.883 r  core/genblk1[0].lanes[0].lane/norm_q[norm][sum_norm][19]_i_2/O
+                         net (fo=2, unplaced)         0.185     1.068    core/genblk1[0].lanes[0].lane/norm_q[norm][sum_norm][19]_i_2_n_0
+                         LUT5 (Prop_LUT5_I2_O)        0.038     1.106 r  core/genblk1[0].lanes[0].lane/norm_q[norm][sum_norm][19]_i_1/O
+                         net (fo=1, unplaced)         0.048     1.154    core/genblk1[0].lanes[0].lane/norm_d[norm][sum_norm][19]
+                         FDRE                                         r  core/genblk1[0].lanes[0].lane/norm_q_reg[norm][sum_norm][19]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r  
+                                                      0.000     4.000 r  clk (IN)
+                         net (fo=29010, unset)        0.021     4.021    core/genblk1[0].lanes[0].lane/clk
+                         FDRE                                         r  core/genblk1[0].lanes[0].lane/norm_q_reg[norm][sum_norm][19]/C
+                         clock pessimism              0.000     4.021    
+                         clock uncertainty           -0.035     3.986    
+                         FDRE (Setup_FDRE_C_D)        0.025     4.011    core/genblk1[0].lanes[0].lane/norm_q_reg[norm][sum_norm][19]
+  -------------------------------------------------------------------
+                         required time                          4.011    
+                         arrival time                          -1.154    
+  -------------------------------------------------------------------
+                         slack                                  2.857    
+
+
+
+
+

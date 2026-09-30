@@ -16,7 +16,7 @@ module tb_v3_deqacc32;
   function automatic logic [31:0] odd_one(input int lane,input int exponent);
     return pack_scaled32(0,(32+lane)<<26,exponent,0,0);
   endfunction
-  dea8_deqacc32_v5 dut(.clk,.reset,.clear,.rsp_valid,.rsp,.commit_valid,.done,.commit_meta,
+  DEQACC_3_3ns dut(.clk,.reset,.clear,.rsp_valid,.rsp,.commit_valid,.done,.commit_meta,
     .vpu_wr_valid(1'b0),.vpu_wr('0),.vpu_wr_ready(),.result_rd_ready(),
     .result_rd_owner(ACC_READ_DEQACC),.result_rd_valid(1'b0),.result_rd_sel(ACC_FACC_A),
     .result_rd_addr(10'b0),.result_rd_data_valid,.result_even_data,.result_odd_data,
@@ -122,7 +122,7 @@ module tb_v3_deqacc32;
     if(dbg_data!==even_one(1,-6)) $fatal(1,"FACC B lane1 mismatch %h",dbg_data);
     dbg_lane=15; #1;
     if(dbg_data!==even_one(15,-6)) $fatal(1,"FACC B lane15 mismatch %h",dbg_data);
-    $display("tb_v3_deqacc32 PASS commits=%0d latency=8 edge_delta=%0d FACC_A/FACC_B/OACC=1",
+    $display("tb_v3_deqacc32 PASS commits=%0d stages=11 edge_delta=%0d FACC_A/FACC_B/OACC=1",
       commits,first_commit_cycle-first_rsp_cycle);
     $finish;
   end

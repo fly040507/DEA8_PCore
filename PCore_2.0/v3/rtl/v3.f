@@ -1,5 +1,8 @@
 pcore3_pkg.sv
 dea8_fp32_v3_pkg.sv
+DEQACC_3.3ns_lane.sv
+DEQACC_3.3ns.sv
+dea8_local_a_store_v3.sv
 dea8_pe_2row_v3.sv
 dea8_mxu_2row_v3.sv
 dea8_afifo_v3.sv

@@ -6,13 +6,13 @@ module tb_deqacc32_v5_stream;
   mxu_rsp_t rsp;
   pair_meta_t commit_meta;
   logic [31:0] model[0:2][0:415][0:1][0:15];
-  logic [1:0][15:0][31:0] queue_data[0:9];
-  pair_meta_t queue_meta[0:9];
-  logic [1:0] queue_rows[0:9];
-  logic [9:0] valids=0;
+  logic [1:0][15:0][31:0] queue_data[0:10];
+  pair_meta_t queue_meta[0:10];
+  logic [1:0] queue_rows[0:10];
+  logic [10:0] valids=0;
   logic [31:0] rng=32'h37fa5901;
   int checked=0;
-  dea8_deqacc32_v5 dut(.clk,.reset,.clear,.rsp_valid,.rsp,.commit_valid,.done,.commit_meta,
+  DEQACC_3_3ns dut(.clk,.reset,.clear,.rsp_valid,.rsp,.commit_valid,.done,.commit_meta,
     .result_rd_owner(ACC_READ_RESULT),.result_rd_valid(1'b0),.result_rd_ready(),
     .result_rd_sel(ACC_OACC),.result_rd_addr('0),.result_rd_data_valid(),.result_even_data(),.result_odd_data(),
     .vpu_wr_valid(1'b0),.vpu_wr_ready(),.vpu_wr('0),
@@ -31,12 +31,12 @@ module tb_deqacc32_v5_stream;
     if(reset||clear) valids=0;
     else begin
       // Values presented to the actual RAM write port must match this token.
-      if(dut.context_q[8].valid) begin
-        for(int r=0;r<2;r++)for(int n=0;n<16;n++)if(queue_rows[8][r])
-          if(dut.lane_value[r][n]!==queue_data[8][r][n])
-            $fatal(1,"stream numeric mismatch transaction=%0d r=%0d lane=%0d got=%h want=%h",checked,r,n,dut.lane_value[r][n],queue_data[8][r][n]);
+      if(dut.context_q[9].valid) begin
+        for(int r=0;r<2;r++)for(int n=0;n<16;n++)if(queue_rows[9][r])
+          if(dut.lane_value[r][n]!==queue_data[9][r][n])
+            $fatal(1,"stream numeric mismatch transaction=%0d r=%0d lane=%0d got=%h want=%h",checked,r,n,dut.lane_value[r][n],queue_data[9][r][n]);
       end
-      for(int i=9;i>0;i--)begin
+      for(int i=10;i>0;i--)begin
         valids[i]=valids[i-1];queue_data[i]=queue_data[i-1];queue_meta[i]=queue_meta[i-1];queue_rows[i]=queue_rows[i-1];
       end
       valids[0]=rsp_valid;queue_meta[0]=rsp.meta;queue_rows[0]=rsp.row_valid;
@@ -51,9 +51,9 @@ module tb_deqacc32_v5_stream;
     end
     #1;
     if($test$plusargs("trace")&&$time<60) $display("t=%0t s0=%h exp=%0d s1=%h s2=%h lane=%h",$time,dut.s0[0][1].norm,$signed(dut.s0[0][1].exponent),dut.s1[0][1],dut.s2[0][1],dut.lane_value[0][1]);
-    if(commit_valid!==valids[9])$fatal(1,"stream fixed latency mismatch");
+    if(commit_valid!==valids[10])$fatal(1,"stream fixed latency mismatch");
     if(commit_valid)begin
-      if(commit_meta!==queue_meta[9]||done!==queue_meta[9].last)$fatal(1,"stream metadata mismatch");
+      if(commit_meta!==queue_meta[10]||done!==queue_meta[10].last)$fatal(1,"stream metadata mismatch");
       checked++;
     end
   end
@@ -76,6 +76,6 @@ module tb_deqacc32_v5_stream;
     end
     rsp_valid=0;repeat(12)@(negedge clk);
     if(checked!=5000)$fatal(1,"stream count %0d",checked);
-    $display("tb_deqacc32_v5_stream PASS transactions=%0d lanes=32 latency=10 II=1",checked);$finish;
+    $display("tb_deqacc32_v5_stream PASS transactions=%0d lanes=32 latency=11 II=1",checked);$finish;
   end
 endmodule

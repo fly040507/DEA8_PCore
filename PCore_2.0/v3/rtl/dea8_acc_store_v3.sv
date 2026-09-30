@@ -10,6 +10,8 @@ module dea8_acc_bank_v3 #(
   input logic [9:0] rd_addr,wr_addr,
   input logic [511:0] wr_data,
   output logic [511:0] rd_data,
+  output logic [511:0] rd_data_raw,
+  output logic rd_word_valid,
   input logic [9:0] dbg_addr,input logic [3:0] dbg_lane,
   output logic [31:0] dbg_data
 );
@@ -31,6 +33,8 @@ module dea8_acc_bank_v3 #(
     end
   end
   assign rd_data=initialized_q?data_q:'0;
+  assign rd_data_raw=data_q;
+  assign rd_word_valid=initialized_q;
   always_comb begin
     dbg_data=0;
     // synthesis translate_off
@@ -49,6 +53,8 @@ module dea8_acc_store_v3 #(
   input logic rd_valid,input acc_sel_e rd_sel,input logic [9:0] rd_addr,
   output logic rd_data_valid,
   output logic [15:0][31:0] rd_even_data,rd_odd_data,
+  output logic [15:0][31:0] rd_even_raw,rd_odd_raw,
+  output logic [1:0] rd_word_valid,
   input acc_read_owner_e result_rd_owner,
   input logic result_rd_valid,output logic result_rd_ready,
   input acc_sel_e result_rd_sel,input logic [9:0] result_rd_addr,
@@ -63,6 +69,8 @@ module dea8_acc_store_v3 #(
   output logic [31:0] dbg_data
 );
   logic [511:0] bank_data[0:2][0:1];
+  logic [511:0] bank_raw[0:2][0:1];
+  logic bank_word_valid[0:2][0:1];
   logic [31:0] bank_debug[0:2][0:1];
   acc_sel_e rd_sel_q,result_sel_q;
   assign result_rd_ready=!reset&&!clear&&result_rd_owner==ACC_READ_RESULT&&
@@ -84,6 +92,7 @@ module dea8_acc_store_v3 #(
       wire [511:0] wd=mw?(p==0?wr_even_data:wr_odd_data):vpu_wr.data[p];
       dea8_acc_bank_v3 #(.DEPTH(DEPTH),.STYLE(b==2?"block":"distributed")) ram(
         .clk,.reset,.clear,.rd_en(mr||vr),.rd_addr(ra),.rd_data(bank_data[b][p]),
+        .rd_data_raw(bank_raw[b][p]),.rd_word_valid(bank_word_valid[b][p]),
         .wr_en(we),.wr_addr(wa),.wr_data(wd),.dbg_addr,.dbg_lane,.dbg_data(bank_debug[b][p]));
     end
   end
@@ -98,6 +107,9 @@ module dea8_acc_store_v3 #(
   end
   assign rd_even_data=bank_data[rd_sel_q][0];
   assign rd_odd_data=bank_data[rd_sel_q][1];
+  assign rd_even_raw=bank_raw[rd_sel_q][0];
+  assign rd_odd_raw=bank_raw[rd_sel_q][1];
+  assign rd_word_valid={bank_word_valid[rd_sel_q][1],bank_word_valid[rd_sel_q][0]};
   assign result_even_data=bank_data[result_sel_q][0];
   assign result_odd_data=bank_data[result_sel_q][1];
   assign dbg_data=(dbg_valid&&dbg_sel<=ACC_OACC)?bank_debug[dbg_sel][dbg_parity]:32'b0;
