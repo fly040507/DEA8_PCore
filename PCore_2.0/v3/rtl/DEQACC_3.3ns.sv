@@ -47,15 +47,6 @@ module DEQACC_3_3ns(
   logic [15:0][31:0] rd_even,rd_odd,wr_even,wr_odd;
   logic lane_valid[0:1][0:15];
   logic [31:0] lane_value[0:1][0:15];
-  function automatic normalized_t normalize(input logic signed [31:0] value,
-    input logic [7:0] a,b,input logic signed [EXP_FOLD_BITS-1:0] fold);
-    normalized_t t;logic [31:0] mag;logic [4:0] lead;
-    mag=value[31]?(~value+32'd1):value;lead=lead32(mag);
-    t.sign_bit=value[31];t.is_zero=mag==0;t.bad=(&a)||(&b);
-    t.norm=mag<<(5'd31-lead);
-    t.exponent=$signed({3'b0,a})+$signed({3'b0,b})-11'sd266+
-      $signed(fold)+$signed({6'b0,lead});return t;
-  endfunction
   function automatic magnitude_t magnitude(input logic signed [31:0] value,
     input logic [7:0] a,b,input logic signed [EXP_FOLD_BITS-1:0] fold);
     magnitude_t t;

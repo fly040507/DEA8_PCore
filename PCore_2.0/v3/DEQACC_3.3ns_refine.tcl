@@ -30,3 +30,5 @@ foreach {stage pattern} {
 }
 close $csv
 write_checkpoint -force [file join $report final_250MHz.dcp]
+report_utilization -hierarchical -file [file join $report final_utilization.rpt]
+report_drc -file [file join $report final_drc.rpt]

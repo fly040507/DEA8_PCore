@@ -4,6 +4,8 @@
 
 2026-09-30：Matrix 已接入 `rtl/DEQACC_3.3ns.sv`，模块标识符为 `DEQACC_3_3ns`。本轮完成 DEQACC 物理结构优化，17 项 XSim 回归通过，registered timing shell 的 post-route 250 MHz 时序通过。旧版源码与 `reports/ooc_*v4/`、`reports/ooc_*v5/` 是历史证据，不代表当前实现。
 
+**当前 baseline 固定为 `DEQACC_3_3ns`**：11级、II=1，使用 `reports/DEQACC_3.3ns/final_250MHz.dcp` 作为最终 refined 物理实现证据。本阶段 DEQACC 优化到此结束，后续集成沿用此接口和数值/延迟契约。
+
 ### 改动与固定契约
 
 - 11 级 D0..D10，输入采样到 commit 的 edge delta=10；32 lanes，每拍一个 row-pair，II=1。
@@ -45,7 +47,16 @@ Vivado 2022.2，`xcu50-fsvh2104-2-e`。输入和输出在 `DEQACC_3.3ns_timing_s
 
 来源：`refined_stages.csv` 与对应 `refined_*.rpt`。路径按目的寄存器组统计，SRL 推断可能让部分路径跨逻辑字段边界；ACC storage 组包含读写控制，不等同于单独 D10 算术级。主要路径均≤3.3ns，多数≤3ns；尚不宣称全部≤3ns。
 
-首次 route 的 core 层资源：33532 LUT、20552 FF、1184 LUTRAM、1523 SRL、14 RAMB36+2 RAMB18；包含 shell 的总资源为33812 LUT、23872 FF。来源 `routed_utilization.rpt`，属于 refinement 前资源统计，不混称最终物理优化资源。
+最终 refined checkpoint 资源（2026-09-30 18:42 重新打开 `final_250MHz.dcp` 执行 `report_utilization -hierarchical`）：
+
+| 范围 | Total LUT | Logic LUT | LUTRAM | SRL | FF | RAMB36 | RAMB18 | DSP |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| DEQACC core | **33534** | 30827 | 1184 | 1523 | **20552** | 14 | 2 | 0 |
+| 含 registered timing shell | **33814** | 31107 | 1184 | 1523 | **23872** | 14 | 2 | 0 |
+
+来源：`reports/DEQACC_3.3ns/final_utilization.rpt`。以上替代首次 route 的资源数字；层次 LUT 统计直接采用 Vivado 报告，不手动相加。
+
+同一 checkpoint 重新执行 `report_drc`：**0 Error、0 Critical Warning、1项 Warning**。唯一检查项为 `RTSTAT-10: No routable loads`，涉及 OOC shell 的1062条输出无可路由外部负载（包括 commit/result）；未豁免或隐藏。详见 `reports/DEQACC_3.3ns/final_drc.rpt`，这不是完整板级DRC签核。
 
 **适用范围**：这是带真实 launch/capture FF 的独立模块 OOC 物理时序验证，不是整机上板验证。OOC 外部端口未绑定板级 pin，时钟源位置未指定；完整 PCore 的时钟树、外部接口及集成拥塞仍需重新实现验证。没有 false-path/multicycle 豁免内部算术路径，也没有降低目标频率。
 
@@ -58,9 +69,13 @@ powershell -ExecutionPolicy Bypass -File .\run_v3_xsim.ps1
 
 `run_DEQACC_3.3ns.ps1` 串联 `DEQACC_3.3ns.tcl` 和 `DEQACC_3.3ns_refine.tcl`，新运行保存并核对源码哈希。本次实际执行为直接调用这两个 Tcl；最终 checkpoint 为 `reports/DEQACC_3.3ns/final_250MHz.dcp`。
 
+仅重出最终checkpoint的资源/DRC，不重新实现：用Vivado batch运行 `report_DEQACC_3.3ns_final.tcl`，Tcl参数为本目录绝对路径。refine脚本也已加入最终资源与DRC报告，后续重跑保持相同输出。
+
 ## 数值与协议验证
 
 `reports/v3_simulation_summary.txt`：17项通过；源码对应 `reports/v3_sources_sha256.csv`。
+
+收尾仅删除 `DEQACC_3.3ns.sv` 中无调用的 `normalize()`，不改变有效数据通路或级数。删除后全源编译/elaboration和32-lane 5000组连续流再次通过：`reports/DEQACC_3.3ns/baseline_cleanup_xsim.log`。此前17项回归哈希保留，不覆盖为本次新哈希；最终checkpoint仍为删除未使用函数前生成的既有refined网表，本次只重新读取出报告，未重新综合或布线。
 
 - lane frozen reference：1000000笔连续事务，加 clear 中断及16笔重启；共1000016笔输出检查通过。
 - 32-lane：5000组连续 pair，轮换 FACC-A/FACC-B/OACC、地址、scale、符号、add_old、row mask；固定11级及metadata检查通过。
