@@ -16,6 +16,7 @@ rtl/dea8_b_loader_v3.sv
 rtl/dea8_matrix_v3.sv
 rtl/dea8_projection_v3.sv
 rtl/dea8_attention_scheduler_v3.sv
+rtl/dea8_attention_scheduler_v4.sv
 rtl/dea8_local_a_store_v3.sv
 rtl/dea8_attention_matrix_v3.sv
 rtl/dea8_pair_store_v3.sv

@@ -31,6 +31,7 @@ module dea8_matrix_v3 #(parameter bit LOCAL_A=0) (
   input logic job_add_old,
   output logic job_ready,job_busy,
   output logic commit_valid,done,
+  output logic matrix_issue_done,
   output pair_meta_t commit_meta,
   input acc_read_owner_e result_rd_owner,
   input logic result_rd_valid,
@@ -127,7 +128,7 @@ module dea8_matrix_v3 #(parameter bit LOCAL_A=0) (
   logic [TILE_BITS-1:0] current_a_stream,current_b_stream;
   logic [TILE_BITS-1:0] next_a_stream,next_b_stream;
   logic req_valid,req_bank; pair_meta_t req_meta;
-  assign job_ready=!job_busy_q;
+  assign job_ready=!job_busy_q||done;
   assign job_busy=job_busy_q;
   assign job_accept=job_start&&job_ready&&(job_tiles!=0);
   assign current_a_ext={1'b0,base_a_tile_q}+tile_seq_q;
@@ -149,15 +150,19 @@ module dea8_matrix_v3 #(parameter bit LOCAL_A=0) (
   assign req_bank=current_b_stream[0];
   logic a_tile_match;
   assign a_tile_match=a_head.tile_idx==current_a_stream;
-  assign a_reserve=job_busy_q&&(
+  assign a_reserve=(job_accept&&!a_running&&a_tile_available&&
+      a_head.tile_idx==job_a_stream_idx&&bank_ready[job_b_stream_idx[0]]&&
+      bank_tile[job_b_stream_idx[0]]==job_b_stream_idx)||
+    (job_busy_q&&!done&&(
      (!tile_started_q&&!a_running&&tile_seq_q<tiles_q&&a_tile_available&&
       a_tile_match&&bank_ready[req_bank]&&bank_tile[req_bank]==current_b_stream) ||
     (a_running&&a_out_valid&&a_head.pair_idx==pairs_q-1&&
       tile_seq_q+1'b1<tiles_q&&a_tile_available&&
       a_head.tile_idx==current_a_stream&&
-      bank_ready[next_b_stream[0]]&&bank_tile[next_b_stream[0]]==next_b_stream));
+      bank_ready[next_b_stream[0]]&&bank_tile[next_b_stream[0]]==next_b_stream)));
   assign req_valid=job_busy_q&&a_running&&a_out_valid&&a_tile_match;
   assign tile_issue_last=req_valid&&(a_head.pair_idx==pairs_q-1);
+  assign matrix_issue_done=req_valid&&req_meta.last;
   always_comb begin
     req_meta='0;req_meta.epoch=epoch_q;req_meta.head=head_q;req_meta.tile_idx=current_b;
     req_meta.pair_idx=a_head.pair_idx;
@@ -170,7 +175,8 @@ module dea8_matrix_v3 #(parameter bit LOCAL_A=0) (
   end
   always_ff @(posedge clk) begin
     if(reset||clear) begin
-      job_busy_q<=0;base_a_tile_q<=0;base_b_tile_q<=0;base_a_stream_q<=0;base_b_stream_q<=0;
+      job_busy_q<=0;
+      base_a_tile_q<=0;base_b_tile_q<=0;base_a_stream_q<=0;base_b_stream_q<=0;
       tiles_q<=0;tile_seq_q<=0;tile_started_q<=0;epoch_q<=0;head_q<=0;b_source_q<=B_HBM;
       rows_q<=ROWS;pairs_q<=PAIRS;
       final_k_q<=0;nt_q<=0;nt_per_tile_q<=0;clear_each_tile_q<=0;
@@ -185,7 +191,7 @@ module dea8_matrix_v3 #(parameter bit LOCAL_A=0) (
         base_a_stream_q<=job_a_stream_idx;
         base_b_stream_q<=job_b_stream_idx;
         b_source_q<=b_source;
-        tiles_q<=job_tiles;tile_seq_q<=0;tile_started_q<=0;
+        tiles_q<=job_tiles;tile_seq_q<=0;tile_started_q<=a_reserve;
         rows_q<=(job_m_rows==0)?ROWS:job_m_rows;
         pairs_q<=(((job_m_rows==0)?ROWS:job_m_rows) + 1'b1)>>1;
         epoch_q<=job_epoch;head_q<=job_head;nt_q<=job_nt;final_k_q<=job_final_k;exp_fold_q<=job_exp_fold;
@@ -201,7 +207,7 @@ module dea8_matrix_v3 #(parameter bit LOCAL_A=0) (
       end else if(a_reserve) begin
         tile_started_q<=1;
       end
-      if(done) job_busy_q<=0;
+      if(done&&!job_accept) job_busy_q<=0;
     end
   end
 

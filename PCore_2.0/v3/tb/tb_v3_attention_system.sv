@@ -24,9 +24,8 @@ module tb_v3_attention_system;
   logic hbm_valid,hbm_ready; b2_t hbm_entry;
   logic kv_valid,kv_ready; b2_t kv_entry;
   logic a_error,b_error; int matrix_accepts,matrix_done_count;
-  logic [TILE_BITS-1:0] a_stream_next,b_stream_next;
 
-  dea8_attention_scheduler_v3 #(.BLOCKS(BLOCKS)) scheduler(
+  dea8_attention_scheduler_v4 #(.BLOCKS(BLOCKS)) scheduler(
     .clk,.reset,.clear,.start_valid,.start_ready,.busy,.start_head,.start_epoch,
     .done_valid,.done_ready,.matrix_valid,.matrix_ready,.matrix_cmd,
     .matrix_done_valid,.matrix_done_ready,.matrix_done,
@@ -77,12 +76,10 @@ module tb_v3_attention_system;
     @(negedge clk);hbm_valid=0;
   endtask
 
-  task automatic produce_matrix_job(input matrix_cmd_t c,input int a_base,input int b_base);
-    fork
-      begin
-        for(int t=0;t<ATTN_K_TILES;t++)for(int g=0;g<8;g++)send_b(b_base+t,g);
-      end
-    join
+  task automatic produce_matrix_job(input int b_base);
+    for(int t=0;t<ATTN_K_TILES;t++)
+      for(int g=0;g<TILE/2;g++)
+        send_b(b_base+t,g);
   endtask
 
   // Immediate one-cycle VPU/SFU models, with context returned unchanged.
@@ -99,18 +96,13 @@ module tb_v3_attention_system;
   always @(posedge clk) begin
     if(!reset&&!clear&&matrix_valid&&matrix_ready) begin
       matrix_accepts++;
-      fork
-        produce_matrix_job(matrix_cmd,a_stream_next,b_stream_next);
-      join_none
-      a_stream_next<=a_stream_next+ATTN_K_TILES;
-      b_stream_next<=b_stream_next+ATTN_K_TILES;
     end
     if(!reset&&!clear&&matrix_done_valid&&matrix_done_ready) matrix_done_count++;
   end
 
   initial begin
     start_valid=0;replay_load_valid=0;hbm_valid=0;kv_valid=0;
-    matrix_accepts=0;matrix_done_count=0;a_stream_next=0;b_stream_next=0;
+    matrix_accepts=0;matrix_done_count=0;
     repeat(20)@(negedge clk);reset=0;
     for(int t=0;t<ATTN_K_TILES;t++) for(int p=0;p<PAIRS;p++) send_a(t,p);
     // Fill both PBUF banks before the scheduler starts.  The matrix adapter
@@ -125,6 +117,17 @@ module tb_v3_attention_system;
     if(a_error||b_error) $fatal(1,"scheduler/matrix protocol error a=%0d b=%0d",a_error,b_error);
     $display("tb_v3_attention_system PASS scheduler_matrix_blocks=%0d QK=2 PV=2 PBUF=2",matrix_done_count);
     $finish;
+  end
+  // The lookahead scheduler may accept the next descriptor while the current
+  // Matrix job is active.  Keep one ordered producer so BFIFO never sees
+  // interleaved transport streams: QK0, QK1, PV0, PV1.
+  initial begin : hbm_prefetch
+    wait(!reset);
+    @(negedge clk);
+    produce_matrix_job(0);
+    produce_matrix_job(ATTN_K_TILES);
+    produce_matrix_job(2*ATTN_K_TILES);
+    produce_matrix_job(3*ATTN_K_TILES);
   end
   initial begin #250000;$fatal(1,"attention system watchdog");end
 endmodule

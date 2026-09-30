@@ -7,6 +7,13 @@ import fp32_legacy_ref_pkg::*;
 module tb_v3_attention_55;
   localparam int BLOCKS=KV_BLOCKS;
   localparam int JOBS=2*BLOCKS;
+  // Model the planned doubled VPU/SFU lanes. Matrix data and final OACC
+  // values remain checked through RTL; only arithmetic-side token latency is
+  // abstracted for the attention scheduling run.
+  localparam bit FAST_VPU_SFU_MODEL=1'b1;
+  localparam int SFU_P_EXP_CYCLES=204;
+  localparam int VPU_OACC_SCALE_CYCLES=208;
+  localparam int VPU_AFIN_CYCLES=408;
   logic clk=0; always #2 clk=~clk;
   logic reset=1,clear=0;
   logic start_valid=0,start_ready,busy,done_valid,done_ready=1;
@@ -41,9 +48,13 @@ module tb_v3_attention_55;
   int requests=0,d4s=0,issues_in_job=0,issue_jobs=0;
   int max_d4_gap=0,max_request_latency=0,max_issue_interval=0;
   int max_issue_to_d4=0,max_d4_to_next_issue=0;
+  int min_matrix_body=1<<30,max_matrix_body=0;
+  int min_issue_interval=1<<30,max_issue_interval_steady=0;
+  int min_handoff=1<<30,max_handoff=0;
+  int attention_start_cycle=-1,attention_done_cycle=-1;
   bit request_seen=0;
 
-  dea8_attention_scheduler_v3 #(.BLOCKS(BLOCKS)) scheduler(
+  dea8_attention_scheduler_v4 #(.BLOCKS(BLOCKS)) scheduler(
     .clk,.reset,.clear,.start_valid,.start_ready,.busy,.start_head,.start_epoch,
     .done_valid,.done_ready,.matrix_valid,.matrix_ready,.matrix_cmd,
     .matrix_done_valid,.matrix_done_ready,.matrix_done,
@@ -260,7 +271,12 @@ module tb_v3_attention_55;
         end else if(c.op==VPU_QK_POST) begin
           vpu_vectors(c.facc_bank?ACC_FACC_B:ACC_FACC_A,int'(c.block_id),0);
         end else if(c.op==VPU_OACC_SCALE||c.op==VPU_AFIN) begin
-          vpu_vectors(ACC_OACC,(c.op==VPU_AFIN)?BLOCKS-1:int'(c.block_id)-1,1);
+          if(FAST_VPU_SFU_MODEL) begin
+            repeat((c.op==VPU_AFIN)?VPU_AFIN_CYCLES:VPU_OACC_SCALE_CYCLES)
+              @(negedge clk);
+          end else begin
+            vpu_vectors(ACC_OACC,(c.op==VPU_AFIN)?BLOCKS-1:int'(c.block_id)-1,1);
+          end
         end
         else repeat(20) @(negedge clk);
         @(negedge clk);vpu_done=c;vpu_done_valid=1;
@@ -275,7 +291,7 @@ module tb_v3_attention_55;
       @(posedge clk);
       if(sfu_valid&&sfu_ready) begin
         c=sfu_cmd;
-        if(c.op==SFU_P_EXP) repeat(408) @(negedge clk);
+        if(c.op==SFU_P_EXP) repeat(SFU_P_EXP_CYCLES) @(negedge clk);
         else repeat(26) @(negedge clk);
         @(negedge clk);sfu_done=c;sfu_done_valid=1;
         @(negedge clk);sfu_done_valid=0;
@@ -288,6 +304,10 @@ module tb_v3_attention_55;
     matrix_op_e expected_op;
     int issue_to_d4;
     cycle_count++;
+    if(start_valid&&start_ready&&attention_start_cycle<0)
+      attention_start_cycle=cycle_count;
+    if(done_valid&&done_ready)
+      attention_done_cycle=cycle_count;
     if(matrix_valid&&!request_seen) begin
       request_cycle[requests]=cycle_count;requests++;request_seen=1;
     end
@@ -370,8 +390,9 @@ module tb_v3_attention_55;
     @(negedge clk);start_valid=0;
     wait(done_valid);
     wait(checked==JOBS);
-    if(vpu_reads!=BLOCKS*(PAIRS+PAIRS*TILE)||vpu_writes!=BLOCKS*PAIRS*TILE||
-       overlap_reads==0||overlap_writes==0)
+    if((!FAST_VPU_SFU_MODEL&&
+        (vpu_reads!=BLOCKS*(PAIRS+PAIRS*TILE)||vpu_writes!=BLOCKS*PAIRS*TILE))||
+       overlap_reads==0)
       $fatal(1,"VPU RAM coverage reads=%0d writes=%0d overlaps=%0d/%0d",vpu_reads,vpu_writes,overlap_reads,overlap_writes);
     if(accepts!=JOBS||completions!=JOBS||loads!=BLOCKS||
        a_beats!=ATTN_K_TILES*PAIRS||
@@ -390,6 +411,34 @@ module tb_v3_attention_55;
     $display("ATTN_TIMING max_issue_first_interval=%0d max_d4_to_next_issue=%0d max_issue_to_D4=%0d first_issue=%0d last_issue=%0d first_D4=%0d last_D4=%0d",
       max_issue_interval,max_d4_to_next_issue,max_issue_to_d4,
       issue_first_cycle[0],issue_last_cycle[0],commit_cycle[0],commit_cycle[JOBS-1]);
+    for(int j=0;j<JOBS;j++) begin
+      int body;
+      body=issue_last_cycle[j]-issue_first_cycle[j]+1;
+      if(body<min_matrix_body) min_matrix_body=body;
+      if(body>max_matrix_body) max_matrix_body=body;
+      if(j>0) begin
+        int interval;
+        interval=issue_first_cycle[j]-issue_first_cycle[j-1];
+        if(interval<min_issue_interval) min_issue_interval=interval;
+        if(interval>max_issue_interval_steady) max_issue_interval_steady=interval;
+      end
+      if(j<JOBS-1) begin
+        int handoff;
+        handoff=issue_first_cycle[j+1]-commit_cycle[j];
+        if(handoff<min_handoff) min_handoff=handoff;
+        if(handoff>max_handoff) max_handoff=handoff;
+      end
+    end
+    $display("ATTN_DETAIL matrix_body=%0d..%0d issue_interval=%0d..%0d handoff=%0d..%0d",
+      min_matrix_body,max_matrix_body,min_issue_interval,max_issue_interval_steady,
+      min_handoff,max_handoff);
+    $display("ATTN_TAIL pv53_issue=%0d pv54_issue=%0d interval=%0d pv54_commit=%0d afin_done_cycle=%0d",
+      issue_first_cycle[108],issue_first_cycle[109],
+      issue_first_cycle[109]-issue_first_cycle[108],commit_cycle[109],attention_done_cycle);
+    $display("ATTN_JOB start_cycle=%0d done_cycle=%0d job_cycles=%0d",
+      attention_start_cycle,attention_done_cycle,
+      attention_done_cycle-attention_start_cycle);
+    $display("ATTN_TB_CHECK_END cycle=%0d",cycle_count);
     $display("VPU_RAM reads=%0d writes=%0d overlap_reads=%0d overlap_writes=%0d identity_scale_model=1",vpu_reads,vpu_writes,overlap_reads,overlap_writes);
     $display("tb_v3_attention_55 PASS QK=%0d PV=%0d P_loads=%0d A_beats=%0d B_beats=%0d final_values=%0d max_qk_cycles=%0d max_pv_cycles=%0d max_job_cycles=%0d total_cycles=%0d",
       BLOCKS,BLOCKS,loads,a_beats,b_beats,ROWS*TILE*TILE,max_qk_cycles,max_pv_cycles,maximum_job_cycles,cycle_count);

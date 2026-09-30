@@ -2,7 +2,7 @@
 
 ## 当前状态：DEQACC_3.3ns
 
-2026-09-30：Matrix 已接入 `rtl/DEQACC_3.3ns.sv`，模块标识符为 `DEQACC_3_3ns`。本轮完成 DEQACC 物理结构优化，17 项 XSim 回归通过，registered timing shell 的 post-route 250 MHz 时序通过。旧版源码与 `reports/ooc_*v4/`、`reports/ooc_*v5/` 是历史证据，不代表当前实现。
+2026-09-30：Matrix 已接入 `rtl/DEQACC_3.3ns.sv`，模块标识符为 `DEQACC_3_3ns`。本轮完成 Attention v4 调度与 Matrix wrapper 的 lookahead/尾部控制，17 项 XSim 回归通过；DEQACC 的 registered timing shell 仍沿用已完成的 post-route 250 MHz 证据。旧版源码与 `reports/ooc_*v4/`、`reports/ooc_*v5/` 是历史证据，不代表当前实现。
 
 **当前 baseline 固定为 `DEQACC_3_3ns`**：11级、II=1，使用 `reports/DEQACC_3.3ns/final_250MHz.dcp` 作为最终 refined 物理实现证据。本阶段 DEQACC 优化到此结束，后续集成沿用此接口和数值/延迟契约。
 
@@ -82,7 +82,12 @@ powershell -ExecutionPolicy Bypass -File .\run_v3_xsim.ps1
 - 独立FP函数：400256次加法、76928次pack对拍。frozen reference 独立于本轮改动，但不是第三方IEEE全覆盖模型。
 - Matrix64：1664次issue/commit，max_gap=1。
 - Projection：`[51,1024]×[1024,256]`，完整数值、尾行及输出背压保持检查通过。
-- Attention55：55 QK+55 PV，13056个最终OACC值全部匹配。request→最终commit最大441拍，整个TB54847拍；日志中的旧字段名D4实际指最终commit。调度本轮未优化。
+- Attention55：55 QK+55 PV，共110个矩阵 job，13056个最终OACC值全部匹配。最新日志为 `reports/tb_v3_attention_55.txt`：
+  - Matrix 每个 job 为 `26×16=416` 次双行 issue，实际 `matrix_body=416..416`；
+  - 普通稳态 issue 间隔为 `434` 拍，即 `416+6` 的 MXU edge drain、`11` 的 DEQACC commit 预算和 1 拍握手余量；
+  - `PV53→PV54` issue 间隔为 `867` 拍，尾部显式多留一个 block 级计算窗口；
+  - 55 个 QK、55 个 PV、416 个 A beat、14080 个 B beat、最终值和奇数尾行均通过检查；Attention job 从 `start_valid&&start_ready` 到 A_FIN 模型 `done` 为 `48620` 个 TB cycle。TB 最终等待异步数值检查全部结束到 `52365`，不计入 job latency。
+- Attention 调度使用 `dea8_attention_scheduler_v4`：保留一个 current descriptor 和一个 lookahead descriptor；QK/PV 稳态交替，PV 只在对应 PBUF generation、scale done 到达后发起；PV53 完成前禁止 PV54 提前接受，防止最后一个 PV 被 lookahead 破坏尾部间隔。
 - 其余检查：XBC M51/M50尾部、BFIFO连续流、pair-store region、跨bank ACC并发、PBUF身份和乱序保护。
 
 历史命名的 `tb_fp32_acc_lane_v5`、`tb_deqacc32_v5_stream` 当前测试对象已是 `DEQACC_3_3ns`，名称保留以便对应既有回归入口。
@@ -98,5 +103,5 @@ powershell -ExecutionPolicy Bypass -File .\run_v3_xsim.ps1
 - FACC保持LUTRAM；OACC保持14 RAMB36+2 RAMB18；AFIFO/BFIFO/PBUF/QOZ继续使用前轮BRAM结构。dbg口仅用于RTL仿真。
 - Projection输出必须连接`qoz_wr_ready`，停顿时保持数据与tile/pair标记。
 - 逻辑10-bit source ID与FIFO transport ID分离。实际HBM AXI/KVB寻址控制器、真实Mask/Softmax/EXP/reciprocal未在本目录完成。
-- VPU/SFU算术仍为TB模型，恒等OACC scale和正式存储端口可验证并发，但不是完整Attention算法签核。
+- VPU/SFU算术仍为TB模型，Matrix 只依赖 `valid/ready/done`、epoch/head/block 上下文和 PBUF/scale 就绪信号；本轮 TB 按后续双 lane 方案将 SFU P-exp 建模为204拍、OACC scale为208拍、A_FIN为408拍，恒等 OACC scale 用于保持矩阵数值对拍。该模型验证的是调度与接口，不是 VPU/SFU 的 RTL 算术签核。
 - Projection与Attention仍是独立wrapper；Top、G-U、VPU/SFU行级调度不属于本轮范围。

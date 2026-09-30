@@ -14,9 +14,11 @@ package pcore3_pkg;
   // DEQACC_3.3ns D0..D10: split abs/lead and normalize/exponent,
   // partial pack, synchronous ACC response, lane arithmetic and commit.
   parameter int DEQACC_PIPE_STAGES=11;
-  parameter int MATRIX_PIPE_DRAIN=MXU_PIPE_STAGES+DEQACC_PIPE_STAGES;
-  parameter int MATRIX_SWITCH_CYCLES=1;
-  parameter int MATRIX_STEADY_BUDGET=ATTN_ISSUES+MATRIX_PIPE_DRAIN+MATRIX_SWITCH_CYCLES;
+  parameter int MXU_TAIL_EDGES=MXU_PIPE_STAGES-1;
+  parameter int DEQACC_COMMIT_CYCLES=DEQACC_PIPE_STAGES;
+  parameter int ATTN_NOMINAL_SLOT=ATTN_ISSUES+MXU_TAIL_EDGES+DEQACC_COMMIT_CYCLES;
+  // Compatibility alias; steady throughput is measured between first issues.
+  parameter int MATRIX_STEADY_BUDGET=ATTN_NOMINAL_SLOT;
   parameter int MATRIX_COLD_BUDGET=MATRIX_STEADY_BUDGET+16;
   parameter int DOT_EXP_OFFSET=266, EXP_FOLD_BITS=6;
   parameter int XBC_GROUPS=(ROWS+3)/4;
