@@ -4,6 +4,7 @@ package pcore3_pkg;
   parameter int INT_BITS=8, SCALE_BITS=8, PSUM_BITS=32, FP_BITS=32;
   parameter int DATA_BITS=TILE*INT_BITS;
   parameter int TILE_BITS=6, PAIR_BITS=5, EPOCH_BITS=4;
+  parameter int MATRIX_TILE_COUNT_BITS=8;
   parameter int LOGICAL_ID_BITS=10;
   parameter int AFIFO_DEPTH=64, BFIFO_DEPTH=64;
   parameter int KV_BLOCKS=55;
@@ -85,6 +86,10 @@ package pcore3_pkg;
     acc_sel_e acc_sel;
     // 0: replace the selected accumulator, 1: add the old accumulator.
     logic add_old;
+    // G-U context is carried with the commit, so a same-edge next-job launch
+    // cannot relabel the previous Gate/Up result with live wrapper state.
+    matrix_mode_e mode;
+    logic [5:0] gu_n;
   } pair_meta_t;
 
   typedef struct packed {

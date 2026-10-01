@@ -4,7 +4,7 @@ import pcore3_pkg::*;
 // advances one A Tile per configured row-pair count.  The AFIFO supports rollover
 // reservation on the last pair, while the B loader releases a stationary bank
 // one cycle after the final S1 multiply has consumed it.
-module dea8_matrix_v3 #(parameter bit LOCAL_A=0) (
+module dea8_matrix_v3 #(parameter bit LOCAL_A=0, parameter bit A_STREAMING=LOCAL_A) (
   input logic clk,reset,clear,
   input logic xbc_valid, output logic xbc_ready, input xbc4_t xbc_entry,
   input logic local_a_valid,output logic local_a_ready,input a2_t local_a_entry,
@@ -18,7 +18,7 @@ module dea8_matrix_v3 #(parameter bit LOCAL_A=0) (
   // are used only for ingress ordering and stationary-bank ownership.
   input logic [TILE_BITS-1:0] job_a_stream_idx,
   input logic [TILE_BITS-1:0] job_b_stream_idx,
-  input logic [TILE_BITS:0] job_tiles,
+  input logic [MATRIX_TILE_COUNT_BITS-1:0] job_tiles,
   input logic [PAIR_BITS:0] job_m_rows,
   input logic [EPOCH_BITS-1:0] job_epoch,
   input logic [2:0] job_head,
@@ -27,12 +27,18 @@ module dea8_matrix_v3 #(parameter bit LOCAL_A=0) (
   input logic job_clear_each_tile,
   input logic job_final_k,
   input logic signed [EXP_FOLD_BITS-1:0] job_exp_fold,
+  input matrix_mode_e job_mode,
+  input logic [5:0] job_gu_n,
+  input logic gu_slot_ready,
   input acc_sel_e job_acc_sel,
   input logic job_add_old,
   output logic job_ready,job_busy,
   output logic commit_valid,done,
   output logic matrix_issue_done,
+  output logic gu_slot_reserve,
   output pair_meta_t commit_meta,
+  output logic commit_write_valid,
+  output acc_write_t commit_write,
   input acc_read_owner_e result_rd_owner,
   input logic result_rd_valid,
   output logic result_rd_ready,
@@ -63,7 +69,7 @@ module dea8_matrix_v3 #(parameter bit LOCAL_A=0) (
     assign a2_entry[1]='0;
     assign local_a_ready=a2_ready[0];
   end
-  dea8_afifo_v3 #(.STREAMING(LOCAL_A)) a_fifo(
+  dea8_afifo_v3 #(.STREAMING(A_STREAMING)) a_fifo(
     .clk,.reset,.clear,.pairs_cfg(pairs_q),.rows_cfg(rows_q),
     .in_valid(a2_valid),.in_ready(a2_ready),.in_entry(a2_entry),
     .reserve_tile(a_reserve),.tile_available(a_tile_available),.running(a_running),
@@ -113,7 +119,8 @@ module dea8_matrix_v3 #(parameter bit LOCAL_A=0) (
   logic job_busy_q;
   logic [TILE_BITS-1:0] base_a_tile_q,base_b_tile_q;
   logic [TILE_BITS-1:0] base_a_stream_q,base_b_stream_q;
-  logic [TILE_BITS:0] tiles_q,tile_seq_q;
+  logic [MATRIX_TILE_COUNT_BITS-1:0] tiles_q,tile_seq_q;
+  matrix_mode_e job_mode_q; logic [5:0] job_gu_n_q;
   logic tile_started_q;
   logic [EPOCH_BITS-1:0] epoch_q; logic [2:0] head_q;
   logic final_k_q; logic [3:0] nt_q;
@@ -155,11 +162,20 @@ module dea8_matrix_v3 #(parameter bit LOCAL_A=0) (
       bank_tile[job_b_stream_idx[0]]==job_b_stream_idx)||
     (job_busy_q&&!done&&(
      (!tile_started_q&&!a_running&&tile_seq_q<tiles_q&&a_tile_available&&
-      a_tile_match&&bank_ready[req_bank]&&bank_tile[req_bank]==current_b_stream) ||
+      a_tile_match&&bank_ready[req_bank]&&bank_tile[req_bank]==current_b_stream&&
+      (job_mode_q!=MAT_GU||tile_seq_q!=tiles_q-2||gu_slot_ready)) ||
     (a_running&&a_out_valid&&a_head.pair_idx==pairs_q-1&&
       tile_seq_q+1'b1<tiles_q&&a_tile_available&&
       a_head.tile_idx==current_a_stream&&
+      ((job_mode_q!=MAT_GU)||(tile_seq_q+1'b1!=tiles_q-2)||gu_slot_ready)&&
       bank_ready[next_b_stream[0]]&&bank_tile[next_b_stream[0]]==next_b_stream)));
+  // Reserve the single GU result slot before the first final-K tile (G63)
+  // enters the AFIFO.  The matrix has no response backpressure after issue.
+  // Cover both the same-edge U62 rollover and a delayed G63 reservation
+  // after B loading/slot wait.  No final result can issue before this edge.
+  assign gu_slot_reserve=job_busy_q&&job_mode_q==MAT_GU&&a_reserve&&
+    ((!a_running&&tile_seq_q==tiles_q-2)||
+     (a_running&&tile_seq_q+1'b1==tiles_q-2));
   assign req_valid=job_busy_q&&a_running&&a_out_valid&&a_tile_match;
   assign tile_issue_last=req_valid&&(a_head.pair_idx==pairs_q-1);
   assign matrix_issue_done=req_valid&&req_meta.last;
@@ -167,11 +183,16 @@ module dea8_matrix_v3 #(parameter bit LOCAL_A=0) (
     req_meta='0;req_meta.epoch=epoch_q;req_meta.head=head_q;req_meta.tile_idx=current_b;
     req_meta.pair_idx=a_head.pair_idx;
     req_meta.nt=nt_per_tile_q?(nt_q+4'(tile_seq_q)):nt_q;
-    req_meta.final_k=final_k_q;
+    req_meta.final_k=(job_mode_q==MAT_GU)?
+      (tile_seq_q[6:1]==((tiles_q>>1)-1'b1)):final_k_q;
     req_meta.last=(tile_seq_q+1'b1>=tiles_q)&&(a_head.pair_idx==pairs_q-1);
-    req_meta.exp_fold=exp_fold_q;req_meta.acc_sel=acc_sel_q;
+    req_meta.exp_fold=exp_fold_q;
+    req_meta.acc_sel=(job_mode_q==MAT_GU)?
+      (tile_seq_q[0]?ACC_FACC_B:ACC_FACC_A):acc_sel_q;
     // add_old applies to every pair in the job's first/next reduction tile.
-    req_meta.add_old=add_old_q || ((tile_seq_q!=0)&&!clear_each_tile_q);
+    req_meta.add_old=(job_mode_q==MAT_GU)?(tile_seq_q[6:1]!=0):
+      (add_old_q || ((tile_seq_q!=0)&&!clear_each_tile_q));
+    req_meta.mode=job_mode_q;req_meta.gu_n=job_gu_n_q;
   end
   always_ff @(posedge clk) begin
     if(reset||clear) begin
@@ -180,6 +201,7 @@ module dea8_matrix_v3 #(parameter bit LOCAL_A=0) (
       tiles_q<=0;tile_seq_q<=0;tile_started_q<=0;epoch_q<=0;head_q<=0;b_source_q<=B_HBM;
       rows_q<=ROWS;pairs_q<=PAIRS;
       final_k_q<=0;nt_q<=0;nt_per_tile_q<=0;clear_each_tile_q<=0;
+      job_mode_q<=MAT_PROJECTION;job_gu_n_q<=0;
       exp_fold_q<=0;acc_sel_q<=ACC_FACC_A;add_old_q<=0;
       release_valid_q<=0;release_bank_q<=0;
     end else begin
@@ -195,6 +217,7 @@ module dea8_matrix_v3 #(parameter bit LOCAL_A=0) (
         rows_q<=(job_m_rows==0)?ROWS:job_m_rows;
         pairs_q<=(((job_m_rows==0)?ROWS:job_m_rows) + 1'b1)>>1;
         epoch_q<=job_epoch;head_q<=job_head;nt_q<=job_nt;final_k_q<=job_final_k;exp_fold_q<=job_exp_fold;
+        job_mode_q<=job_mode;job_gu_n_q<=job_gu_n;
         nt_per_tile_q<=job_nt_per_tile;clear_each_tile_q<=job_clear_each_tile;
         acc_sel_q<=job_acc_sel;add_old_q<=job_add_old;
       end
@@ -215,10 +238,12 @@ module dea8_matrix_v3 #(parameter bit LOCAL_A=0) (
   logic store_result_ready,store_vpu_ready;
   logic result_bank_free,vpu_bank_free;
   // Reserve the accumulator for the whole job, including pipeline gaps.
-  assign result_bank_free=(!job_busy_q||result_rd_sel!=acc_sel_q)&&
-    !(job_accept&&result_rd_sel==job_acc_sel);
-  assign vpu_bank_free=(!job_busy_q||vpu_wr.sel!=acc_sel_q)&&
-    !(job_accept&&vpu_wr.sel==job_acc_sel);
+  assign result_bank_free=(!job_busy_q||
+    (job_mode_q==MAT_GU?result_rd_sel==ACC_OACC:result_rd_sel!=acc_sel_q))&&
+    !(job_accept&&(job_mode==MAT_GU?result_rd_sel!=ACC_OACC:result_rd_sel==job_acc_sel));
+  assign vpu_bank_free=(!job_busy_q||
+    (job_mode_q==MAT_GU?vpu_wr.sel==ACC_OACC:vpu_wr.sel!=acc_sel_q))&&
+    !(job_accept&&(job_mode==MAT_GU?vpu_wr.sel!=ACC_OACC:vpu_wr.sel==job_acc_sel));
   assign result_rd_ready=store_result_ready&&result_bank_free;
   assign vpu_wr_ready=store_vpu_ready&&vpu_bank_free;
   dea8_mxu_2row_v3 mxu(
@@ -226,6 +251,7 @@ module dea8_matrix_v3 #(parameter bit LOCAL_A=0) (
     .load_valid,.load_bank,.load_column,.load_entry(serializer_out),.rsp_valid(mxu_rsp_valid),.rsp(mxu_rsp));
   DEQACC_3_3ns deqacc(
     .clk,.reset,.clear,.rsp_valid(mxu_rsp_valid),.rsp(mxu_rsp),.commit_valid,.done,.commit_meta,
+    .commit_write_valid,.commit_write,
     .result_rd_owner,.result_rd_valid(result_rd_valid&&result_bank_free),
     .result_rd_ready(store_result_ready),.result_rd_sel,.result_rd_addr,
     .vpu_wr_valid(vpu_wr_valid&&vpu_bank_free),.vpu_wr_ready(store_vpu_ready),.vpu_wr,

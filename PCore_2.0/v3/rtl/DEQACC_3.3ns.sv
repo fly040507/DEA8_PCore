@@ -11,6 +11,7 @@ module DEQACC_3_3ns(
   input acc_sel_e result_rd_sel,input logic [9:0] result_rd_addr,
   output logic result_rd_data_valid,output logic [15:0][31:0] result_even_data,result_odd_data,
   output logic commit_valid,done,output pair_meta_t commit_meta,
+  output logic commit_write_valid,output acc_write_t commit_write,
   input logic dbg_valid,input acc_sel_e dbg_sel,input logic dbg_parity,
   input logic [9:0] dbg_addr,input logic [3:0] dbg_lane,output logic [31:0] dbg_data
 );
@@ -114,10 +115,18 @@ module DEQACC_3_3ns(
     end
     if(reset||clear) begin
       for(int i=0;i<10;i++)context_q[i].valid<=0;
-      commit_valid<=0;done<=0;
+      commit_valid<=0;done<=0;commit_write_valid<=0;commit_write<='0;
     end else begin
       context_q[0].valid<=rsp_valid;
       commit_valid<=context_q[9].valid;done<=context_q[9].valid&&context_q[9].meta.last;
+      // Keep the entire write bundle on one register boundary.  Pair Buffer
+      // must never observe metadata from one pair with data from another.
+      commit_write_valid<=context_q[9].valid;
+      commit_write.sel<=context_q[9].meta.acc_sel;
+      commit_write.addr<=wr_addr;
+      commit_write.row_valid<=context_q[9].rows;
+      commit_write.data[0]<=wr_even;
+      commit_write.data[1]<=wr_odd;
     end
   end
   // synthesis translate_off

@@ -22,6 +22,10 @@ rtl/dea8_attention_matrix_v3.sv
 rtl/dea8_pair_store_v3.sv
 rtl/dea8_deqacc32_v3.sv
 rtl/dea8_acc_store_v3.sv
+rtl/dea8_gu_pair_buffer_v3.sv
+rtl/dea8_gu_matrix_v3.sv
+rtl/dea8_gu_scheduler_v3.sv
+rtl/dea8_gu_a_replay_v3.sv
 tb/tb_v3_ingress.sv
 tb/fp32_legacy_ref_pkg.sv
 tb/tb_fp32_acc_lane_v5.sv
@@ -40,3 +44,4 @@ tb/tb_v3_attention_system.sv
 tb/tb_v3_attention_55.sv
 tb/tb_v3_acc_overlap.sv
 tb/tb_v3_local_a_protocol.sv
+tb/tb_v3_gu_matrix.sv
