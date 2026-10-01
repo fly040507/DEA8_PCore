@@ -11,7 +11,7 @@ module tb_v3_matrix;
   b_source_e b_source;
   logic job_start,job_ready,job_busy;
   logic [TILE_BITS-1:0] job_tile_idx;
-  logic [TILE_BITS:0] job_tiles;
+  logic [MATRIX_TILE_COUNT_BITS-1:0] job_tiles;
   logic [EPOCH_BITS-1:0] job_epoch;
   logic [2:0] job_head; logic [3:0] job_nt; logic job_final_k;
   logic signed [EXP_FOLD_BITS-1:0] job_exp_fold;
@@ -164,5 +164,5 @@ module tb_v3_matrix;
       TEST_TILES*XBC_GROUPS,TEST_TILES*8,TEST_TILES,commits,issue_count,max_issue_gap);
     $finish;
   end
-  initial begin #1000000; $fatal(1,"v3 matrix watchdog"); end
+  initial begin #1000000; $fatal(1,"v3 matrix watchdog commits=%0d issues=%0d busy=%b tiles=%0d seq=%0d ac=%0d complete=%0d bc=%0d running=%b",commits,issue_count,job_busy,dut.tiles_q,dut.tile_seq_q,dut.a_count,dut.a_complete,dut.b_count,dut.a_running); end
 endmodule

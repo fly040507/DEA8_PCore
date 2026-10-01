@@ -1,4 +1,5 @@
 rtl/pcore3_pkg.sv
+rtl/dea8_pcore_ctrl_v3.sv
 rtl/dea8_fp32_v3_pkg.sv
 rtl/DEQACC_3.3ns_lane.sv
 rtl/DEQACC_3.3ns.sv
@@ -48,6 +49,7 @@ tb/tb_v3_local_a_protocol.sv
 tb/tb_v3_gu_matrix.sv
 tb/tb_v3_gu_scheduler.sv
 tb/tb_v3_gu_32_system.sv
+tb/tb_v3_pcore_ctrl.sv
 tb/tb_v3_qoz_shared.sv
 tb/tb_v3_gu_scheduler_stress.sv
 tb/tb_v3_attention_gu_chain.sv

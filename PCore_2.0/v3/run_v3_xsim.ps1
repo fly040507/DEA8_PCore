@@ -5,6 +5,7 @@ $tops=@("tb_v3_ingress","tb_v3_bpath","tb_v3_bfifo_stream","tb_v3_pair_store","t
 $tops=@("tb_v3_fp32_equiv")+$tops
 $tops=@("tb_fp32_acc_lane_v5","tb_deqacc32_v5_stream")+$tops
 $tops=@("tb_v3_gu_scheduler","tb_v3_gu_scheduler_stress","tb_v3_gu_matrix","tb_v3_gu_32_system","tb_v3_qoz_shared","tb_v3_attention_gu_chain")+$tops
+$tops=@("tb_v3_pcore_ctrl")+$tops
 New-Item -ItemType Directory -Force -Path $report | Out-Null
 "RUNNING at $(Get-Date -Format o)" | Set-Content (Join-Path $report "v3_simulation_summary.txt") -Encoding UTF8
 Push-Location $here

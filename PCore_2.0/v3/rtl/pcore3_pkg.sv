@@ -34,6 +34,28 @@ package pcore3_pkg;
     logic [1:0][15:0][31:0] data;
   } acc_write_t;
   typedef enum logic [1:0] {MAT_PROJECTION=0,MAT_ATTENTION=1,MAT_GU=2} matrix_mode_e;
+  typedef enum logic [2:0] {OP_Q_PROJ,OP_K_PROJ,OP_V_PROJ,OP_ATTENTION,
+                            OP_O_PROJ,OP_GU,OP_DOWN_PROJ} pcore_op_e;
+  typedef struct packed {
+    logic [15:0] job_id;
+    logic [EPOCH_BITS-1:0] epoch;
+    logic [2:0] head;
+    pcore_op_e op;
+  } job_header_t;
+  typedef struct packed {job_header_t header;} pcore_job_t;
+  typedef enum logic [1:0] {JOB_OK,JOB_UNSUPPORTED,JOB_PROTOCOL_ERROR} job_status_e;
+  typedef struct packed {job_header_t header;job_status_e status;} pcore_completion_t;
+  typedef struct packed {
+    job_header_t header;
+    matrix_mode_e mode;
+    logic [5:0] n;
+    logic [7:0] k_tiles;
+    logic [5:0] m_rows;
+  } pcore_matrix_job_t;
+  typedef enum logic {POST_GU=0} pcore_vpu_op_e;
+  typedef enum logic {GELU_GU=0} pcore_sfu_op_e;
+  typedef struct packed {job_header_t header;pcore_vpu_op_e op;logic [5:0] n;} pcore_vpu_job_t;
+  typedef struct packed {job_header_t header;pcore_sfu_op_e op;logic [5:0] n;} pcore_sfu_job_t;
   typedef enum logic [1:0] {QOZ_NONE=0,QOZ_Q=1,QOZ_O=2,QOZ_Z=3} qoz_owner_e;
   typedef enum logic {MATRIX_QK=0,MATRIX_PV=1} matrix_op_e;
 

@@ -1,5 +1,47 @@
 # PCore 2.0 v3 数据面
 
+## 2026-10-01：PCore Job入口与完整OP_GU
+
+已同步现有G-U replay、Matrix交错累加、Pair Buffer和shared QOZ增量。本轮新增 `rtl/dea8_pcore_ctrl_v3.sv`，在统一操作入口跑通一条 `OP_GU`。最终 **24个testbench + Attention55 port-stress通过，3类错误completion拒绝检查通过**；证据为 `reports/v3_simulation_summary.txt`。本轮未运行综合/P&R。
+
+### 两层Job契约
+
+- 上层 `pcore_op_e`：Q/K/V/O/Down Projection、Attention、GU各自独立。`OP_GU`完成仅表示Z形成，不含Down。
+- 公共 `job_header_t`：16-bit job_id、epoch、head、op；操作与各引擎completion必须返回接受时的context。
+- Matrix子Job：`pcore_matrix_job_t`，mode保留MAT_PROJECTION/MAT_ATTENTION/MAT_GU，附n、k_tiles、m_rows。
+- VPU/SFU使用各自payload：`POST_GU`、`GELU_GU`，不要求所有引擎解析统一大opcode。
+- 当前controller只执行OP_GU，固定51行、64 K Tile、默认32 N Tile；其他操作返回 `JOB_UNSUPPORTED`。Projection/Attention继续独立回归，尚未挂到同一dispatcher。
+- 所有命令/完成口在valid&&ready转移；停顿时保持payload。controller同时最多一个Operation、一个Matrix子Job、一个post tile；Matrix和上一tile后处理可重叠。
+
+### OP_GU完成与资源边界
+
+1. 锁存Operation，申请shared QOZ的Z region；region begin接受后启动内部GU local scheduler。
+2. 发出32个MAT_GU子Job，每个由既有GU wrapper计算G/U；每n有3328次连续pair issue。
+3. Pair Buffer完整后，分别发VPU和SFU Job。TB只有两个post Job均接受才读取真实G/U；SFU数学/乘法/量化为reference模型。
+4. 每tile最后Z pair在QOZ写口被接受，向controller提供 `z_tile_commit`。VPU done必须在该commit之后（或同拍）；SFU done表示对应GELU生产完成。
+5. 32次Matrix completion、32个post tile的VPU/SFU完成及Z commit、QOZ region complete全部满足，才置 `job_done_valid`，一直保持到ready。
+
+协议错误（错误context、提前VPU done、非法Z提交等）置sticky `protocol_error`并进入FAULT；FAULT不发正常completion、不释放执行资源，必须对controller和相关引擎统一clear/reset。`JOB_PROTOCOL_ERROR`保存在completion payload中供诊断，但FAULT期间没有有效completion token。
+
+QOZ begin的owner=QOZ_Z、tiles=32由当前固定GU adapter连接，epoch/head来自 `active_header`。GU结束后Z region继续保留给消费者，controller不自动release；下一Operation若需重用必须先由资源管理方消费/release。当前所有外部engine也必须随clear取消旧generation。
+
+### 实际验证
+
+- `tb_v3_gu_32_system` 不再直接启动GU scheduler，只发一条OP_GU（job_id=0x7319）。实际32 Matrix / 32 VPU / 32 SFU Jobs，1632行G/U、832个Z pair、832次shared QOZ回读均通过，完成context匹配。
+- Z由实际RTL的G/U流计算，不再直接拷贝z_golden。TB使用tanh近似GELU、显式FP32舍入、乘法、E8M0 scale和RNE INT8量化，与独立Python生成的fixture逐项比较。这是固定刺激下的reference验证，不是正式SFU近似误差或模型精度签核。
+- `tb_v3_pcore_ctrl` 覆盖不支持opcode、region/engine背压、Matrix完成后继续等待Z、QOZ complete barrier、completion保持、错误job_id隔离和clear恢复。
+- 旧Matrix64 TB的job_tiles位宽修正为 `MATRIX_TILE_COUNT_BITS`，消除扩宽接口后的未知位停顿；保留1664次issue/commit、max_gap=1和数值检查。
+- Projection golden通过；Attention继续body=416、steady=434、尾部867、最终tail439，未重写两条既有计算链。
+
+### 当前仍未完成
+
+- controller、GU wrapper、shared QOZ目前由系统TB按公开接口连接，还不是完整可综合PCore Top。Matrix完成脉冲由adapter附上接受时descriptor；正式共享Top需保留这一关联。
+- A/B仍按每n供数；BFIFO无job-N标签，未启用跨n任意预取。内部GU scheduler的prefetch提示暂不消费，不能宣称跨n零启动开销。
+- VPU/SFU后处理算术仍为TB reference，真实引擎未实现。没有新增250MHz硬件签核。
+- 下一步先给Projection/Attention加Operation adapter并接同一dispatcher，再考虑共享资源Top和Layer/Denoise sequencer。
+
+以下DEQACC及Attention章节保留各自baseline与接口背景；本节是当前Job集成进度。
+
 ## 当前状态：DEQACC_3.3ns
 
 2026-09-30：Matrix 使用冻结的 `DEQACC_3_3ns`。本轮按 `interaction/AI工具意见.docx` 收尾 Attention v4 接口与验证：完整尾部 guard、描述符背压保持、延迟 PBUF 就绪、v4 独立专项、55-block 双模式和错误 completion 检查。**本轮只做 RTL 仿真，没有运行综合或 P&R。** 下文 DEQACC 时序仅属于其既有 baseline，不能外推到新 Attention scheduler/wrapper。
