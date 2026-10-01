@@ -19,7 +19,7 @@ module tb_v3_gu_32_system;
 
   logic tile_valid,tile_ready; logic [5:0] tile_n;
   logic [EPOCH_BITS-1:0] tile_epoch; logic [2:0] tile_head;
-  logic prefetch_valid; logic [5:0] prefetch_n;
+  logic prefetch_valid,prefetch_ready=1; logic [5:0] prefetch_n;
   logic [EPOCH_BITS-1:0] prefetch_epoch; logic [2:0] prefetch_head;
   logic matrix_done,z_commit;
   logic [5:0] z_n; logic [EPOCH_BITS-1:0] z_epoch; logic [2:0] z_head;
@@ -46,8 +46,11 @@ module tb_v3_gu_32_system;
 
   logic [1023:0] gu_golden[0:GOLDEN_ROWS-1];
   logic [135:0] z_golden[0:GOLDEN_ROWS-1];
-  logic [135:0] qoz_mem[0:N_TILES-1][0:PAIRS-1][0:1];
-  logic qoz_active[0:N_TILES-1],qoz_complete[0:N_TILES-1];
+  logic qoz_complete[0:N_TILES-1];
+  logic qoz_rd_valid,qoz_rd_ready,qoz_rd_out_valid,qoz_rd_out_ready=1;
+  qoz_owner_e qoz_rd_owner; logic [5:0] qoz_rd_tile;
+  logic [PAIR_BITS-1:0] qoz_rd_pair; logic [TILE_BITS-1:0] qoz_rd_transport;
+  a2_t qoz_rd_entry; logic qoz_error;
   int launched=0,matrix_done_count=0,row_count=0,z_count=0;
   int output_rows[0:N_TILES-1];
   int cycle_count=0,issue_count[0:N_TILES-1],first_issue[0:N_TILES-1],last_issue[0:N_TILES-1];
@@ -56,7 +59,7 @@ module tb_v3_gu_32_system;
   dea8_gu_scheduler_v3 #(.N_TILES(N_TILES)) scheduler(
     .clk,.reset,.clear,.start,.start_ready,.job_epoch(epoch),.job_head(head),
     .tile_valid,.tile_ready,.tile_n,.tile_epoch,.tile_head,
-    .prefetch_valid,.prefetch_n,.prefetch_epoch,.prefetch_head,
+    .prefetch_valid,.prefetch_ready,.prefetch_n,.prefetch_epoch,.prefetch_head,
     .tile_matrix_done(matrix_done),.z_tile_commit(z_commit),.z_n,
     .z_epoch,.z_head,.busy(scheduler_busy),.matrix_all_done,.done(job_done),
     .protocol_error(scheduler_error));
@@ -94,9 +97,11 @@ module tb_v3_gu_32_system;
     .region_active(qoz_region_active),.region_complete(qoz_region_complete),.region_release_valid(qoz_release_valid),
     .region_release_ready(qoz_release_ready),.wr_valid(qz_valid),.wr_ready(qz_ready),.wr_owner(QOZ_Z),
     .wr_tile(qz_tile),.wr_pair(qz_pair),.wr_row_valid(qz_row_valid),.wr_even(qvec16_t'(qz_even)),
-    .wr_odd(qvec16_t'(qz_odd)),.wr_epoch(qz_epoch),.wr_head(qz_head),.rd_valid(1'b0),.rd_ready(),
-    .rd_owner(QOZ_Z),.rd_tile('0),.rd_pair('0),.rd_transport('0),.rd_out_valid(),.rd_out_ready(1'b1),
-    .rd_entry(),.active_epoch(),.active_head(),.active_owner(),.protocol_error());
+    .wr_odd(qvec16_t'(qz_odd)),.wr_epoch(qz_epoch),.wr_head(qz_head),
+    .rd_valid(qoz_rd_valid),.rd_ready(qoz_rd_ready),.rd_owner(qoz_rd_owner),.rd_tile(qoz_rd_tile),
+    .rd_pair(qoz_rd_pair),.rd_transport(qoz_rd_transport),.rd_out_valid(qoz_rd_out_valid),
+    .rd_out_ready(qoz_rd_out_ready),.rd_entry(qoz_rd_entry),.active_epoch(),.active_head(),
+    .active_owner(),.protocol_error(qoz_error));
 
   function automatic int aval(input int row,input int k,input int i);
     return (row+2*k+3*i)%9-4;
@@ -151,6 +156,18 @@ module tb_v3_gu_32_system;
     join
   endtask
 
+  task automatic read_qoz_z(input int tile,input int pair);
+    @(negedge clk);qoz_rd_owner=QOZ_Z;qoz_rd_tile=tile[5:0];qoz_rd_pair=pair[PAIR_BITS-1:0];
+    qoz_rd_transport=tile[TILE_BITS-1:0];qoz_rd_valid=1;
+    do @(posedge clk); while(!qoz_rd_ready);
+    do begin @(posedge clk); #1; end while(!qoz_rd_out_valid);
+    if(qoz_rd_entry.row[0]!==qvec16_t'(z_golden[tile*ROWS+2*pair])||
+       (pair<PAIRS-1&&qoz_rd_entry.row[1]!==qvec16_t'(z_golden[tile*ROWS+2*pair+1]))||
+       qoz_rd_entry.tile_idx!=qoz_rd_transport||qoz_rd_entry.pair_idx!=pair)
+      $fatal(1,"QOZ Z readback mismatch tile=%0d pair=%0d",tile,pair);
+    @(negedge clk);qoz_rd_valid=0;
+  endtask
+
   task automatic emit_z(input int n);
     for(int p=0;p<PAIRS;p++) begin
       @(negedge clk);vz_tile=n[5:0];vz_pair=p;vz_n=n;vz_epoch=epoch;vz_head=head;
@@ -164,7 +181,7 @@ module tb_v3_gu_32_system;
   initial begin
     $readmemh("tb/data/gu_fp32.mem",gu_golden);
     $readmemh("tb/data/gu_z_mxint8.mem",z_golden);
-    for(int i=0;i<N_TILES;i++) begin output_rows[i]=0;issue_count[i]=0;first_issue[i]=-1;last_issue[i]=-1;qoz_active[i]=0;qoz_complete[i]=0;source_started[i]=0;end
+    for(int i=0;i<N_TILES;i++) begin output_rows[i]=0;issue_count[i]=0;first_issue[i]=-1;last_issue[i]=-1;qoz_complete[i]=0;source_started[i]=0;end
     a_valid=0;b_valid=0;a_entry='0;b_entry='0;
     repeat(35) @(posedge clk);reset=0;
     @(negedge clk);qoz_begin_valid=1;
@@ -173,7 +190,7 @@ module tb_v3_gu_32_system;
     @(negedge clk);start=1;@(negedge clk);start=0;
     wait(job_done);
     if(launched!=N_TILES||matrix_done_count!=N_TILES||row_count!=N_TILES*ROWS||
-       z_count!=N_TILES*PAIRS||!matrix_all_done||scheduler_error||ae||be||ge||!qoz_region_complete)
+       z_count!=N_TILES*PAIRS||!matrix_all_done||scheduler_error||ae||be||ge||qoz_error||!qoz_region_complete)
       $fatal(1,"GU 32 system mismatch launch=%0d matrix=%0d rows=%0d z=%0d all=%0d errors=%0d/%0d/%0d/%0d",
         launched,matrix_done_count,row_count,z_count,matrix_all_done,scheduler_error,ae,be,ge);
     for(int n=0;n<N_TILES;n++) if(output_rows[n]!=ROWS||!qoz_complete[n])
@@ -182,8 +199,9 @@ module tb_v3_gu_32_system;
       if(issue_count[n]!=GU_TILES*PAIRS||last_issue[n]-first_issue[n]!=GU_TILES*PAIRS-1)
         $fatal(1,"GU n%0d issue coverage count=%0d first=%0d last=%0d",n,issue_count[n],first_issue[n],last_issue[n]);
     end
+    for(int t=0;t<N_TILES;t++) for(int p=0;p<PAIRS;p++) read_qoz_z(t,p);
     @(negedge clk);qoz_release_valid=1;do @(posedge clk); while(!qoz_release_ready);@(negedge clk);qoz_release_valid=0;
-    $display("tb_v3_gu_32_system PASS n_tiles=32 matrix_done=32 rows=%0d z_pairs=%0d qoz_shared=1 issues_per_n=%0d",row_count,z_count,issue_count[0]);
+    $display("tb_v3_gu_32_system PASS n_tiles=32 matrix_done=32 rows=%0d z_pairs=%0d qoz_shared=1 qoz_readback=832 issues_per_n=%0d",row_count,z_count,issue_count[0]);
     #20;$finish;
   end
 
@@ -223,9 +241,8 @@ module tb_v3_gu_32_system;
          qz_even!==z_golden[qz_n*ROWS+2*qz_pair]||
          (qz_pair<PAIRS-1&&qz_odd!==z_golden[qz_n*ROWS+2*qz_pair+1]))
         $fatal(1,"GU Z/QOZ mismatch n=%0d pair=%0d",qz_n,qz_pair);
-      qoz_active[qz_n]=1;qoz_mem[qz_n][qz_pair][0]=qz_even;qoz_mem[qz_n][qz_pair][1]=qz_odd;
       z_count++;
-      if(qz_last) begin qoz_complete[qz_n]=1;qoz_active[qz_n]=0;end
+      if(qz_last) qoz_complete[qz_n]=1;
     end
   end
   initial begin #3000000;$fatal(1,"GU 32 system watchdog");end

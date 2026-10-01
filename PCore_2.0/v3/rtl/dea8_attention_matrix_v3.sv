@@ -25,6 +25,7 @@ module dea8_attention_matrix_v3 #(
   input logic qoz_ext_out_valid,output logic qoz_ext_out_ready,input a2_t qoz_ext_out_entry,
   input logic qoz_ext_complete,input logic [EPOCH_BITS-1:0] qoz_ext_epoch,
   input logic [2:0] qoz_ext_head,
+  input qoz_owner_e qoz_ext_owner,
   input logic hbm_valid,output logic hbm_ready,input b2_t hbm_entry,
   input logic kv_valid,output logic kv_ready,input b2_t kv_entry,input b_source_e b_source,
   output logic a_protocol_error,b_protocol_error,
@@ -106,7 +107,7 @@ module dea8_attention_matrix_v3 #(
     .out_valid(q_out_valid),.out_ready(local_ready&&!reader_is_pv),.out_entry(q_entry));
   end else begin: external_qoz
     assign qoz_load_ready=qoz_ext_load_ready;
-    assign q_complete=qoz_ext_complete;
+    assign q_complete=qoz_ext_complete&&qoz_ext_owner==QOZ_Q;
     assign q_epoch[0]=qoz_ext_epoch;
     assign q_head[0]=qoz_ext_head;
     assign q_block[0]=0;

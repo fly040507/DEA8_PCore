@@ -57,7 +57,7 @@ module tb_v3_attention_matrix;
     .qoz_ext_rd_transport(qoz_rd_transport),
     .qoz_ext_out_valid(qoz_out_valid),.qoz_ext_out_ready(qoz_out_ready),
     .qoz_ext_out_entry(qoz_out_entry),.qoz_ext_complete(qoz_complete),
-    .qoz_ext_epoch(4'd1),.qoz_ext_head(3'd0),
+    .qoz_ext_epoch(4'd1),.qoz_ext_head(3'd0),.qoz_ext_owner(QOZ_Q),
     .vpu_wr_valid(1'b0),.vpu_wr('0),.vpu_wr_ready(),.result_rd_ready(),
     .hbm_valid,.hbm_ready,.hbm_entry,.kv_valid,.kv_ready,.kv_entry,.b_source(B_HBM),
     .a_protocol_error(a_error),.b_protocol_error(b_error),

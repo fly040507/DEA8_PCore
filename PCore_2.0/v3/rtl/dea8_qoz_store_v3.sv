@@ -39,6 +39,9 @@ module dea8_qoz_store_v3 #(
   logic [PAIR_BITS-1:0] rd_pair_q;
   logic [TILE_BITS-1:0] rd_transport_q;
   logic rd_fire,wr_fire,begin_fire,release_fire;
+  logic begin_bad,wr_bad,rd_bad;
+  logic [5:0] expected_wr_tile;
+  logic [PAIR_BITS-1:0] expected_wr_pair;
 
   function automatic logic owner_ok(input qoz_owner_e o);
     return o==QOZ_Q||o==QOZ_O||o==QOZ_Z;
@@ -53,58 +56,61 @@ module dea8_qoz_store_v3 #(
   assign region_active=owner_q!=QOZ_NONE;
   assign region_complete=complete_q;
   assign active_owner=owner_q;assign active_epoch=epoch_q;assign active_head=head_q;
-  assign region_begin_ready=!reset&&!clear&&!region_active&&
-    owner_ok(region_owner)&&region_tiles!=0&&region_tiles<=owner_capacity(region_owner);
-  assign region_release_ready=!reset&&!clear&&region_active&&complete_q;
+  assign begin_bad=!owner_ok(region_owner)||region_tiles==0||region_tiles>owner_capacity(region_owner);
+  assign wr_bad=region_active&&(wr_owner!=owner_q||wr_epoch!=epoch_q||wr_head!=head_q||
+    wr_tile>=logical_tiles_q||wr_pair>=PAIRS||wr_row_valid!=row_mask(wr_pair)||
+    wr_tile!=expected_wr_tile||wr_pair!=expected_wr_pair||complete_q);
+  assign rd_bad=region_active&&(rd_owner!=owner_q||rd_tile>=logical_tiles_q||rd_pair>=PAIRS);
+  assign region_begin_ready=!reset&&!clear&&!protocol_error&&!region_active&&!begin_bad;
+  assign region_release_ready=!reset&&!clear&&!protocol_error&&region_active&&complete_q&&!rd_out_valid&&!rd_valid;
   assign begin_fire=region_begin_valid&&region_begin_ready;
   assign release_fire=region_release_valid&&region_release_ready;
   assign rd_request_physical_tile=physical_base+rd_tile;
   assign rd_physical_tile=physical_base+rd_tile_q;
   assign rd_ready=!reset&&!clear&&!protocol_error&&region_complete&&
-    rd_owner==owner_q&&rd_tile<logical_tiles_q&&rd_pair<PAIRS&&
+    !rd_bad&&
     rd_request_physical_tile<PHYSICAL_TILES&&(!rd_out_valid||rd_out_ready);
   assign rd_fire=rd_valid&&rd_ready;
   assign wr_ready=!reset&&!clear&&!protocol_error&&region_active&&!complete_q&&
-    wr_owner==owner_q&&wr_epoch==epoch_q&&wr_head==head_q&&
-    wr_tile<logical_tiles_q&&wr_pair<PAIRS&&wr_row_valid==row_mask(wr_pair)&&
+    !wr_bad&&
     physical_base+wr_tile<PHYSICAL_TILES&&!written[physical_base+wr_tile][wr_pair];
   assign wr_fire=wr_valid&&wr_ready;
-
-  always_comb begin
-    rd_entry='0;rd_entry.tile_idx=rd_transport_q;rd_entry.pair_idx=rd_pair_q;
-    rd_entry.row_valid=row_mask(rd_pair_q);rd_entry.slot=0;
-    if(rd_out_valid) begin
-      rd_entry.row[0]=qvec16_t'(data_mem[rd_physical_tile][rd_pair][0]);
-      rd_entry.row[1]=qvec16_t'(data_mem[rd_physical_tile][rd_pair][1]);
-    end
-  end
 
   always_ff @(posedge clk) begin
     if(reset||clear) begin
       owner_q<=QOZ_NONE;complete_q<=0;logical_tiles_q<=0;physical_base<=0;
       epoch_q<=0;head_q<=0;rd_out_valid<=0;protocol_error<=0;
       rd_tile_q<=0;rd_pair_q<=0;rd_transport_q<=0;
+      rd_entry<='0;expected_wr_tile<=0;expected_wr_pair<=0;
       for(int t=0;t<PHYSICAL_TILES;t++) written[t]<='0;
     end else begin
-      if(region_begin_valid&&!region_begin_ready) protocol_error<=1;
-      if(wr_valid&&!wr_ready) protocol_error<=1;
-      if(rd_valid&&!rd_ready) protocol_error<=1;
-      if(region_release_valid&&!region_release_ready) protocol_error<=1;
+      if(region_begin_valid&&begin_bad) protocol_error<=1;
+      if(wr_valid&&wr_bad) protocol_error<=1;
+      if(rd_valid&&rd_bad) protocol_error<=1;
       if(begin_fire) begin
         owner_q<=region_owner;complete_q<=0;logical_tiles_q<=region_tiles;
         physical_base<=owner_base(region_owner);epoch_q<=region_epoch;head_q<=region_head;
+        expected_wr_tile<=0;expected_wr_pair<=0;
         for(int t=0;t<PHYSICAL_TILES;t++) written[t]<='0;
       end
       if(wr_fire) begin
         data_mem[physical_base+wr_tile][wr_pair][0]<=wr_even;
         data_mem[physical_base+wr_tile][wr_pair][1]<=wr_row_valid[1]?wr_odd:'0;
         written[physical_base+wr_tile][wr_pair]<=1;
+        if(wr_pair==PAIRS-1) begin expected_wr_pair<=0;expected_wr_tile<=expected_wr_tile+1'b1;end
+        else expected_wr_pair<=expected_wr_pair+1'b1;
         if(wr_tile==logical_tiles_q-1&&wr_pair==PAIRS-1) complete_q<=1;
       end
       if(rd_fire) begin
         rd_tile_q<=rd_tile;
         rd_pair_q<=rd_pair;
         rd_transport_q<=rd_transport;
+        rd_entry<='0;
+        rd_entry.tile_idx<=rd_transport;
+        rd_entry.pair_idx<=rd_pair;
+        rd_entry.row_valid<=row_mask(rd_pair);
+        rd_entry.row[0]<=qvec16_t'(data_mem[rd_request_physical_tile][rd_pair][0]);
+        rd_entry.row[1]<=qvec16_t'(data_mem[rd_request_physical_tile][rd_pair][1]);
         rd_out_valid<=1;
       end
       else if(rd_out_valid&&rd_out_ready) rd_out_valid<=0;

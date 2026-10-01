@@ -9,7 +9,7 @@ module dea8_gu_scheduler_v3 #(parameter int N_TILES=32)(
   output logic tile_valid,input logic tile_ready,
   output logic [5:0] tile_n,
   output logic [EPOCH_BITS-1:0] tile_epoch,output logic [2:0] tile_head,
-  output logic prefetch_valid,output logic [5:0] prefetch_n,
+  output logic prefetch_valid,input logic prefetch_ready,output logic [5:0] prefetch_n,
   output logic [EPOCH_BITS-1:0] prefetch_epoch,output logic [2:0] prefetch_head,
   input logic tile_matrix_done,
   input logic z_tile_commit,
@@ -42,7 +42,7 @@ module dea8_gu_scheduler_v3 #(parameter int N_TILES=32)(
         matrix_all_done<=0;protocol_error<=0;prefetch_sent_q<=0;
       end
       if(tile_valid&&tile_ready) begin state_q<=WAIT_MATRIX;prefetch_sent_q<=0;end
-      if(prefetch_valid) prefetch_sent_q<=1;
+      if(prefetch_valid&&prefetch_ready) prefetch_sent_q<=1;
       if(tile_matrix_done) begin
         if(state_q!=WAIT_MATRIX) protocol_error<=1;
         else if(n_q==N_TILES-1) begin state_q<=DRAIN;matrix_all_done<=1;end

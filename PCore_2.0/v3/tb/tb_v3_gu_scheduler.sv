@@ -14,7 +14,7 @@ module tb_v3_gu_scheduler;
   dea8_gu_scheduler_v3 dut(
     .clk,.reset,.clear,.start,.start_ready,.job_epoch(epoch),.job_head(head),
     .tile_valid(tile_valid),.tile_ready(tile_ready),.tile_n(tile_n),
-    .tile_epoch(tile_epoch),.tile_head(tile_head),
+    .tile_epoch(tile_epoch),.tile_head(tile_head),.prefetch_ready(1'b1),
     .tile_matrix_done(matrix_done),.z_tile_commit(z_commit),.z_n(z_n),
     .z_epoch(z_epoch),.z_head(z_head),.busy(busy),
     .matrix_all_done(matrix_all_done),.done(done),.protocol_error(error));
