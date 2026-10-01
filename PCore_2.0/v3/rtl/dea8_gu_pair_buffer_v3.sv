@@ -38,7 +38,10 @@ module dea8_gu_pair_buffer_v3 #(
   output logic complete,
   output logic protocol_error
 );
-  logic [511:0] data_mem [0:1][0:ROWS_P-1];
+  // Gate and Up are separate logical memories so each branch can be captured
+  // independently, while the implementation is explicitly eligible for
+  // block RAM inference instead of silently becoming LUTRAM.
+  (* ram_style="block" *) logic [511:0] data_mem [0:1][0:ROWS_P-1];
   logic [ROWS_P-1:0] gate_valid_q,up_valid_q;
   logic [6:0] gate_count_q,up_count_q;
   logic reserved_q;

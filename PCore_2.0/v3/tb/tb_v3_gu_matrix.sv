@@ -15,12 +15,23 @@ module tb_v3_gu_matrix;
   logic ae,be,ge;
   int out_count=0,watchdog=0; logic last_seen=0;
   logic [31:0] g_mem[0:ROWS-1][0:TILE-1],u_mem[0:ROWS-1][0:TILE-1];
+  logic [1023:0] golden[0:ROWS-1];
+  logic [135:0] z_golden[0:ROWS-1];
   int z_count=0; logic z_last_seen=0;
+  logic [135:0] qoz_z_mem[0:31][0:PAIRS-1][0:1];
+  logic qoz_z_owner_active=0,qoz_z_complete=0;
 
   function automatic logic [31:0] gelu_bits(input logic [31:0] x);
     // The fixture supplies G=U=1.0.  This is the SFU lookup result for
     // tanh-GELU(1.0), kept bit-exact and simulator-portable.
     return (x==32'h3f800000)?32'h3f57625f:x;
+  endfunction
+  function automatic int aval(input int row,input int k,input int i);
+    return (row+2*k+3*i)%9-4;
+  endfunction
+  function automatic int bval(input int k,input int i,input int col,input bit up);
+    if(up) return (3*k+2*col+i)%13-6;
+    return (k+col+2*i)%11-5;
   endfunction
 
   dea8_gu_matrix_v3 #(.K_TILES(KTEST),.GU_TILES(2*KTEST)) dut(
@@ -41,8 +52,11 @@ module tb_v3_gu_matrix;
     a2_t v;
     begin
       v='0; v.tile_idx=t[5:0]; v.pair_idx=p[PAIR_BITS-1:0]; v.row_valid=row_mask(p);
-      for(int i=0;i<TILE;i++) begin v.row[0].data[i*INT_BITS +: INT_BITS]=8'sd1; v.row[1].data[i*INT_BITS +: INT_BITS]=8'sd1; end
-      v.row[0].scale=8'sd128;v.row[1].scale=8'sd128;
+      for(int i=0;i<TILE;i++) begin
+        v.row[0].data[i*INT_BITS +: INT_BITS]=aval(2*p,t,i);
+        v.row[1].data[i*INT_BITS +: INT_BITS]=aval(2*p+1,t,i);
+      end
+      v.row[0].scale=8'(128+(2*p)%3);v.row[1].scale=8'(128+(2*p+1)%3);
       @(negedge clk); a_entry=v;a_valid=1;
       do @(posedge clk); while(!a_ready);
       @(negedge clk);a_valid=0;
@@ -53,7 +67,13 @@ module tb_v3_gu_matrix;
     b2_t v;
     begin
       v='0;v.tile_idx=t[5:0];v.group_idx=g[2:0];v.epoch=epoch;
-      for(int c=0;c<2;c++) begin v.col[c].data='0; for(int i=0;i<TILE;i++) v.col[c].data[i*INT_BITS +: INT_BITS]=8'sd1; v.col[c].scale=8'sd128; end
+      for(int c=0;c<2;c++) begin
+        int col; col=2*g+c;
+        v.col[c].data='0;
+        // Matrix transport is interleaved: G(k)=2*k, U(k)=2*k+1.
+        for(int i=0;i<TILE;i++) v.col[c].data[i*INT_BITS +: INT_BITS]=bval(t/2,i,col,t[0]);
+        v.col[c].scale=8'(128+col%2);
+      end
       @(negedge clk);b_entry=v;b_valid=1;
       do @(posedge clk); while(!b_ready);
       @(negedge clk);b_valid=0;
@@ -62,19 +82,8 @@ module tb_v3_gu_matrix;
 
   task automatic emit_z_pair(input int p);
     logic [135:0] ze,zo;
-    int q,e;
     begin
-      ze='0;zo='0;
-      for(int i=0;i<TILE;i++) begin
-        q=1; ze[i*8 +:8]=q[7:0];
-      end
-      for(int i=0;i<TILE;i++) begin
-        if(p<PAIRS-1) begin
-          q=1; zo[i*8 +:8]=q[7:0];
-        end
-      end
-      // GELU(1.0)*1.0=0.8413, so MXINT8-B16 uses q=1, E=133 here.
-      ze[128 +:8]=8'd133; if(p<PAIRS-1) zo[128 +:8]=8'd133;
+      ze=z_golden[2*p];zo=(p<PAIRS-1)?z_golden[2*p+1]:'0;
       @(negedge clk);vz_tile=0;vz_pair=p;vz_rv=row_mask(p);vz_even=ze;vz_odd=zo;
       vz_epoch=epoch;vz_head=head;vz_n=n;vz_last=(p==PAIRS-1);vz_valid=1;
       do @(posedge clk); while(!vz_ready);
@@ -84,6 +93,8 @@ module tb_v3_gu_matrix;
 
   initial begin
     a_valid=0;b_valid=0;a_entry='0;b_entry='0;pair_accept=1;
+    $readmemh("tb/data/gu_n0_fp32.mem",golden);
+    $readmemh("tb/data/gu_n0_z_mxint8.mem",z_golden);
     repeat(35) @(posedge clk); reset=0;
     // STREAMING AFIFO requires a real initial credit window.  Prefill one
     // complete A tile and one B tile before accepting the matrix job.
@@ -91,7 +102,7 @@ module tb_v3_gu_matrix;
     for(int t=0;t<2;t++) for(int g=0;g<8;g++) send_b(t,g);
     @(negedge clk);start=1;
     fork
-      begin for(int t=2;t<2*KTEST;t++) for(int p=0;p<PAIRS;p++) send_a(t,p); end
+      begin for(int t=2;t<KTEST;t++) for(int p=0;p<PAIRS;p++) send_a(t,p); end
       begin for(int t=2;t<2*KTEST;t++) for(int g=0;g<8;g++) send_b(t,g); end
     join_none
     @(negedge clk);start=0;
@@ -99,9 +110,11 @@ module tb_v3_gu_matrix;
     while(out_count<ROWS) @(posedge clk);
     if(out_count!=ROWS||!last_seen) $fatal(1,"GU row stream mismatch count=%0d last_seen=%0d",out_count,last_seen);
     if(ae||be||ge) $fatal(1,"GU protocol error ae=%0d be=%0d ge=%0d",ae,be,ge);
+    qoz_z_owner_active=1;
     for(int p=0;p<PAIRS;p++) emit_z_pair(p);
     repeat(2) @(posedge clk);
-    if(z_count!=PAIRS||!z_last_seen) $fatal(1,"Z write mismatch pairs=%0d last=%0d",z_count,z_last_seen);
+    if(z_count!=PAIRS||!z_last_seen||!qoz_z_complete)
+      $fatal(1,"Z write mismatch pairs=%0d last=%0d complete=%0d",z_count,z_last_seen,qoz_z_complete);
     $display("tb_v3_gu_matrix PASS matrix_done=1 pair_rows=%0d pair_cycles=51 z_pairs=%0d",out_count,z_count);
     #20;$finish;
   end
@@ -109,8 +122,12 @@ module tb_v3_gu_matrix;
     if(out_valid&&out_ready) begin
       if(out_count==0) begin
         $display("GU first row gate0=%h up0=%h row_valid=%b",out_gate[0],out_up[0],out_row_valid);
-        if(out_gate[0]!==32'h3f800000 || out_up[0]!==32'h3f800000)
-          $fatal(1,"GU numerical mismatch gate0=%h up0=%h expected FP32(1.0)",out_gate[0],out_up[0]);
+      end
+      for(int i=0;i<TILE;i++) begin
+        if(out_gate[i]!==golden[out_row][i*32 +: 32] ||
+           out_up[i]!==golden[out_row][512+i*32 +: 32])
+          $fatal(1,"GU golden mismatch row=%0d lane=%0d gate=%h/%h up=%h/%h",out_row,i,
+            out_gate[i],golden[out_row][i*32 +: 32],out_up[i],golden[out_row][512+i*32 +: 32]);
       end
       for(int i=0;i<TILE;i++) begin
         g_mem[out_row][i]<=out_gate[i];u_mem[out_row][i]<=out_up[i];
@@ -118,13 +135,18 @@ module tb_v3_gu_matrix;
       out_count++; last_seen<=out_last;
     end
     if(qz_valid&&qz_ready) begin
+      if(!qoz_z_owner_active||qz_tile>=32||qz_pair>=PAIRS)
+        $fatal(1,"QOZ owner/address mismatch tile=%0d pair=%0d",qz_tile,qz_pair);
       if(qz_pair!=z_count||qz_tile!=0||qz_n!=n||qz_epoch!=epoch||qz_head!=head||
          qz_rv!=row_mask(z_count))
         $fatal(1,"Z context mismatch pair=%0d expected=%0d tile=%0d n=%0d rv=%b",qz_pair,z_count,qz_tile,qz_n,qz_rv);
-      if(qz_even[7:0]!==8'd1||qz_even[135:128]!==8'd133||
-         (z_count<PAIRS-1&&(qz_odd[7:0]!==8'd1||qz_odd[135:128]!==8'd133)))
+      if(qz_even!==z_golden[2*z_count]||
+         (z_count<PAIRS-1&&qz_odd!==z_golden[2*z_count+1]))
         $fatal(1,"Z quantization mismatch pair=%0d even=%h odd=%h",z_count,qz_even,qz_odd);
       z_count++;z_last_seen<=qz_last;
+      qoz_z_mem[qz_tile][qz_pair][0]<=qz_even;
+      qoz_z_mem[qz_tile][qz_pair][1]<=qz_odd;
+      if(qz_last) begin qoz_z_complete<=1;qoz_z_owner_active<=0;end
     end
     watchdog++;
     if(watchdog%1000==0) $display("GU progress cyc=%0d job=%0d seq=%0d ac=%0d ar=%0d bc=%0d load=%0d col=%0d hold=%0d half=%0d ov=%0d or=%0d lv=%0d rdy=%b bt=%0d cur=%0d ahead=%0d req=%0d pairres=%0d pairdone=%0d gc=%0d uc=%0d pe=%0d",watchdog,dut.matrix.job_busy_q,dut.matrix.tile_seq_q,dut.matrix.a_fifo.count,dut.matrix.a_fifo.running,dut.matrix.b_fifo.count,dut.matrix.b_loader.loading,dut.matrix.b_loader.column,dut.matrix.b_serializer.holding,dut.matrix.b_serializer.half,dut.matrix.b_serializer.out_valid,dut.matrix.b_serializer.out_ready,dut.matrix.b_loader.load_valid,dut.matrix.b_loader.bank_ready,dut.matrix.b_loader.bank_tile[0],dut.matrix.current_b,dut.matrix.a_head.tile_idx,dut.matrix.req_valid,dut.pair_buffer.reserved_q,dut.pair_buffer.complete,dut.pair_buffer.gate_count_q,dut.pair_buffer.up_count_q,dut.pair_buffer.protocol_error);

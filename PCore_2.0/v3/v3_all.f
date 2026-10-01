@@ -45,3 +45,5 @@ tb/tb_v3_attention_55.sv
 tb/tb_v3_acc_overlap.sv
 tb/tb_v3_local_a_protocol.sv
 tb/tb_v3_gu_matrix.sv
+tb/tb_v3_gu_scheduler.sv
+tb/tb_v3_gu_32_system.sv

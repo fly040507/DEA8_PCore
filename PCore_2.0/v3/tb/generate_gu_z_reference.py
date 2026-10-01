@@ -57,8 +57,14 @@ def main():
                       (sum(bits(x) << (32*c) for c, x in enumerate(u)) << 512))
             gelu = [f32(0.5*x*(1 + math.tanh(math.sqrt(2/math.pi)*(x + 0.044715*x*x*x)))) for x in g]
             zwords.append(quantize([f32(x*y) for x, y in zip(gelu, u)]))
-    (dest / 'gu_fp32.mem').write_text(''.join(f'{x:0256x}\n' for x in gu), encoding='ascii')
-    (dest / 'gu_z_mxint8.mem').write_text(''.join(f'{x:034x}\n' for x in zwords), encoding='ascii')
+    fp_text = ''.join(f'{x:0256x}\n' for x in gu)
+    z_text = ''.join(f'{x:034x}\n' for x in zwords)
+    (dest / 'gu_fp32.mem').write_text(fp_text, encoding='ascii')
+    (dest / 'gu_z_mxint8.mem').write_text(z_text, encoding='ascii')
+    # The single-tile RTL TB only consumes n=0.  Keep a bounded fixture for
+    # simulators that warn when a large reference file is mapped to 51 words.
+    (dest / 'gu_n0_fp32.mem').write_text(''.join(f'{x:0256x}\n' for x in gu[:51]), encoding='ascii')
+    (dest / 'gu_n0_z_mxint8.mem').write_text(''.join(f'{x:034x}\n' for x in zwords[:51]), encoding='ascii')
     print(f'GU reference: rows={len(gu)}, FP32 values={len(gu)*32}, Z values={len(gu)*16}')
 
 

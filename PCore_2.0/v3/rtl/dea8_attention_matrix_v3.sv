@@ -108,7 +108,7 @@ module dea8_attention_matrix_v3 (
     .kv_valid,.kv_ready,.kv_entry,.b_source,
     .job_start(launch_fire),.job_a_tile_idx('0),.job_b_tile_idx('0),
     .job_a_stream_idx(pending_base_q),.job_b_stream_idx(pending_base_q),
-    .job_tiles((TILE_BITS+1)'(ATTN_K_TILES)),.job_m_rows(pending_cmd_q.m_rows),
+    .job_tiles(MATRIX_TILE_COUNT_BITS'(ATTN_K_TILES)),.job_m_rows(pending_cmd_q.m_rows),
     .job_epoch(pending_cmd_q.epoch),.job_head(pending_cmd_q.head),.job_nt(4'b0),
     .job_nt_per_tile(pending_cmd_q.op==MATRIX_PV),.job_clear_each_tile(pending_cmd_q.op==MATRIX_PV),
     .job_final_k(pending_cmd_q.result_last),.job_exp_fold(pending_cmd_q.exp_fold),

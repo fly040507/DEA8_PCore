@@ -4,6 +4,7 @@ $here=$PSScriptRoot;$rtl=Join-Path $here "rtl";$xvlog=Join-Path $VivadoRoot "bin
 $tops=@("tb_v3_ingress","tb_v3_bpath","tb_v3_bfifo_stream","tb_v3_pair_store","tb_v3_pair_store_regions","tb_v3_acc_overlap","tb_v3_local_a_protocol","tb_v3_deqacc32","tb_v3_matrix","tb_v3_projection","tb_v3_attention_scheduler","tb_v3_attention_matrix","tb_v3_attention_system","tb_v3_attention_55")
 $tops=@("tb_v3_fp32_equiv")+$tops
 $tops=@("tb_fp32_acc_lane_v5","tb_deqacc32_v5_stream")+$tops
+$tops=@("tb_v3_gu_scheduler","tb_v3_gu_matrix","tb_v3_gu_32_system")+$tops
 New-Item -ItemType Directory -Force -Path $report | Out-Null
 "RUNNING at $(Get-Date -Format o)" | Set-Content (Join-Path $report "v3_simulation_summary.txt") -Encoding UTF8
 Push-Location $here
@@ -42,5 +43,5 @@ try {
     Get-FileHash -Algorithm SHA256 |
     ForEach-Object { "$($_.Hash),$($_.Path.Substring($here.Length+1))" } |
     Set-Content (Join-Path $report "v3_sources_sha256.csv") -Encoding UTF8
-  "All $($tops.Count) v3 testbenches + Attention55 port-stress passed; 3 expected context rejections verified at $(Get-Date -Format o). Simulation only; no synthesis/P&R." | Set-Content (Join-Path $report "v3_simulation_summary.txt") -Encoding UTF8
+  "All $($tops.Count) v3 testbenches + Attention55 port-stress passed; G-U replay/golden/QOZ and 3 expected context rejections verified at $(Get-Date -Format o). Simulation only; no synthesis/P&R." | Set-Content (Join-Path $report "v3_simulation_summary.txt") -Encoding UTF8
 } finally { Pop-Location }

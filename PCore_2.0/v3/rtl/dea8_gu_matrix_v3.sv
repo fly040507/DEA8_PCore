@@ -65,7 +65,10 @@ module dea8_gu_matrix_v3 #(
   output logic gu_protocol_error
 );
   logic matrix_job_start,matrix_ready,matrix_busy,matrix_done;
+  logic replay_in_ready,replay_out_valid,replay_out_ready,replay_error;
+  a2_t replay_out_entry;
   logic matrix_commit_valid,matrix_commit_write_valid,matrix_gu_slot_reserve;
+  logic matrix_a_error;
   pair_meta_t matrix_commit_meta;
   acc_write_t matrix_commit_write;
   logic matrix_gu_slot_ready;
@@ -111,9 +114,17 @@ module dea8_gu_matrix_v3 #(
   assign qoz_z_wr_last=vpu_z_last;
   assign pair_input_consumed=gu_out_consumed;
 
+  // The external source supplies one physical A tile.  Replay expands it
+  // to Gate(k) and Up(k) transport tiles before the common matrix ingress.
+  dea8_gu_a_replay_v3 a_replay(
+    .clk,.reset,.clear,.in_valid(local_a_valid),.in_ready(replay_in_ready),
+    .in_entry(local_a_entry),.out_valid(replay_out_valid),.out_ready(replay_out_ready),
+    .out_entry(replay_out_entry),.protocol_error(replay_error));
+  assign local_a_ready=replay_in_ready;
+
   dea8_matrix_v3 #(.LOCAL_A(1'b1),.A_STREAMING(1'b0)) matrix(
     .clk,.reset,.clear,.xbc_valid(1'b0),.xbc_ready(),.xbc_entry('0),
-    .local_a_valid,.local_a_ready,.local_a_entry,
+    .local_a_valid(replay_out_valid),.local_a_ready(replay_out_ready),.local_a_entry(replay_out_entry),
     .hbm_valid,.hbm_ready,.hbm_entry,
     .kv_valid(1'b0),.kv_ready(),.kv_entry('0),.b_source(B_HBM),
     .job_start(matrix_job_start),.job_a_tile_idx('0),.job_b_tile_idx('0),
@@ -132,7 +143,7 @@ module dea8_gu_matrix_v3 #(
     .result_even_data,.result_odd_data,
     .vpu_wr_valid(1'b0),.vpu_wr_ready(),.vpu_wr('0),
     .dbg_valid(1'b0),.dbg_sel(ACC_FACC_A),.dbg_parity(1'b0),.dbg_addr('0),.dbg_lane('0),.dbg_data,
-    .a_protocol_error,.b_protocol_error);
+    .a_protocol_error(matrix_a_error),.b_protocol_error);
 
   // Reserve before G63, including a delayed reservation after B loading.
   // The pair buffer
@@ -155,6 +166,7 @@ module dea8_gu_matrix_v3 #(
     .out_epoch(gu_out_epoch),.out_head(gu_out_head),.out_n(gu_out_n),
     .out_last(gu_out_last),.complete(pair_complete),
     .protocol_error(pair_error));
+  assign a_protocol_error=matrix_a_error||replay_error;
   assign gu_protocol_error=pair_error||(!pair_capture_ready&&matrix_commit_write_valid&&
     matrix_commit_meta.mode==MAT_GU&&matrix_commit_meta.final_k);
   initial if(GU_TILES!=2*K_TILES) $fatal(1,"GU tile geometry must be 2*K");
