@@ -6,6 +6,8 @@ import pcore3_pkg::*;
 module dea8_attention_matrix_v3 (
   input logic clk,reset,clear,
   input logic cmd_valid,output logic cmd_ready,input matrix_cmd_t cmd,
+  // Only the job_last descriptor is gated; prefetch proceeds while false.
+  input logic tail_launch_ready,
   output logic done_valid,input logic done_ready,output matrix_cmd_t done_cmd,
   input logic qoz_load_valid,output logic qoz_load_ready,input a2_t qoz_load_entry,
   input logic [EPOCH_BITS-1:0] qoz_load_epoch,input logic [2:0] qoz_load_head,
@@ -40,28 +42,32 @@ module dea8_attention_matrix_v3 (
   logic source_ready,command_bad,reader_is_pv,read_fire;
   logic cmd_accept,launch_valid,launch_fire,read_start;
 
-  function automatic logic source_matches(input matrix_cmd_t c);
-    if(c.op==MATRIX_PV)
-      return p_complete[c.a_id[0]]&&p_epoch[c.a_id[0]]==c.epoch&&
-        p_head[c.a_id[0]]==c.head&&p_block[c.a_id[0]]==c.block_id;
-    return q_complete&&q_epoch[0]==c.epoch&&q_head[0]==c.head;
-  endfunction
-  function automatic logic source_is_stale(input matrix_cmd_t c);
-    return ((c.op==MATRIX_PV)?p_complete[c.a_id[0]]:q_complete)&&!source_matches(c);
-  endfunction
+  logic cmd_source_ready,cmd_source_stale,pending_source_stale;
+  // Readiness changes when a producer commits, even when the descriptor is
+  // unchanged. Keep every RAM descriptor dependency explicit in the logic.
+  assign cmd_source_ready=(cmd.op==MATRIX_PV)?
+    (p_complete[cmd.a_id[0]]&&p_epoch[cmd.a_id[0]]==cmd.epoch&&
+     p_head[cmd.a_id[0]]==cmd.head&&p_block[cmd.a_id[0]]==cmd.block_id):
+    (q_complete&&q_epoch[0]==cmd.epoch&&q_head[0]==cmd.head);
+  assign cmd_source_stale=((cmd.op==MATRIX_PV)?p_complete[cmd.a_id[0]]:q_complete)&&!cmd_source_ready;
+  assign pending_source_stale=((pending_cmd_q.op==MATRIX_PV)?p_complete[pending_cmd_q.a_id[0]]:q_complete)&&!source_ready;
 
   assign reader_is_pv=reader_cmd_q.op==MATRIX_PV;
   assign command_bad=cmd.mode!=MAT_ATTENTION||cmd.m_rows!=ROWS||
     (cmd.op==MATRIX_QK&&cmd.a_id!=0)||
     (cmd.op==MATRIX_PV&&cmd.a_id!=LOGICAL_ID_BITS'(cmd.block_id));
-  assign source_ready=source_matches(pending_cmd_q);
+  assign source_ready=(pending_cmd_q.op==MATRIX_PV)?
+    (p_complete[pending_cmd_q.a_id[0]]&&p_epoch[pending_cmd_q.a_id[0]]==pending_cmd_q.epoch&&
+     p_head[pending_cmd_q.a_id[0]]==pending_cmd_q.head&&p_block[pending_cmd_q.a_id[0]]==pending_cmd_q.block_id):
+    (q_complete&&q_epoch[0]==pending_cmd_q.epoch&&q_head[0]==pending_cmd_q.head);
   assign cmd_ready=!reset&&!clear&&!a_protocol_error&&!pending_valid_q&&
-    !command_bad&&!source_is_stale(cmd);
+    !command_bad&&!cmd_source_stale;
   assign cmd_accept=cmd_valid&&cmd_ready;
   assign launch_valid=!reset&&!clear&&!a_protocol_error&&pending_valid_q&&
-    source_ready&&matrix_ready;
-  assign launch_fire=launch_valid;
-  assign done_valid=current_valid_q&&(matrix_done||done_hold_q);
+    source_ready&&(!pending_cmd_q.job_last||tail_launch_ready);
+  assign launch_fire=launch_valid&&matrix_ready&&
+    (!current_valid_q||(done_valid&&done_ready));
+  assign done_valid=!reset&&!clear&&current_valid_q&&(matrix_done||done_hold_q);
   assign done_cmd=cmd_q;
 
   // Start reading the pending source after the current source has drained.
@@ -122,8 +128,8 @@ module dea8_attention_matrix_v3 (
       issue_done_q<=0;done_hold_q<=0;stream_q<=0;pending_base_q<=0;reader_base_q<=0;
       tile_q<=0;pair_q<=0;reading_q<=0;cmd_error<=0;
     end else begin
-      if(cmd_valid&&!pending_valid_q&&(command_bad||source_is_stale(cmd))) cmd_error<=1;
-      if(pending_valid_q&&source_is_stale(pending_cmd_q)) cmd_error<=1;
+      if(cmd_valid&&!pending_valid_q&&(command_bad||cmd_source_stale)) cmd_error<=1;
+      if(pending_valid_q&&pending_source_stale) cmd_error<=1;
       if(cmd_accept) begin
         pending_cmd_q<=cmd;pending_base_q<=stream_q;pending_valid_q<=1;
         stream_q<=stream_q+TILE_BITS'(ATTN_K_TILES);prefetched_q<=0;

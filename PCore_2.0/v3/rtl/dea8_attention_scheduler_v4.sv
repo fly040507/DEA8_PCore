@@ -3,14 +3,22 @@ import pcore3_pkg::*;
 // Attention scheduler with one current Matrix descriptor and one lookahead
 // descriptor.  Matrix timing is driven by descriptor acceptance and completion
 // handshakes; VPU/SFU latency is represented only by done tokens.
+// Completion contract (all context fields echoed unchanged):
+// QK_POST: all score/row-state inputs for ALPHA_EXP are visible.
+// ALPHA_EXP: the complete alpha generation is visible to P_EXP/SCALE.
+// P_EXP: probability production for this generation is complete.
+// P_POST: final PBUF pair was ACCEPTED and its bank is committed.
+// OACC_SCALE: final accumulator update was ACCEPTED/committed.
+// RECIP: all reciprocals are visible to AFIN. AFIN: final outputs committed.
+// Done never means merely issuing the last request. Hold valid/context until
+// ready, one in-flight command per VPU/SFU, in-order Matrix completions.
+// tail_launch_ready must connect to the Matrix wrapper: descriptor acceptance
+// grants prefetch only, while this level grants final-PV execution.
 module dea8_attention_scheduler_v4 #(
   parameter int BLOCKS=KV_BLOCKS,
-  // The final descriptor is accepted only after PV(B-1) commits. Its local
-  // source then needs the fixed four-entry AFIFO priming window while the
-  // tail slot is elapsing, so reserve that window inside the guard budget.
-  parameter int TAIL_PREFETCH_CYCLES=8,
-  parameter int TAIL_SCALE_SLOT_CYCLES=(ATTN_NOMINAL_SLOT>TAIL_PREFETCH_CYCLES)?
-    (ATTN_NOMINAL_SLOT-TAIL_PREFETCH_CYCLES):1
+  // Full architectural tail slot. Descriptor acceptance/prefetch is separate
+  // from launch permission; local RAM latency is not subtracted from this slot.
+  parameter int TAIL_SCALE_SLOT_CYCLES=ATTN_NOMINAL_SLOT
 ) (
   input logic clk,reset,clear,
   input logic start_valid, output logic start_ready,busy,
@@ -19,6 +27,7 @@ module dea8_attention_scheduler_v4 #(
   output logic done_valid, input logic done_ready,
   output logic matrix_valid, input logic matrix_ready,
   output matrix_cmd_t matrix_cmd,
+  output logic tail_launch_ready,
   input logic matrix_done_valid, output logic matrix_done_ready,
   input matrix_cmd_t matrix_done,
   output logic vpu_valid, input logic vpu_ready,
@@ -34,8 +43,12 @@ module dea8_attention_scheduler_v4 #(
   localparam int INDEX_BITS=(MATRIX_JOBS<2)?1:$clog2(MATRIX_JOBS+1);
   localparam int TAIL_BITS=(TAIL_SCALE_SLOT_CYCLES<2)?1:$clog2(TAIL_SCALE_SLOT_CYCLES+1);
 
-  logic active_q,tail_done_q,afin_done_q,tail_guard_q;
+  logic active_q,afin_done_q,tail_guard_q;
   logic [INDEX_BITS-1:0] matrix_index_q;
+  logic [INDEX_BITS-1:0] matrix_completed_q;
+  logic vpu_hold_q,sfu_hold_q;
+  vpu_cmd_t vpu_held_q;
+  sfu_cmd_t sfu_held_q;
   logic [TAIL_BITS-1:0] tail_remaining_q;
   logic [2:0] head_q;
   logic [EPOCH_BITS-1:0] epoch_q;
@@ -78,18 +91,19 @@ module dea8_attention_scheduler_v4 #(
 
   assign start_ready=!reset&&!clear&&!active_q;
   assign busy=active_q;
-  assign done_valid=active_q&&afin_done_q;
-  assign matrix_done_ready=active_q;
-  assign vpu_done_ready=active_q&&vpu_busy_q;
-  assign sfu_done_ready=active_q&&sfu_busy_q;
+  assign done_valid=!reset&&!clear&&active_q&&afin_done_q;
+  assign matrix_done_ready=!reset&&!clear&&active_q&&(matrix_completed_q<matrix_index_q);
+  assign vpu_done_ready=!reset&&!clear&&active_q&&vpu_busy_q;
+  assign sfu_done_ready=!reset&&!clear&&active_q&&sfu_busy_q;
+  assign tail_launch_ready=!reset&&!clear&&active_q&&tail_guard_q&&
+    tail_remaining_q==0&&p_ready_q[BLOCKS-1]&&scale_ready_q[BLOCKS-1];
 
   always_comb begin
     matrix_cmd=make_matrix_cmd(matrix_index_q);
     matrix_allowed=1'b0;
     if(matrix_index_q<MATRIX_JOBS) begin
       if(matrix_index_q==MATRIX_JOBS-1)
-        matrix_allowed=tail_guard_q&&(tail_remaining_q==0)&&
-          p_ready_q[BLOCKS-1]&&scale_ready_q[BLOCKS-1];
+        matrix_allowed=tail_guard_q;
       else if(matrix_index_q<2 || matrix_index_q[0]) matrix_allowed=1'b1;
       else begin
         int pv_block;
@@ -98,7 +112,7 @@ module dea8_attention_scheduler_v4 #(
       end
     end
   end
-  assign matrix_valid=active_q&&matrix_allowed&&(matrix_index_q<MATRIX_JOBS);
+  assign matrix_valid=!reset&&!clear&&active_q&&matrix_allowed&&(matrix_index_q<MATRIX_JOBS);
 
   always_comb begin
     vpu_pick='0;vpu_pick_qk=0;vpu_pick_p=0;vpu_pick_scale=0;vpu_pick_afin=0;
@@ -119,6 +133,8 @@ module dea8_attention_scheduler_v4 #(
     else if(vpu_pick_scale) vpu_cmd.op=VPU_OACC_SCALE;
     else vpu_cmd.op=VPU_AFIN;
     vpu_valid=active_q&&!vpu_busy_q&&(vpu_pick_qk||vpu_pick_p||vpu_pick_scale||vpu_pick_afin);
+    if(vpu_hold_q) begin vpu_cmd=vpu_held_q;vpu_valid=active_q&&!vpu_busy_q;end
+    if(reset||clear) vpu_valid=0;
   end
 
   always_comb begin
@@ -134,11 +150,14 @@ module dea8_attention_scheduler_v4 #(
     else if(sfu_pick_p) sfu_cmd.op=SFU_P_EXP;
     else sfu_cmd.op=SFU_RECIP;
     sfu_valid=active_q&&!sfu_busy_q&&(sfu_pick_alpha||sfu_pick_p||sfu_pick_recip);
+    if(sfu_hold_q) begin sfu_cmd=sfu_held_q;sfu_valid=active_q&&!sfu_busy_q;end
+    if(reset||clear) sfu_valid=0;
   end
 
   always_ff @(posedge clk) begin
     if(reset||clear) begin
       active_q<=0;afin_done_q<=0;matrix_index_q<=0;tail_remaining_q<=0;tail_guard_q<=0;
+      matrix_completed_q<=0;vpu_hold_q<=0;sfu_hold_q<=0;vpu_held_q<='0;sfu_held_q<='0;
       head_q<=0;epoch_q<=0;qk_pending_q<='0;alpha_pending_q<='0;
       p_exp_pending_q<='0;p_post_pending_q<='0;scale_pending_q<='0;
       p_ready_q<='0;scale_ready_q<='0;scale_ready_q[0]<=1;
@@ -149,6 +168,7 @@ module dea8_attention_scheduler_v4 #(
 
       if(start_valid&&start_ready) begin
         active_q<=1;afin_done_q<=0;matrix_index_q<=0;tail_guard_q<=0;
+        matrix_completed_q<=0;vpu_hold_q<=0;sfu_hold_q<=0;
         head_q<=start_head;epoch_q<=start_epoch;tail_remaining_q<=0;
         qk_pending_q<='0;alpha_pending_q<='0;p_exp_pending_q<='0;
         p_post_pending_q<='0;scale_pending_q<='0;p_ready_q<='0;
@@ -158,19 +178,25 @@ module dea8_attention_scheduler_v4 #(
 
       if(matrix_valid&&matrix_ready) begin
         matrix_index_q<=matrix_index_q+1'b1;
-        if(matrix_index_q==MATRIX_JOBS-1) tail_guard_q<=0;
       end
       if(matrix_done_valid&&matrix_done_ready) begin
+        matrix_completed_q<=matrix_completed_q+1'b1;
         if(matrix_done.op==MATRIX_QK) qk_pending_q[matrix_done.block_id]<=1;
         if(matrix_done.op==MATRIX_PV&&matrix_done.block_id==BLOCKS-2) begin
-          tail_remaining_q<=TAIL_BITS'(TAIL_SCALE_SLOT_CYCLES);
+          tail_remaining_q<=TAIL_BITS'(TAIL_SCALE_SLOT_CYCLES-1);
+          // Include the commit edge in the full guard. With preloaded A/B,
+          // final PV issue follows GUARD+1 edges after this commit, independent
+          // of the prefetch startup latency. Slow sources may extend the wait.
           tail_guard_q<=1;
         end
         if(matrix_done.op==MATRIX_PV&&matrix_done.block_id==BLOCKS-1)
           recip_pending_q<=1;
       end
 
+      if(vpu_valid&&!vpu_ready&&!vpu_hold_q) begin vpu_hold_q<=1;vpu_held_q<=vpu_cmd;end
+      if(sfu_valid&&!sfu_ready&&!sfu_hold_q) begin sfu_hold_q<=1;sfu_held_q<=sfu_cmd;end
       if(vpu_valid&&vpu_ready) begin
+        vpu_hold_q<=0;
         vpu_busy_q<=1;vpu_inflight_q<=vpu_cmd;
         case(vpu_cmd.op)
           VPU_QK_POST: qk_pending_q[vpu_cmd.block_id]<=0;
@@ -192,6 +218,7 @@ module dea8_attention_scheduler_v4 #(
       end
 
       if(sfu_valid&&sfu_ready) begin
+        sfu_hold_q<=0;
         sfu_busy_q<=1;sfu_inflight_q<=sfu_cmd;
         case(sfu_cmd.op)
           SFU_ALPHA_EXP: alpha_pending_q[sfu_cmd.block_id]<=0;
@@ -220,13 +247,17 @@ module dea8_attention_scheduler_v4 #(
   // generation while allowing any legal latency.
   // synthesis translate_off
   always @(posedge clk) if(!reset&&!clear&&active_q) begin
+    if(matrix_done_valid&&(!matrix_done_ready||matrix_done!==make_matrix_cmd(matrix_completed_q)))
+      $fatal(1,"Attention Matrix completion context mismatch");
+    if(vpu_done_valid&&!vpu_busy_q) $fatal(1,"Attention VPU unsolicited completion");
+    if(sfu_done_valid&&!sfu_busy_q) $fatal(1,"Attention SFU unsolicited completion");
     if(vpu_done_valid&&vpu_done_ready&&vpu_done!==vpu_inflight_q)
       $fatal(1,"Attention VPU completion context mismatch");
     if(sfu_done_valid&&sfu_done_ready&&sfu_done!==sfu_inflight_q)
       $fatal(1,"Attention SFU completion context mismatch");
   end
   initial begin
-    if(BLOCKS<2) $fatal(1,"Attention scheduler needs at least two blocks");
+    if(BLOCKS<2||BLOCKS>64) $fatal(1,"Attention scheduler requires 2..64 blocks");
     if(TAIL_SCALE_SLOT_CYCLES<1) $fatal(1,"Tail slot must be positive");
   end
   // synthesis translate_on

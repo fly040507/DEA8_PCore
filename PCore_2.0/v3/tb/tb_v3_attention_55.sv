@@ -10,7 +10,9 @@ module tb_v3_attention_55;
   // Model the planned doubled VPU/SFU lanes. Matrix data and final OACC
   // values remain checked through RTL; only arithmetic-side token latency is
   // abstracted for the attention scheduling run.
-  localparam bit FAST_VPU_SFU_MODEL=1'b1;
+  bit FAST_VPU_SFU_MODEL;
+  initial FAST_VPU_SFU_MODEL=!$test$plusargs("PORT_STRESS");
+  logic tail_launch_ready;
   localparam int SFU_P_EXP_CYCLES=204;
   localparam int VPU_OACC_SCALE_CYCLES=208;
   localparam int VPU_AFIN_CYCLES=408;
@@ -34,7 +36,7 @@ module tb_v3_attention_55;
   logic dbg_valid=0,dbg_parity=0; acc_sel_e dbg_sel=ACC_OACC;
   logic [9:0] dbg_addr=0; logic [3:0] dbg_lane=0; logic [31:0] dbg_data;
   int accepts=0,completions=0,checked=0,loads=0,a_beats=0,b_beats=0;
-  int cycle_count=0,maximum_job_cycles=0,max_qk_cycles=0,max_pv_cycles=0;
+  int cycle_count=0;
   int accepted_cycle[0:JOBS-1];
   matrix_cmd_t accepted_cmd[0:JOBS-1];
   logic result_rd_valid=0,result_rd_ready,result_rd_data_valid;
@@ -45,9 +47,9 @@ module tb_v3_attention_55;
   int vpu_reads=0,vpu_writes=0,overlap_reads=0,overlap_writes=0;
   int request_cycle[0:JOBS-1],commit_cycle[0:JOBS-1],issue_cycle[0:JOBS-1];
   int issue_first_cycle[0:JOBS-1],issue_last_cycle[0:JOBS-1];
-  int requests=0,d4s=0,issues_in_job=0,issue_jobs=0;
-  int max_d4_gap=0,max_request_latency=0,max_issue_interval=0;
-  int max_issue_to_d4=0,max_d4_to_next_issue=0;
+  int requests=0,commits=0,issues_in_job=0,issue_jobs=0;
+  int min_commit_tail=1<<30,max_commit_tail=0;
+  int tail_accept_cycle=-1,tail_prefetch_cycle=-1,tail_guard_release=-1;
   int min_matrix_body=1<<30,max_matrix_body=0;
   int min_issue_interval=1<<30,max_issue_interval_steady=0;
   int min_handoff=1<<30,max_handoff=0;
@@ -55,6 +57,7 @@ module tb_v3_attention_55;
   bit request_seen=0;
 
   dea8_attention_scheduler_v4 #(.BLOCKS(BLOCKS)) scheduler(
+    .tail_launch_ready,
     .clk,.reset,.clear,.start_valid,.start_ready,.busy,.start_head,.start_epoch,
     .done_valid,.done_ready,.matrix_valid,.matrix_ready,.matrix_cmd,
     .matrix_done_valid,.matrix_done_ready,.matrix_done,
@@ -62,6 +65,7 @@ module tb_v3_attention_55;
     .sfu_valid,.sfu_ready,.sfu_cmd,.sfu_done_valid,.sfu_done_ready,.sfu_done);
 
   dea8_attention_matrix_v3 matrix(
+    .tail_launch_ready,
     .clk,.reset,.clear,.cmd_valid(matrix_valid),.cmd_ready(matrix_ready),.cmd(matrix_cmd),
     .done_valid(matrix_done_valid),.done_ready(matrix_done_ready),.done_cmd(matrix_done),
     .qoz_load_valid,.qoz_load_ready,.qoz_load_entry,.qoz_load_epoch(start_epoch),.qoz_load_head(start_head),
@@ -256,7 +260,7 @@ module tb_v3_attention_55;
   endtask
 
   // One outstanding command per modeled unit. PBUF is populated by the VPU
-  // post-P model; SFU exp takes its specified 408 cycles independently.
+  // post-P model; SFU P-exp takes SFU_P_EXP_CYCLES independently.
   initial begin : vpu_model
     vpu_cmd_t c;
     wait(!reset);
@@ -302,7 +306,6 @@ module tb_v3_attention_55;
   always @(posedge clk) if(!reset&&!clear) begin
     int expected_block;
     matrix_op_e expected_op;
-    int issue_to_d4;
     cycle_count++;
     if(start_valid&&start_ready&&attention_start_cycle<0)
       attention_start_cycle=cycle_count;
@@ -316,29 +319,20 @@ module tb_v3_attention_55;
       if(issues_in_job==0) begin
         issue_cycle[issue_jobs]=cycle_count;
         issue_first_cycle[issue_jobs]=cycle_count;
-        if(issue_jobs>0) begin
-          if(cycle_count-issue_first_cycle[issue_jobs-1]>max_issue_interval)
-            max_issue_interval=cycle_count-issue_first_cycle[issue_jobs-1];
-          if(cycle_count-commit_cycle[issue_jobs-1]>max_d4_to_next_issue)
-            max_d4_to_next_issue=cycle_count-commit_cycle[issue_jobs-1];
-        end
       end
       issue_last_cycle[issue_jobs]=cycle_count;
       issues_in_job++;
       if(issues_in_job==ATTN_ISSUES) begin issues_in_job=0;issue_jobs++;end
     end
     if(matrix.matrix_done) begin
-      commit_cycle[d4s]=cycle_count;
-      issue_to_d4=cycle_count-issue_last_cycle[d4s];
-      if(issue_to_d4>max_issue_to_d4) max_issue_to_d4=issue_to_d4;
-      if(cycle_count-request_cycle[d4s]>max_request_latency) max_request_latency=cycle_count-request_cycle[d4s];
-      if(d4s>0&&d4s<JOBS-1&&cycle_count-commit_cycle[d4s-1]>max_d4_gap)
-        max_d4_gap=cycle_count-commit_cycle[d4s-1];
-      if(d4s<6) $display("ATTN_TRACE job=%0d req=%0d accept=%0d issue=%0d d4=%0d gap=%0d",
-        d4s,request_cycle[d4s],accepted_cycle[d4s],issue_cycle[d4s],cycle_count,
-        d4s==0?0:cycle_count-commit_cycle[d4s-1]);
-      d4s++;
+      commit_cycle[commits]=cycle_count;
+      if(commits<6) $display("ATTN_TRACE job=%0d issue_first=%0d issue_last=%0d commit=%0d",
+        commits,issue_first_cycle[commits],issue_last_cycle[commits],cycle_count);
+      commits++;
     end
+    if(matrix_valid&&matrix_ready&&matrix_cmd.job_last) tail_accept_cycle=cycle_count;
+    if(matrix.read_start&&matrix.pending_cmd_q.job_last) tail_prefetch_cycle=cycle_count;
+    if(tail_launch_ready&&tail_guard_release<0) tail_guard_release=cycle_count;
     if(result_rd_valid&&result_rd_ready) begin
       vpu_reads++;
       if(matrix.matrix.job_busy) overlap_reads++;
@@ -367,13 +361,8 @@ module tb_v3_attention_55;
       accepts++;
     end
     if(matrix_done_valid&&matrix_done_ready) begin
-      int job_cycles;
       if(completions>=accepts||matrix_done!==accepted_cmd[completions])
         $fatal(1,"matrix completion context mismatch index=%0d",completions);
-      job_cycles=cycle_count-accepted_cycle[completions];
-      if(job_cycles>maximum_job_cycles) maximum_job_cycles=job_cycles;
-      if(matrix_done.op==MATRIX_QK && job_cycles>max_qk_cycles) max_qk_cycles=job_cycles;
-      if(matrix_done.op==MATRIX_PV && job_cycles>max_pv_cycles) max_pv_cycles=job_cycles;
       completions++;
       fork check_block(matrix_done); join_none
       if(completions%20==0) $display("attention55 progress jobs=%0d/%0d cycle=%0d",completions,JOBS,cycle_count);
@@ -391,10 +380,10 @@ module tb_v3_attention_55;
     wait(done_valid);
     wait(checked==JOBS);
     if((!FAST_VPU_SFU_MODEL&&
-        (vpu_reads!=BLOCKS*(PAIRS+PAIRS*TILE)||vpu_writes!=BLOCKS*PAIRS*TILE))||
+         (vpu_reads!=BLOCKS*(PAIRS+PAIRS*TILE)||vpu_writes!=BLOCKS*PAIRS*TILE||overlap_writes==0))||
        overlap_reads==0)
       $fatal(1,"VPU RAM coverage reads=%0d writes=%0d overlaps=%0d/%0d",vpu_reads,vpu_writes,overlap_reads,overlap_writes);
-    if(accepts!=JOBS||completions!=JOBS||loads!=BLOCKS||
+    if(accepts!=JOBS||completions!=JOBS||commits!=JOBS||issue_jobs!=JOBS||loads!=BLOCKS||
        a_beats!=ATTN_K_TILES*PAIRS||
        b_beats!=JOBS*ATTN_K_TILES*(TILE/2))
       $fatal(1,"coverage count accept=%0d complete=%0d loads=%0d A=%0d B=%0d",
@@ -406,42 +395,53 @@ module tb_v3_attention_55;
     // Row 51 is invalid and must not have acquired an OACC valid bit.
     for(int col=0;col<TILE*TILE;col++) read_check(ACC_OACC,ROWS,col,0,BLOCKS-1);
     dbg_valid=0;
-    $display("ATTN_CYCLES max_request_to_D4=%0d max_steady_D4_gap=%0d cold_request_to_D4=%0d jobs=%0d issue_jobs=%0d",
-      max_request_latency,max_d4_gap,commit_cycle[0]-request_cycle[0],d4s,issue_jobs);
-    $display("ATTN_TIMING max_issue_first_interval=%0d max_d4_to_next_issue=%0d max_issue_to_D4=%0d first_issue=%0d last_issue=%0d first_D4=%0d last_D4=%0d",
-      max_issue_interval,max_d4_to_next_issue,max_issue_to_d4,
-      issue_first_cycle[0],issue_last_cycle[0],commit_cycle[0],commit_cycle[JOBS-1]);
     for(int j=0;j<JOBS;j++) begin
       int body;
       body=issue_last_cycle[j]-issue_first_cycle[j]+1;
+      if(body!=ATTN_ISSUES) $fatal(1,"Matrix body has bubbles job=%0d body=%0d",j,body);
+      if(commit_cycle[j]-issue_last_cycle[j]<min_commit_tail) min_commit_tail=commit_cycle[j]-issue_last_cycle[j];
+      if(commit_cycle[j]-issue_last_cycle[j]>max_commit_tail) max_commit_tail=commit_cycle[j]-issue_last_cycle[j];
       if(body<min_matrix_body) min_matrix_body=body;
       if(body>max_matrix_body) max_matrix_body=body;
-      if(j>0) begin
+      if(j>0&&j<JOBS-1) begin
         int interval;
         interval=issue_first_cycle[j]-issue_first_cycle[j-1];
+        if(FAST_VPU_SFU_MODEL&&interval!=ATTN_NOMINAL_SLOT+1)
+          $fatal(1,"steady interval mismatch job=%0d interval=%0d",j,interval);
         if(interval<min_issue_interval) min_issue_interval=interval;
         if(interval>max_issue_interval_steady) max_issue_interval_steady=interval;
       end
-      if(j<JOBS-1) begin
+      if(j<JOBS-2) begin
         int handoff;
         handoff=issue_first_cycle[j+1]-commit_cycle[j];
         if(handoff<min_handoff) min_handoff=handoff;
         if(handoff>max_handoff) max_handoff=handoff;
       end
     end
-    $display("ATTN_DETAIL matrix_body=%0d..%0d issue_interval=%0d..%0d handoff=%0d..%0d",
+    if(FAST_VPU_SFU_MODEL) begin
+      if(issue_first_cycle[JOBS-1]-issue_first_cycle[JOBS-2]!=2*ATTN_NOMINAL_SLOT+1)
+        $fatal(1,"full tail guard interval mismatch");
+      if(tail_accept_cycle>=tail_guard_release||tail_prefetch_cycle>=tail_guard_release)
+        $fatal(1,"PV54 descriptor/prefetch not hidden inside tail guard");
+      if(attention_done_cycle-commit_cycle[JOBS-1]!=VPU_AFIN_CYCLES+31)
+        $fatal(1,"final recip/AFIN tail mismatch");
+    end
+    $display("ATTN_PERF mode=%s cold_start_to_first_issue=%0d cold_request_to_first_issue=%0d commit_tail=%0d..%0d",
+      FAST_VPU_SFU_MODEL?"scheduling":"port_stress",issue_first_cycle[0]-attention_start_cycle,
+      issue_first_cycle[0]-request_cycle[0],min_commit_tail,max_commit_tail);
+    $display("ATTN_DETAIL matrix_body=%0d..%0d steady_issue_interval=%0d..%0d steady_handoff=%0d..%0d",
       min_matrix_body,max_matrix_body,min_issue_interval,max_issue_interval_steady,
       min_handoff,max_handoff);
-    $display("ATTN_TAIL pv53_issue=%0d pv54_issue=%0d interval=%0d pv54_commit=%0d afin_done_cycle=%0d",
-      issue_first_cycle[108],issue_first_cycle[109],
-      issue_first_cycle[109]-issue_first_cycle[108],commit_cycle[109],attention_done_cycle);
+    $display("ATTN_TAIL penultimate_PV_to_final_PV=%0d final_PV_commit_to_attention_done=%0d descriptor_accept=%0d prefetch=%0d guard_release=%0d",
+      issue_first_cycle[JOBS-1]-issue_first_cycle[JOBS-2],attention_done_cycle-commit_cycle[JOBS-1],
+      tail_accept_cycle,tail_prefetch_cycle,tail_guard_release);
     $display("ATTN_JOB start_cycle=%0d done_cycle=%0d job_cycles=%0d",
       attention_start_cycle,attention_done_cycle,
       attention_done_cycle-attention_start_cycle);
     $display("ATTN_TB_CHECK_END cycle=%0d",cycle_count);
     $display("VPU_RAM reads=%0d writes=%0d overlap_reads=%0d overlap_writes=%0d identity_scale_model=1",vpu_reads,vpu_writes,overlap_reads,overlap_writes);
-    $display("tb_v3_attention_55 PASS QK=%0d PV=%0d P_loads=%0d A_beats=%0d B_beats=%0d final_values=%0d max_qk_cycles=%0d max_pv_cycles=%0d max_job_cycles=%0d total_cycles=%0d",
-      BLOCKS,BLOCKS,loads,a_beats,b_beats,ROWS*TILE*TILE,max_qk_cycles,max_pv_cycles,maximum_job_cycles,cycle_count);
+    $display("tb_v3_attention_55 PASS mode=%s QK=%0d PV=%0d P_loads=%0d A_beats=%0d B_beats=%0d final_values=%0d job_cycles=%0d",
+      FAST_VPU_SFU_MODEL?"scheduling":"port_stress",BLOCKS,BLOCKS,loads,a_beats,b_beats,ROWS*TILE*TILE,attention_done_cycle-attention_start_cycle);
     $finish;
   end
   // KVB producer runs ahead of commands, bounded by real BFIFO/backpressure.

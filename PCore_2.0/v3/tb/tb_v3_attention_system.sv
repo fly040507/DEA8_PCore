@@ -7,6 +7,7 @@ import pcore3_pkg::*;
 // Matrix completion handshake.
 module tb_v3_attention_system;
   localparam int BLOCKS=2;
+  logic tail_launch_ready;
   logic clk=0; always #2 clk=~clk;
   logic reset=1,clear=0;
   logic start_valid,start_ready,busy;
@@ -26,6 +27,7 @@ module tb_v3_attention_system;
   logic a_error,b_error; int matrix_accepts,matrix_done_count;
 
   dea8_attention_scheduler_v4 #(.BLOCKS(BLOCKS)) scheduler(
+    .tail_launch_ready,
     .clk,.reset,.clear,.start_valid,.start_ready,.busy,.start_head,.start_epoch,
     .done_valid,.done_ready,.matrix_valid,.matrix_ready,.matrix_cmd,
     .matrix_done_valid,.matrix_done_ready,.matrix_done,
@@ -33,6 +35,7 @@ module tb_v3_attention_system;
     .sfu_valid,.sfu_ready,.sfu_cmd,.sfu_done_valid,.sfu_done_ready,.sfu_done);
 
   dea8_attention_matrix_v3 matrix(
+    .tail_launch_ready,
     .clk,.reset,.clear,.cmd_valid(matrix_valid),.cmd_ready(matrix_ready),.cmd(matrix_cmd),
     .done_valid(matrix_done_valid),.done_ready(matrix_done_ready),.done_cmd(matrix_done),
     .qoz_load_valid,.qoz_load_ready,.qoz_load_entry,.qoz_load_epoch(start_epoch),.qoz_load_head(start_head),

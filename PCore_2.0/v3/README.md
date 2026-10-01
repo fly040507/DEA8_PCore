@@ -2,7 +2,7 @@
 
 ## 当前状态：DEQACC_3.3ns
 
-2026-09-30：Matrix 已接入 `rtl/DEQACC_3.3ns.sv`，模块标识符为 `DEQACC_3_3ns`。本轮完成 Attention v4 调度与 Matrix wrapper 的 lookahead/尾部控制，17 项 XSim 回归通过；DEQACC 的 registered timing shell 仍沿用已完成的 post-route 250 MHz 证据。旧版源码与 `reports/ooc_*v4/`、`reports/ooc_*v5/` 是历史证据，不代表当前实现。
+2026-09-30：Matrix 使用冻结的 `DEQACC_3_3ns`。本轮按 `interaction/AI工具意见.docx` 收尾 Attention v4 接口与验证：完整尾部 guard、描述符背压保持、延迟 PBUF 就绪、v4 独立专项、55-block 双模式和错误 completion 检查。**本轮只做 RTL 仿真，没有运行综合或 P&R。** 下文 DEQACC 时序仅属于其既有 baseline，不能外推到新 Attention scheduler/wrapper。
 
 **当前 baseline 固定为 `DEQACC_3_3ns`**：11级、II=1，使用 `reports/DEQACC_3.3ns/final_250MHz.dcp` 作为最终 refined 物理实现证据。本阶段 DEQACC 优化到此结束，后续集成沿用此接口和数值/延迟契约。
 
@@ -73,24 +73,79 @@ powershell -ExecutionPolicy Bypass -File .\run_v3_xsim.ps1
 
 ## 数值与协议验证
 
-`reports/v3_simulation_summary.txt`：17项通过；源码对应 `reports/v3_sources_sha256.csv`。
+统一入口 `run_v3_xsim.ps1`：17个正向 testbench、1次额外 Attention55 port-stress、3类错误 completion 的预期拒绝检查。最终状态以 `reports/v3_simulation_summary.txt` 为准，源码对应 `reports/v3_sources_sha256.csv`。负向测试只有命中指定 DUT context assertion 才通过，普通报错或 watchdog 不算成功。
 
-收尾仅删除 `DEQACC_3.3ns.sv` 中无调用的 `normalize()`，不改变有效数据通路或级数。删除后全源编译/elaboration和32-lane 5000组连续流再次通过：`reports/DEQACC_3.3ns/baseline_cleanup_xsim.log`。此前17项回归哈希保留，不覆盖为本次新哈希；最终checkpoint仍为删除未使用函数前生成的既有refined网表，本次只重新读取出报告，未重新综合或布线。
+DEQACC 上轮收尾仅删除无调用的 `normalize()`；对应专项日志为 `reports/DEQACC_3.3ns/baseline_cleanup_xsim.log`。DEQACC 最终 checkpoint 是既有 refined 网表；本轮 Attention 修改后更新的是仿真源码清单，未生成新综合/布线证据。
 
 - lane frozen reference：1000000笔连续事务，加 clear 中断及16笔重启；共1000016笔输出检查通过。
 - 32-lane：5000组连续 pair，轮换 FACC-A/FACC-B/OACC、地址、scale、符号、add_old、row mask；固定11级及metadata检查通过。
 - 独立FP函数：400256次加法、76928次pack对拍。frozen reference 独立于本轮改动，但不是第三方IEEE全覆盖模型。
 - Matrix64：1664次issue/commit，max_gap=1。
 - Projection：`[51,1024]×[1024,256]`，完整数值、尾行及输出背压保持检查通过。
-- Attention55：55 QK+55 PV，共110个矩阵 job，13056个最终OACC值全部匹配。最新日志为 `reports/tb_v3_attention_55.txt`：
-  - Matrix 每个 job 为 `26×16=416` 次双行 issue，实际 `matrix_body=416..416`；
-  - 普通稳态 issue 间隔为 `434` 拍，即 `416+6` 的 MXU edge drain、`11` 的 DEQACC commit 预算和 1 拍握手余量；
-  - `PV53→PV54` issue 间隔为 `867` 拍，尾部显式多留一个 block 级计算窗口；
-  - 55 个 QK、55 个 PV、416 个 A beat、14080 个 B beat、最终值和奇数尾行均通过检查；Attention job 从 `start_valid&&start_ready` 到 A_FIN 模型 `done` 为 `48620` 个 TB cycle。TB 最终等待异步数值检查全部结束到 `52365`，不计入 job latency。
-- Attention 调度使用 `dea8_attention_scheduler_v4`：保留一个 current descriptor 和一个 lookahead descriptor；QK/PV 稳态交替，PV 只在对应 PBUF generation、scale done 到达后发起；PV53 完成前禁止 PV54 提前接受，防止最后一个 PV 被 lookahead 破坏尾部间隔。
+- Attention55 两种模式均逐项检查13056个最终OACC值、110个矩阵 job、55次 PBUF装载、416个QOZ A2和14080个KVB B2。
+- `tb_v3_attention_scheduler` 现在实例化 **v4**。快/慢两轮各55 block，覆盖P/scale早晚就绪、随机Matrix ready、VPU/SFU长背压、命令保持、同拍完成、尾部guard、done保持及新epoch/head。实际覆盖：Matrix stalls=1644、VPU stalls=2708、SFU stalls=1531、simultaneous_done=56。
+- `tb_v3_attention_matrix` 增加30拍 completion背压、pending PV先接受后装载PBUF、guard阻止launch时A预取，以及block/epoch/head错配拒绝。
+- 三类负向测试分别注入Matrix epoch、VPU head、SFU epoch错误，要求相应 `completion context mismatch` assertion。断言用于仿真检测，不是硬件错误恢复接口。
 - 其余检查：XBC M51/M50尾部、BFIFO连续流、pair-store region、跨bank ACC并发、PBUF身份和乱序保护。
 
 历史命名的 `tb_fp32_acc_lane_v5`、`tb_deqacc32_v5_stream` 当前测试对象已是 `DEQACC_3_3ns`，名称保留以便对应既有回归入口。
+
+## Attention 尾部与握手契约
+
+- 保留 current + pending 描述符，利用当前Job末次issue后的排空时间预取下一Job的A。B预取继续由真实BFIFO背压约束。
+- 删除 `TAIL_PREFETCH_CYCLES=8`。`TAIL_SCALE_SLOT_CYCLES=ATTN_NOMINAL_SLOT=433` 是完整架构时隙；PV53完成后即允许PV54描述符接受，不必等P/scale全部完成。
+- 预取等待对应PBUF committed generation。新增 scheduler输出/wrapper输入 **`tail_launch_ready`**；最终PV的执行同时要求guard到期、P已提交、scale已提交。不能将该信号丢弃或在系统级固定为1。单独wrapper测试可由TB驱动。
+- guard从PV53 completion握手边沿计入首拍，计数初值为 `TAIL_SCALE_SLOT_CYCLES-1`。数据按时到齐时，PV54首issue相隔PV53 commit **434拍**；源迟到会延长等待，不重新减去RAM启动补偿。
+- 实测：PV54 descriptor在47734拍接受，47735拍开始预取，48166拍guard放行，48167拍首issue。即加载发生于完整guard内部，PV53→PV54保持867拍。
+- `launch_valid` 不再依赖Matrix ready；`launch_fire` 才结合ready及当前completion是否已消费。完成通知被背压时，当前done/context保持，pending不得覆盖当前owner。
+- VPU/SFU命令在valid且未ready期间锁存保持。Matrix completion按接受顺序和完整command校验；VPU/SFU只允许各一个in-flight，done必须原样回传完整context。
+- pending描述符不变时，PBUF后续commit也必须刷新 `source_ready`；已把存储依赖展开为显式组合表达式，并通过延迟供数与慢端口模式验证。
+
+### VPU/SFU done 定义
+
+**done表示该命令的数据已提交、对下游可见，不是最后一个请求刚发出。** 各通道在valid&&ready时转移token；未握手保持valid和全部context。reset/clear取消当前generation，外部单元也必须取消相应in-flight，不能回送旧completion。
+
+| 命令 | 允许发done的条件 |
+| --- | --- |
+| `VPU_QK_POST` | 本block供Alpha/SFU使用的score/row-state全部可见 |
+| `SFU_ALPHA_EXP` | 对应alpha generation完整可见，P EXP与OACC scale可启动 |
+| `SFU_P_EXP` | 本P generation生产完成、供P_POST消费的数据可见 |
+| `VPU_P_POST` | 最后一个有效PBUF pair已被PCore接受且region committed |
+| `VPU_OACC_SCALE` | 最后一次OACC更新已被正式accumulator接口接受并提交，后续PV可安全读取 |
+| `SFU_RECIP` | reciprocal数据全部可供A_FIN消费 |
+| `VPU_AFIN` | 最终输出全部提交完成，包括最后一个下游握手 |
+
+若外部模块内部使用队列，“请求进入本地队列”不满足上述done条件；必须等待对PCore/下游可见的提交。当前accumulator写入接受边沿即物理commit。
+
+### 两种55-block验收模式
+
+| 指标 | Scheduling | Port-stress |
+| --- | ---: | ---: |
+| Matrix body | 416..416 | 416..416 |
+| 首request→首issue | 8 | 8 |
+| start握手→首issue | 9 | 9 |
+| 末issue→最终commit | 18 | 18 |
+| 普通稳态首issue间隔 | **434..434** | 434..501（不考核性能） |
+| 普通handoff | **1..1** | 1..68 |
+| PV53→PV54首issue间隔 | **867** | 928 |
+| PV54 commit→Attention done | **439** | 449 |
+| Attention job总周期 | **48620** | 52242 |
+| VPU正式端口读/写 | 1430 / 0 | **24310 / 22880** |
+| Matrix busy期间读/写 | 1430 / 0 | **23425 / 22048** |
+
+Scheduling模式断言body=416、普通interval=434、尾部867及439，SFU P-exp=204、OACC scale=208、A_FIN=408拍是TB模型假设，不代表真实VPU/SFU RTL性能。Port-stress使用同一矩阵数值golden，通过真实ACC接口读写，强制检查非零读/写overlap；不限制上层慢模型的周期。两模式都不能省略数值/协议检查。
+
+`first issue→commit=433` 是边沿差，body=416是有效issue计数（首末边沿差415）；因此commit tail为18。request/accept到commit会包含lookahead排队，已不再作为性能主指标。最终completion不再命名D4。job总周期从start握手算到Attention done握手，不含之前的QOZ装载与之后的debug核对。
+
+报告：`reports/tb_v3_attention_55.txt`、`reports/tb_v3_attention_55_port_stress.txt`、`reports/tb_v3_attention_scheduler.txt`、`reports/tb_v3_attention_scheduler_bad_*.txt`。单独重跑慢模式：
+
+```powershell
+& "D:\Xilinx\Vivado\2022.2\bin\xsim.bat" tb_v3_attention_55_sim -runall -testplusarg PORT_STRESS
+```
+
+### 尚未执行：Attention综合/P&R
+
+按本轮要求暂不运行。55-entry pending scan保留，是否需要pointer/FIFO替换必须由后续实际综合路径决定；没有声称已消除其潜在时序风险。新scheduler/wrapper的250MHz与资源尚无当前源码签核，不能借用DEQACC的WNS。该项是评审中唯一明确后置的验证工作。
 
 ## 数据面与接口边界
 

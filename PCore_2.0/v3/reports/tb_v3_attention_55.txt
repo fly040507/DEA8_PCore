@@ -1,34 +1,33 @@
-
+﻿
 ****** xsim v2022.2 (64-bit)
   **** SW Build 3671981 on Fri Oct 14 05:00:03 MDT 2022
   **** IP Build 3669848 on Fri Oct 14 08:30:02 MDT 2022
     ** Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.
 
-source xsim.dir/tb_v3_attention_55_job2/xsim_script.tcl
-# xsim {tb_v3_attention_55_job2} -autoloadwcfg -runall
+source xsim.dir/tb_v3_attention_55_sim/xsim_script.tcl
+# xsim {tb_v3_attention_55_sim} -autoloadwcfg -runall
 Time resolution is 1 ps
 run -all
-ATTN_TRACE job=0 req=420 accept=420 issue=428 d4=861 gap=0
-ATTN_TRACE job=1 req=421 accept=422 issue=862 d4=1295 gap=434
-ATTN_TRACE job=2 req=1199 accept=1199 issue=1296 d4=1729 gap=434
-ATTN_TRACE job=3 req=1200 accept=1296 issue=1730 d4=2163 gap=434
-ATTN_TRACE job=4 req=1637 accept=1730 issue=2164 d4=2597 gap=434
-ATTN_TRACE job=5 req=1731 accept=2164 issue=2598 d4=3031 gap=434
+ATTN_TRACE job=0 issue_first=428 issue_last=843 commit=861
+ATTN_TRACE job=1 issue_first=862 issue_last=1277 commit=1295
+ATTN_TRACE job=2 issue_first=1296 issue_last=1711 commit=1729
+ATTN_TRACE job=3 issue_first=1730 issue_last=2145 commit=2163
+ATTN_TRACE job=4 issue_first=2164 issue_last=2579 commit=2597
+ATTN_TRACE job=5 issue_first=2598 issue_last=3013 commit=3031
 attention55 progress jobs=20/110 cycle=9107
 attention55 progress jobs=40/110 cycle=17787
 attention55 progress jobs=60/110 cycle=26467
 attention55 progress jobs=80/110 cycle=35147
 attention55 progress jobs=100/110 cycle=43827
-ATTN_CYCLES max_request_to_D4=1300 max_steady_D4_gap=434 cold_request_to_D4=441 jobs=110 issue_jobs=110
-ATTN_TIMING max_issue_first_interval=867 max_d4_to_next_issue=434 max_issue_to_D4=18 first_issue=428 last_issue=843 first_D4=861 last_D4=48600
-ATTN_DETAIL matrix_body=416..416 issue_interval=434..867 handoff=1..434
-ATTN_TAIL pv53_issue=47300 pv54_issue=48167 interval=867 pv54_commit=48600 afin_done_cycle=49039
+ATTN_PERF mode= scheduling cold_start_to_first_issue=9 cold_request_to_first_issue=8 commit_tail=18..18
+ATTN_DETAIL matrix_body=416..416 steady_issue_interval=434..434 steady_handoff=1..1
+ATTN_TAIL penultimate_PV_to_final_PV=867 final_PV_commit_to_attention_done=439 descriptor_accept=47734 prefetch=47735 guard_release=48166
 ATTN_JOB start_cycle=419 done_cycle=49039 job_cycles=48620
 ATTN_TB_CHECK_END cycle=52365
 VPU_RAM reads=1430 writes=0 overlap_reads=1430 overlap_writes=0 identity_scale_model=1
-tb_v3_attention_55 PASS QK=55 PV=55 P_loads=55 A_beats=416 B_beats=14080 final_values=13056 max_qk_cycles=873 max_pv_cycles=867 max_job_cycles=873 total_cycles=52365
+tb_v3_attention_55 PASS mode= scheduling QK=55 PV=55 P_loads=55 A_beats=416 B_beats=14080 final_values=13056 job_cycles=48620
 $finish called at time : 209542 ns : File "C:/Users/fly04/Desktop/VLA/PCore_2.0/v3/tb/tb_v3_attention_55.sv" Line 445
-run: Time (s): cpu = 00:00:00 ; elapsed = 00:03:41 . Memory (MB): peak = 239.316 ; gain = 0.000
+run: Time (s): cpu = 00:00:00 ; elapsed = 00:02:36 . Memory (MB): peak = 239.324 ; gain = 0.000
 exit
-INFO: xsimkernel Simulation Memory Usage: 55468 KB (Peak: 55468 KB), Simulation CPU Usage: 201796 ms
-INFO: [Common 17-206] Exiting xsim at Wed Sep 30 21:56:58 2026...
+INFO: xsimkernel Simulation Memory Usage: 54256 KB (Peak: 54256 KB), Simulation CPU Usage: 153202 ms
+INFO: [Common 17-206] Exiting xsim at Wed Sep 30 23:28:09 2026...

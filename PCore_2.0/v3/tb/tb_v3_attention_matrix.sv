@@ -17,8 +17,11 @@ module tb_v3_attention_matrix;
   logic [3:0] dbg_lane; logic [31:0] dbg_data;
   logic [31:0] oacc0[0:15];
   logic [31:0] pv0[0:15];
+  logic tail_launch_ready=1;
+  matrix_cmd_t accepted_cmds[0:15];int accept_count=0;
 
   dea8_attention_matrix_v3 dut(
+    .tail_launch_ready,
     .clk,.reset,.clear,.cmd_valid,.cmd_ready,.cmd,.done_valid,.done_ready,.done_cmd,
     .qoz_load_valid,.qoz_load_ready,.qoz_load_entry,.qoz_load_epoch(4'd1),.qoz_load_head(3'd0),
     .replay_load_valid,.replay_load_ready,.replay_load_entry,
@@ -103,9 +106,16 @@ module tb_v3_attention_matrix;
     value=dbg_data;
   endtask
 
-  always @(posedge clk) #1 if(done_valid) begin
-    done_count++;
-    if(done_cmd.op==MATRIX_PV && done_count<3) $fatal(1,"PV completed before both QK blocks");
+  always @(posedge clk) begin
+    if(reset||clear)begin accept_count=0;done_count=0;end
+    else begin
+      if(cmd_valid&&cmd_ready)begin accepted_cmds[accept_count]=cmd;accept_count++;end
+      if(done_valid&&done_ready)begin
+        if(done_count>=accept_count||done_cmd!==accepted_cmds[done_count])
+          $fatal(1,"wrapper completion order/context mismatch");
+        done_count++;
+      end
+    end
   end
 
   initial begin
@@ -145,6 +155,49 @@ module tb_v3_attention_matrix;
         $fatal(1,"OACC add_old mismatch nt%0d old=%h new=%h expected=%h",
           nt,pv0[nt],oacc0[nt],fp32_add(pv0[nt],pv0[nt]));
     end
+    // Completion backpressure must not let the next launch replace cmd_q.
+    @(negedge clk);clear=1;
+    @(negedge clk);clear=0;done_ready=0;
+    for(int t=0;t<ATTN_K_TILES;t++)for(int p=0;p<PAIRS;p++)send_a(t,p);
+    fork
+      begin
+        matrix_cmd_t c;
+        c='0;c.mode=MAT_ATTENTION;c.op=MATRIX_QK;c.m_rows=ROWS;c.epoch=1;c.result_last=1;c.acc_sel=ACC_FACC_A;
+        send_cmd(c);c.block_id=1;c.b_id=16;c.acc_sel=ACC_FACC_B;send_cmd(c);
+      end
+      begin for(int t=0;t<32;t++)for(int g=0;g<8;g++)send_b(t,g,1);end
+      begin
+        matrix_cmd_t held;
+        wait(done_valid);@(negedge clk);held=done_cmd;
+        repeat(30)begin
+          @(negedge clk);
+          if(!done_valid||done_cmd!==held||dut.launch_fire||done_count!=0)
+            $fatal(1,"completion backpressure lost current descriptor");
+        end
+        done_ready=1;
+      end
+    join
+    wait(done_count==2);
+    // Accept PV before producer completion; source-ready must change without
+    // a descriptor change. Then hold launch while its A credit is prefetched.
+    tail_launch_ready=0;
+    fork
+      begin
+        matrix_cmd_t c;
+        c='0;c.mode=MAT_ATTENTION;c.op=MATRIX_PV;c.m_rows=ROWS;c.epoch=1;
+        c.acc_sel=ACC_OACC;c.result_last=1;c.job_last=1;
+        send_cmd(c);repeat(20)@(negedge clk);
+        if(!dut.pending_valid_q||dut.source_ready||dut.launch_fire)$fatal(1,"pending PV did not wait for P");
+        for(int p=0;p<PAIRS;p++)send_replay(0,p,1);
+        repeat(20)@(negedge clk);
+        if(!dut.source_ready||!dut.prefetched_q||dut.matrix.a_count<4||dut.launch_fire)
+          $fatal(1,"tail source did not prefetch while launch blocked");
+        tail_launch_ready=1;
+      end
+      begin for(int t=32;t<48;t++)for(int g=0;g<8;g++)send_b(t,g,1);end
+    join
+    wait(done_count==3);
+    if(a_error||b_error)$fatal(1,"delayed source protocol error");
     // A full parity bank is insufficient: PV must match block, epoch and head.
     for(int scenario=0;scenario<3;scenario++) begin
       @(negedge clk);clear=1;cmd_valid=0;
@@ -157,7 +210,7 @@ module tb_v3_attention_matrix;
       @(posedge clk);#1;if(!a_error) $fatal(1,"stale PBUF command not diagnosed");
       @(negedge clk);cmd_valid=0;
     end
-    $display("tb_v3_attention_matrix PASS QK=3 PV=2 PBUF_banks=2 replay_nt=16 OACC_add_old=1 stale_context_cases=3");
+    $display("tb_v3_attention_matrix PASS QK=3 PV=2 PBUF_banks=2 replay_nt=16 OACC_add_old=1 stale_context_cases=3 done_backpressure=1 delayed_source=1 tail_prefetch=1");
     $finish;
   end
   initial begin #250000;$fatal(1,"attention matrix watchdog");end
