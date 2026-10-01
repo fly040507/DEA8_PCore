@@ -7,7 +7,7 @@ try {
   & $xvlog -sv -f v3_all.f (Join-Path $VivadoRoot "data\verilog\src\glbl.v")
   if($LASTEXITCODE){throw "xvlog failed"}
   $results=@()
-  foreach($top in @("tb_v3_attention_55","tb_v3_gu_32_system")) {
+  foreach($top in @("tb_v3_attention_55","tb_v3_gu_32_system","tb_v3_attention_gu_chain")) {
     & $xelab $top glbl -s "${top}_single_core" -timescale 1ns/1ps -L unisims_ver
     if($LASTEXITCODE){throw "xelab failed: $top"}
     $out=& $xsim "${top}_single_core" -runall 2>&1

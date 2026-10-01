@@ -44,7 +44,14 @@ module dea8_gu_a_replay_v3(
           if(!up_q) begin up_q<=1;data_q<=mem[read_bank_q][0];end
           else begin
             up_q<=0;full_q[read_bank_q]<=0;read_bank_q<=!read_bank_q;
-            out_valid<=0;
+            // The next Gate tile can be exposed on the same edge as the
+            // final Up pair when the alternate bank is already complete.
+            // This removes the former one-cycle bubble at every k boundary;
+            // if the bank is not ready, the normal elastic refill path keeps
+            // out_valid low until it becomes complete.
+            if(full_q[!read_bank_q]) begin
+              data_q<=mem[!read_bank_q][0];out_valid<=1;
+            end else out_valid<=0;
           end
         end else begin
           read_pair_q<=read_pair_q+1'b1;

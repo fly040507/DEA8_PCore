@@ -8,6 +8,16 @@ module tb_v3_attention_matrix;
   logic cmd_valid,cmd_ready,done_valid,done_ready=1;
   matrix_cmd_t cmd,done_cmd;
   logic qoz_load_valid=0,qoz_load_ready; a2_t qoz_load_entry;
+  logic q_store_wr_ready;
+  logic qoz_begin_valid=0,qoz_begin_ready,qoz_active,qoz_complete;
+  logic qoz_release_valid=0,qoz_release_ready;
+  logic qoz_rd_valid,qoz_rd_ready;
+  logic [3:0] qoz_rd_tile;
+  logic [PAIR_BITS-1:0] qoz_rd_pair;
+  logic [TILE_BITS-1:0] qoz_rd_transport;
+  logic qoz_out_valid,qoz_out_ready;
+  a2_t qoz_out_entry;
+  logic qoz_error;
   logic replay_load_valid,replay_load_ready; a2_t replay_load_entry;
   logic [5:0] replay_load_block;
   logic hbm_valid,hbm_ready; b2_t hbm_entry;
@@ -20,12 +30,34 @@ module tb_v3_attention_matrix;
   logic tail_launch_ready=1;
   matrix_cmd_t accepted_cmds[0:15];int accept_count=0;
 
-  dea8_attention_matrix_v3 dut(
+  dea8_qoz_store_v3 q_store(
+    .clk,.reset,.clear,
+    .region_begin_valid(qoz_begin_valid),.region_begin_ready(qoz_begin_ready),
+    .region_owner(QOZ_Q),.region_epoch(4'd1),.region_head(3'd0),.region_tiles(6'd16),
+    .region_active(qoz_active),.region_complete(qoz_complete),
+    .region_release_valid(qoz_release_valid),.region_release_ready(qoz_release_ready),
+    .wr_valid(qoz_load_valid),.wr_ready(q_store_wr_ready),.wr_owner(QOZ_Q),
+    .wr_tile(qoz_load_entry.tile_idx),.wr_pair(qoz_load_entry.pair_idx),
+    .wr_row_valid(qoz_load_entry.row_valid),.wr_even(qoz_load_entry.row[0]),
+    .wr_odd(qoz_load_entry.row[1]),.wr_epoch(4'd1),.wr_head(3'd0),
+    .rd_valid(qoz_rd_valid),.rd_ready(qoz_rd_ready),.rd_owner(QOZ_Q),
+    .rd_tile({2'b0,qoz_rd_tile}),.rd_pair(qoz_rd_pair),.rd_transport(qoz_rd_transport),
+    .rd_out_valid(qoz_out_valid),.rd_out_ready(qoz_out_ready),.rd_entry(qoz_out_entry),
+    .active_epoch(),.active_head(),.active_owner(),.protocol_error(qoz_error));
+
+  dea8_attention_matrix_v3 #(.EXTERNAL_QOZ(1'b1)) dut(
     .tail_launch_ready,
     .clk,.reset,.clear,.cmd_valid,.cmd_ready,.cmd,.done_valid,.done_ready,.done_cmd,
     .qoz_load_valid,.qoz_load_ready,.qoz_load_entry,.qoz_load_epoch(4'd1),.qoz_load_head(3'd0),
     .replay_load_valid,.replay_load_ready,.replay_load_entry,
     .replay_load_epoch(4'd1),.replay_load_head(3'd0),.replay_load_block,
+    .qoz_ext_load_ready(q_store_wr_ready),
+    .qoz_ext_rd_valid(qoz_rd_valid),.qoz_ext_rd_ready(qoz_rd_ready),
+    .qoz_ext_rd_tile(qoz_rd_tile),.qoz_ext_rd_pair(qoz_rd_pair),
+    .qoz_ext_rd_transport(qoz_rd_transport),
+    .qoz_ext_out_valid(qoz_out_valid),.qoz_ext_out_ready(qoz_out_ready),
+    .qoz_ext_out_entry(qoz_out_entry),.qoz_ext_complete(qoz_complete),
+    .qoz_ext_epoch(4'd1),.qoz_ext_head(3'd0),
     .vpu_wr_valid(1'b0),.vpu_wr('0),.vpu_wr_ready(),.result_rd_ready(),
     .hbm_valid,.hbm_ready,.hbm_entry,.kv_valid,.kv_ready,.kv_entry,.b_source(B_HBM),
     .a_protocol_error(a_error),.b_protocol_error(b_error),
@@ -53,7 +85,7 @@ module tb_v3_attention_matrix;
     qoz_load_entry.row_valid=row_mask(group);
     qoz_load_entry.row[0]=qv(1,128);qoz_load_entry.row[1]=qv((group%2==0)?2:1,128);
     qoz_load_valid=1;
-    do @(posedge clk); while(!qoz_load_ready);
+    do @(posedge clk); while(!q_store_wr_ready);
     @(negedge clk);qoz_load_valid=0;
   endtask
 
@@ -120,8 +152,12 @@ module tb_v3_attention_matrix;
 
   initial begin
     cmd_valid=0;replay_load_valid=0;hbm_valid=0;kv_valid=0;done_count=0;
+    qoz_begin_valid=0;qoz_release_valid=0;
     dbg_valid=0;dbg_sel=ACC_OACC;dbg_parity=0;dbg_addr=0;dbg_lane=0;
     repeat(20)@(negedge clk);reset=0;
+    @(negedge clk);qoz_begin_valid=1;
+    do @(posedge clk); while(!qoz_begin_ready);
+    @(negedge clk);qoz_begin_valid=0;
     for(int t=0;t<ATTN_K_TILES;t++) for(int p=0;p<PAIRS;p++) send_a(t,p);
 
     // P0 can be loaded before QK0.  P1 is deliberately loaded while QK1 is
@@ -155,9 +191,17 @@ module tb_v3_attention_matrix;
         $fatal(1,"OACC add_old mismatch nt%0d old=%h new=%h expected=%h",
           nt,pv0[nt],oacc0[nt],fp32_add(pv0[nt],pv0[nt]));
     end
+    if(!qoz_complete||!qoz_active) $fatal(1,"external QOZ did not complete Q region");
+    @(negedge clk);qoz_release_valid=1;
+    do @(posedge clk); while(!qoz_release_ready);
+    @(negedge clk);qoz_release_valid=0;
+
     // Completion backpressure must not let the next launch replace cmd_q.
     @(negedge clk);clear=1;
     @(negedge clk);clear=0;done_ready=0;
+    @(negedge clk);qoz_begin_valid=1;
+    do @(posedge clk); while(!qoz_begin_ready);
+    @(negedge clk);qoz_begin_valid=0;
     for(int t=0;t<ATTN_K_TILES;t++)for(int p=0;p<PAIRS;p++)send_a(t,p);
     fork
       begin
@@ -197,7 +241,7 @@ module tb_v3_attention_matrix;
       begin for(int t=32;t<48;t++)for(int g=0;g<8;g++)send_b(t,g,1);end
     join
     wait(done_count==3);
-    if(a_error||b_error)$fatal(1,"delayed source protocol error");
+    if(a_error||b_error||qoz_error)$fatal(1,"delayed source protocol error a=%0d b=%0d qoz=%0d",a_error,b_error,qoz_error);
     // A full parity bank is insufficient: PV must match block, epoch and head.
     for(int scenario=0;scenario<3;scenario++) begin
       @(negedge clk);clear=1;cmd_valid=0;

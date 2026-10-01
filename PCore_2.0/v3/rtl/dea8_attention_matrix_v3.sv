@@ -3,7 +3,9 @@ import pcore3_pkg::*;
 // One current descriptor plus one pending descriptor. Command acceptance
 // reserves the transport window; Matrix launch waits for complete source
 // context and uses the old job's final drain window for A prefetch.
-module dea8_attention_matrix_v3 (
+module dea8_attention_matrix_v3 #(
+  parameter bit EXTERNAL_QOZ=0
+) (
   input logic clk,reset,clear,
   input logic cmd_valid,output logic cmd_ready,input matrix_cmd_t cmd,
   // Only the job_last descriptor is gated; prefetch proceeds while false.
@@ -14,6 +16,15 @@ module dea8_attention_matrix_v3 (
   input logic replay_load_valid,output logic replay_load_ready,input a2_t replay_load_entry,
   input logic [EPOCH_BITS-1:0] replay_load_epoch,input logic [2:0] replay_load_head,
   input logic [5:0] replay_load_block,
+  // Shared-QOZ mode: the external store receives the existing load stream
+  // and returns the synchronous Q read response through this sideband port.
+  input logic qoz_ext_load_ready,
+  output logic qoz_ext_rd_valid,input logic qoz_ext_rd_ready,
+  output logic [3:0] qoz_ext_rd_tile,output logic [PAIR_BITS-1:0] qoz_ext_rd_pair,
+  output logic [TILE_BITS-1:0] qoz_ext_rd_transport,
+  input logic qoz_ext_out_valid,output logic qoz_ext_out_ready,input a2_t qoz_ext_out_entry,
+  input logic qoz_ext_complete,input logic [EPOCH_BITS-1:0] qoz_ext_epoch,
+  input logic [2:0] qoz_ext_head,
   input logic hbm_valid,output logic hbm_ready,input b2_t hbm_entry,
   input logic kv_valid,output logic kv_ready,input b2_t kv_entry,input b_source_e b_source,
   output logic a_protocol_error,b_protocol_error,
@@ -84,6 +95,7 @@ module dea8_attention_matrix_v3 (
   assign read_start=!reading_q&&pending_valid_q&&!prefetched_q&&
     (issue_done_q||matrix_issue_done||!current_valid_q)&&source_ready;
 
+  generate if(!EXTERNAL_QOZ) begin: internal_qoz
   dea8_local_a_store_v3 #(.TILES(ATTN_K_TILES),.BANKS(1)) qoz(
     .clk,.reset,.clear,.load_valid(qoz_load_valid),.load_ready(qoz_load_ready),.load_entry(qoz_load_entry),
     .load_epoch(qoz_load_epoch),.load_head(qoz_load_head),.load_block(6'b0),
@@ -92,6 +104,22 @@ module dea8_attention_matrix_v3 (
     .rd_valid(reading_q&&!reader_is_pv),.rd_ready(q_rd_ready),.rd_bank(1'b0),
     .rd_tile(tile_q),.rd_pair(pair_q),.rd_transport(reader_base_q+TILE_BITS'(tile_q)),
     .out_valid(q_out_valid),.out_ready(local_ready&&!reader_is_pv),.out_entry(q_entry));
+  end else begin: external_qoz
+    assign qoz_load_ready=qoz_ext_load_ready;
+    assign q_complete=qoz_ext_complete;
+    assign q_epoch[0]=qoz_ext_epoch;
+    assign q_head[0]=qoz_ext_head;
+    assign q_block[0]=0;
+    assign q_error=1'b0;
+    assign qoz_ext_rd_valid=reading_q&&!reader_is_pv;
+    assign qoz_ext_rd_tile=tile_q;
+    assign qoz_ext_rd_pair=pair_q;
+    assign qoz_ext_rd_transport=reader_base_q+TILE_BITS'(tile_q);
+    assign q_rd_ready=qoz_ext_rd_ready;
+    assign q_out_valid=qoz_ext_out_valid;
+    assign q_entry=qoz_ext_out_entry;
+    assign qoz_ext_out_ready=local_ready&&!reader_is_pv;
+  end endgenerate
   dea8_local_a_store_v3 #(.TILES(1),.BANKS(2)) pbuf(
     .clk,.reset,.clear,.load_valid(replay_load_valid),.load_ready(replay_load_ready),.load_entry(replay_load_entry),
     .load_epoch(replay_load_epoch),.load_head(replay_load_head),.load_block(replay_load_block),

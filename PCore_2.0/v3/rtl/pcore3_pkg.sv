@@ -34,6 +34,7 @@ package pcore3_pkg;
     logic [1:0][15:0][31:0] data;
   } acc_write_t;
   typedef enum logic [1:0] {MAT_PROJECTION=0,MAT_ATTENTION=1,MAT_GU=2} matrix_mode_e;
+  typedef enum logic [1:0] {QOZ_NONE=0,QOZ_Q=1,QOZ_O=2,QOZ_Z=3} qoz_owner_e;
   typedef enum logic {MATRIX_QK=0,MATRIX_PV=1} matrix_op_e;
 
   typedef struct packed {

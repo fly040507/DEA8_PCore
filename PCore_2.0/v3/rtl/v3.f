@@ -19,5 +19,6 @@ dea8_gu_pair_buffer_v3.sv
 dea8_gu_matrix_v3.sv
 dea8_gu_scheduler_v3.sv
 dea8_gu_a_replay_v3.sv
+dea8_qoz_store_v3.sv
 dea8_deqacc32_v3.sv
 dea8_acc_store_v3.sv

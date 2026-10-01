@@ -103,7 +103,10 @@ module dea8_gu_matrix_v3 #(
   assign gu_out_consumed=gu_out_valid&&gu_out_ready&&gu_out_last;
   assign qoz_z_wr_valid=vpu_z_valid;
   assign vpu_z_ready=qoz_z_wr_ready;
-  assign qoz_z_wr_tile=vpu_z_tile;
+  // Z has one physical 512-column tile per N tile.  Keep the legacy tile
+  // field on the input for interface compatibility, but the wrapper owns the
+  // physical address and derives it from the checked N context.
+  assign qoz_z_wr_tile=vpu_z_n;
   assign qoz_z_wr_pair=vpu_z_pair;
   assign qoz_z_wr_row_valid=vpu_z_row_valid;
   assign qoz_z_wr_even=vpu_z_even;
@@ -112,6 +115,11 @@ module dea8_gu_matrix_v3 #(
   assign qoz_z_wr_head=vpu_z_head;
   assign qoz_z_wr_n=vpu_z_n;
   assign qoz_z_wr_last=vpu_z_last;
+  // synthesis translate_off
+  always_ff @(posedge clk) if(!reset&&!clear&&vpu_z_valid&&vpu_z_ready&&
+                              vpu_z_tile!=vpu_z_n)
+    $fatal(1,"GU Z tile/n address mismatch tile=%0d n=%0d",vpu_z_tile,vpu_z_n);
+  // synthesis translate_on
   assign pair_input_consumed=gu_out_consumed;
 
   // The external source supplies one physical A tile.  Replay expands it

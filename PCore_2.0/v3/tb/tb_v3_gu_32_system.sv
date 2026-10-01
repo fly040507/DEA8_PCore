@@ -19,6 +19,8 @@ module tb_v3_gu_32_system;
 
   logic tile_valid,tile_ready; logic [5:0] tile_n;
   logic [EPOCH_BITS-1:0] tile_epoch; logic [2:0] tile_head;
+  logic prefetch_valid; logic [5:0] prefetch_n;
+  logic [EPOCH_BITS-1:0] prefetch_epoch; logic [2:0] prefetch_head;
   logic matrix_done,z_commit;
   logic [5:0] z_n; logic [EPOCH_BITS-1:0] z_epoch; logic [2:0] z_head;
   logic scheduler_busy,matrix_all_done,job_done,scheduler_error;
@@ -35,10 +37,11 @@ module tb_v3_gu_32_system;
   logic [PAIR_BITS-1:0] vz_pair=0; logic [1:0] vz_row_valid=0;
   logic [135:0] vz_even=0,vz_odd=0; logic [EPOCH_BITS-1:0] vz_epoch=0;
   logic [2:0] vz_head=0; logic [5:0] vz_n=0; logic vz_last=0;
-  logic qz_valid,qz_ready=1; logic [5:0] qz_tile,qz_n;
+  logic qz_valid,qz_ready; logic [5:0] qz_tile,qz_n;
   logic [PAIR_BITS-1:0] qz_pair; logic [1:0] qz_row_valid;
   logic [135:0] qz_even,qz_odd; logic [EPOCH_BITS-1:0] qz_epoch;
   logic [2:0] qz_head; logic qz_last;
+  logic qoz_begin_valid,qoz_begin_ready,qoz_region_active,qoz_region_complete,qoz_release_valid,qoz_release_ready;
   logic ae,be,ge;
 
   logic [1023:0] gu_golden[0:GOLDEN_ROWS-1];
@@ -47,11 +50,13 @@ module tb_v3_gu_32_system;
   logic qoz_active[0:N_TILES-1],qoz_complete[0:N_TILES-1];
   int launched=0,matrix_done_count=0,row_count=0,z_count=0;
   int output_rows[0:N_TILES-1];
+  int cycle_count=0,issue_count[0:N_TILES-1],first_issue[0:N_TILES-1],last_issue[0:N_TILES-1];
   bit source_started[0:N_TILES-1];
 
   dea8_gu_scheduler_v3 #(.N_TILES(N_TILES)) scheduler(
     .clk,.reset,.clear,.start,.start_ready,.job_epoch(epoch),.job_head(head),
     .tile_valid,.tile_ready,.tile_n,.tile_epoch,.tile_head,
+    .prefetch_valid,.prefetch_n,.prefetch_epoch,.prefetch_head,
     .tile_matrix_done(matrix_done),.z_tile_commit(z_commit),.z_n,
     .z_epoch,.z_head,.busy(scheduler_busy),.matrix_all_done,.done(job_done),
     .protocol_error(scheduler_error));
@@ -82,6 +87,16 @@ module tb_v3_gu_32_system;
   // for this n have been accepted.  The QOZ model still observes every pair.
   assign z_commit=qz_valid&&qz_ready&&qz_last;
   assign z_n=qz_n; assign z_epoch=qz_epoch; assign z_head=qz_head;
+
+  dea8_qoz_store_v3 qoz(
+    .clk,.reset,.clear,.region_begin_valid(qoz_begin_valid),.region_begin_ready(qoz_begin_ready),
+    .region_owner(QOZ_Z),.region_epoch(epoch),.region_head(head),.region_tiles(6'd32),
+    .region_active(qoz_region_active),.region_complete(qoz_region_complete),.region_release_valid(qoz_release_valid),
+    .region_release_ready(qoz_release_ready),.wr_valid(qz_valid),.wr_ready(qz_ready),.wr_owner(QOZ_Z),
+    .wr_tile(qz_tile),.wr_pair(qz_pair),.wr_row_valid(qz_row_valid),.wr_even(qvec16_t'(qz_even)),
+    .wr_odd(qvec16_t'(qz_odd)),.wr_epoch(qz_epoch),.wr_head(qz_head),.rd_valid(1'b0),.rd_ready(),
+    .rd_owner(QOZ_Z),.rd_tile('0),.rd_pair('0),.rd_transport('0),.rd_out_valid(),.rd_out_ready(1'b1),
+    .rd_entry(),.active_epoch(),.active_head(),.active_owner(),.protocol_error());
 
   function automatic int aval(input int row,input int k,input int i);
     return (row+2*k+3*i)%9-4;
@@ -138,7 +153,7 @@ module tb_v3_gu_32_system;
 
   task automatic emit_z(input int n);
     for(int p=0;p<PAIRS;p++) begin
-      @(negedge clk);vz_tile=0;vz_pair=p;vz_n=n;vz_epoch=epoch;vz_head=head;
+      @(negedge clk);vz_tile=n[5:0];vz_pair=p;vz_n=n;vz_epoch=epoch;vz_head=head;
       vz_row_valid=row_mask(p);vz_even=z_golden[n*ROWS+2*p];
       vz_odd=(p<PAIRS-1)?z_golden[n*ROWS+2*p+1]:'0;vz_last=(p==PAIRS-1);vz_valid=1;
       do @(posedge clk); while(!vz_ready);
@@ -149,22 +164,39 @@ module tb_v3_gu_32_system;
   initial begin
     $readmemh("tb/data/gu_fp32.mem",gu_golden);
     $readmemh("tb/data/gu_z_mxint8.mem",z_golden);
-    for(int i=0;i<N_TILES;i++) begin output_rows[i]=0;qoz_active[i]=0;qoz_complete[i]=0;source_started[i]=0;end
+    for(int i=0;i<N_TILES;i++) begin output_rows[i]=0;issue_count[i]=0;first_issue[i]=-1;last_issue[i]=-1;qoz_active[i]=0;qoz_complete[i]=0;source_started[i]=0;end
     a_valid=0;b_valid=0;a_entry='0;b_entry='0;
     repeat(35) @(posedge clk);reset=0;
+    @(negedge clk);qoz_begin_valid=1;
+    do @(posedge clk); while(!qoz_begin_ready);
+    @(negedge clk);qoz_begin_valid=0;
     @(negedge clk);start=1;@(negedge clk);start=0;
     wait(job_done);
     if(launched!=N_TILES||matrix_done_count!=N_TILES||row_count!=N_TILES*ROWS||
-       z_count!=N_TILES*PAIRS||!matrix_all_done||scheduler_error||ae||be||ge)
+       z_count!=N_TILES*PAIRS||!matrix_all_done||scheduler_error||ae||be||ge||!qoz_region_complete)
       $fatal(1,"GU 32 system mismatch launch=%0d matrix=%0d rows=%0d z=%0d all=%0d errors=%0d/%0d/%0d/%0d",
         launched,matrix_done_count,row_count,z_count,matrix_all_done,scheduler_error,ae,be,ge);
     for(int n=0;n<N_TILES;n++) if(output_rows[n]!=ROWS||!qoz_complete[n])
       $fatal(1,"GU n%0d incomplete rows=%0d qoz=%0d",n,output_rows[n],qoz_complete[n]);
-    $display("tb_v3_gu_32_system PASS n_tiles=32 matrix_done=32 rows=%0d z_pairs=%0d qoz_shared=1",row_count,z_count);
+    for(int n=0;n<N_TILES;n++) begin
+      if(issue_count[n]!=GU_TILES*PAIRS||last_issue[n]-first_issue[n]!=GU_TILES*PAIRS-1)
+        $fatal(1,"GU n%0d issue coverage count=%0d first=%0d last=%0d",n,issue_count[n],first_issue[n],last_issue[n]);
+    end
+    @(negedge clk);qoz_release_valid=1;do @(posedge clk); while(!qoz_release_ready);@(negedge clk);qoz_release_valid=0;
+    $display("tb_v3_gu_32_system PASS n_tiles=32 matrix_done=32 rows=%0d z_pairs=%0d qoz_shared=1 issues_per_n=%0d",row_count,z_count,issue_count[0]);
     #20;$finish;
   end
 
   always @(posedge clk) begin
+    cycle_count++;
+    if(matrix.matrix.req_valid) begin
+      int issue_n;
+      issue_n=matrix.matrix.req_meta.gu_n;
+      if(issue_n>=N_TILES) $fatal(1,"GU issue n out of range n=%0d",issue_n);
+      issue_count[issue_n]++;
+      if(first_issue[issue_n]<0) first_issue[issue_n]=cycle_count;
+      last_issue[issue_n]=cycle_count;
+    end
     if(tile_valid&&tile_ready) begin
       if(tile_n!=launched||tile_epoch!=epoch||tile_head!=head||source_started[tile_n])
         $fatal(1,"GU launch context/order mismatch n=%0d expected=%0d",tile_n,launched);
@@ -186,7 +218,7 @@ module tb_v3_gu_32_system;
       if(out_last) fork automatic int n=out_n; emit_z(n); join_none
     end
     if(qz_valid&&qz_ready) begin
-      if(qz_n>=N_TILES||qz_tile!=0||qz_pair>=PAIRS||qz_epoch!=epoch||qz_head!=head||
+      if(qz_n>=N_TILES||qz_tile!=qz_n||qz_pair>=PAIRS||qz_epoch!=epoch||qz_head!=head||
          qz_pair!=z_count%PAIRS||qz_row_valid!=row_mask(qz_pair)||
          qz_even!==z_golden[qz_n*ROWS+2*qz_pair]||
          (qz_pair<PAIRS-1&&qz_odd!==z_golden[qz_n*ROWS+2*qz_pair+1]))

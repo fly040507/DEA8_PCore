@@ -26,6 +26,7 @@ rtl/dea8_gu_pair_buffer_v3.sv
 rtl/dea8_gu_matrix_v3.sv
 rtl/dea8_gu_scheduler_v3.sv
 rtl/dea8_gu_a_replay_v3.sv
+rtl/dea8_qoz_store_v3.sv
 tb/tb_v3_ingress.sv
 tb/fp32_legacy_ref_pkg.sv
 tb/tb_fp32_acc_lane_v5.sv
@@ -47,3 +48,6 @@ tb/tb_v3_local_a_protocol.sv
 tb/tb_v3_gu_matrix.sv
 tb/tb_v3_gu_scheduler.sv
 tb/tb_v3_gu_32_system.sv
+tb/tb_v3_qoz_shared.sv
+tb/tb_v3_gu_scheduler_stress.sv
+tb/tb_v3_attention_gu_chain.sv
