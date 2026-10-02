@@ -44,7 +44,29 @@ module tb_v3_qoz_manager;
     consumer='{job_id:16'd5,epoch:4'd3,head:3'd1,op:OP_ATTENTION};
     @(negedge clk);release_valid=1;@(negedge clk);release_valid=0;
     if(!protocol_error)$fatal(1,"wrong release generation accepted");
-    $display("tb_v3_qoz_manager PASS physical_store=1 Q_to_Z=1 consumer_job_id=1 stale_producer_rejected=1 wrong_release_rejected=1");$finish;
+    clean();acquire(QOZ_O,OP_O_PROJ,6,16);
+    if(active_req.owner!=QOZ_O||active_req.tiles!=QOZ_O_TILES)$fatal(1,"O region contract");
+    consumer=req.header;consumer.op=OP_ATTENTION;
+    @(negedge clk);release_valid=1;@(negedge clk);release_valid=0;
+    if(!protocol_error)$fatal(1,"undefined O consumer accepted");
+    clean();acquire(QOZ_Z,OP_GU,7,32);
+    for(int t=0;t<32;t++)for(int p=0;p<PAIRS;p++)begin
+      @(negedge clk);wr='0;wr.header=req.header;wr.n=6'(t);wr.pair_data.tile_idx=TILE_BITS'(t);
+      wr.pair_data.pair_idx=PAIR_BITS'(p);wr.pair_data.row_valid=row_mask(p);wr.last=p==PAIRS-1;
+      wr_valid=1;do @(posedge clk);while(!wr_ready);@(negedge clk);wr_valid=0;
+    end
+    consumer='{job_id:16'd8,epoch:4'd2,head:3'd1,op:OP_DOWN_PROJ};
+    @(negedge clk);release_valid=1;#1;if(!release_ready)$fatal(1,"Down consumer rejected");
+    @(negedge clk);release_valid=0;if(region_active||protocol_error)$fatal(1,"Z release failed");
+    clean();acquire(QOZ_Q,OP_Q_PROJ,9,16);
+    @(negedge clk);wr='0;wr.header=req.header;wr.pair_data.row_valid=3;wr.pair_data.pair_idx=1;wr_valid=1;
+    repeat(3)@(negedge clk);wr_valid=0;if(!protocol_error)$fatal(1,"unordered write accepted");
+    for(int own=1;own<=3;own++)begin
+      clean();req='{header:'{job_id:16'd10,epoch:4'd2,head:3'd1,op:own==1?OP_Q_PROJ:own==2?OP_O_PROJ:OP_GU},owner:qoz_owner_e'(own),tiles:6'd15};
+      @(negedge clk);req_valid=1;#1;if(req_ready)$fatal(1,"wrong tiles accepted");
+      @(negedge clk);req_valid=0;if(!protocol_error)$fatal(1,"wrong tiles not detected");
+    end
+    $display("tb_v3_qoz_manager PASS physical_store=1 Q_to_Z=1 consumer_job_id=1 stale_producer_rejected=1 wrong_release_rejected=1 O16=1 Z32_Down_release=1 wrong_consumer=1 unordered_write=1 wrong_tiles=3");$finish;
   end
   initial begin #30000;$fatal(1,"QOZ manager watchdog");end
 endmodule

@@ -29,7 +29,8 @@ module tb_v3_pcore_three_job_chain;
   int stall_a=0,stall_b=0,stall_slot=0,stall_matrix_handoff=0;
   int stall_a_n[32],stall_b_n[32],stall_slot_n[32],handoff_n[32];
   int gu_issue_tile=0,gu_issue_pair=0,previous_gu_n=-1,attn_final_done=-1;
-  bit slow_post=0,gu_only=0;
+  bit slow_post=0,gu_only=0,fault_test=0;
+  bit data_stalled=0;post_data_t held_data;
   logic [1023:0] gu_golden[0:1631];logic [135:0] z_golden[0:1631];
   qvec16_t z_computed[0:50];
   dea8_pcore_exec_v3 dut(.*);
@@ -125,7 +126,7 @@ module tb_v3_pcore_three_job_chain;
         if(c.op==POST_PROJ_QUANT)begin
           for(int p=0;p<PAIRS;p++)begin
             post_data_ready=1;do @(posedge clk);while(!post_data_valid);d=post_data;
-            if(d.header!=c.header||d.n!=c.n||d.row!=p)$fatal(1,"projection post context");
+            if(d.header!=c.header||d.n!=c.n||d.row!=p||d.row_valid!=row_mask(p)||d.last!=(p==PAIRS-1))$fatal(1,"projection post context/mask/last");
             for(int i=0;i<16;i++)if(d.first[i]!==32'h3f800000||(d.row_valid[1]&&d.second[i]!==32'h3f800000))$fatal(1,"projection FP golden");
             e=quant(d.first,'0,0);o=d.row_valid[1]?quant(d.second,'0,0):qvec16_t'('0);
             if(e!==qv(64,127))$fatal(1,"projection quant reference");
@@ -134,7 +135,7 @@ module tb_v3_pcore_three_job_chain;
         end else begin
           for(int row=0;row<ROWS;row++)begin
             post_data_ready=1;do @(posedge clk);while(!post_data_valid);d=post_data;
-            if(d.header!=c.header||d.n!=c.n||d.row!=row)$fatal(1,"GU post context");
+            if(d.header!=c.header||d.n!=c.n||d.row!=row||d.row_valid!=1||d.last!=(row==ROWS-1))$fatal(1,"GU post context/mask/last");
             for(int i=0;i<16;i++)if(d.first[i]!==gu_golden[c.n*ROWS+row][32*i+:32]||d.second[i]!==gu_golden[c.n*ROWS+row][512+32*i+:32])$fatal(1,"GU FP fixture");
             z_computed[row]=quant(d.first,d.second,1);
             if(z_computed[row]!==qvec16_t'(z_golden[c.n*ROWS+row]))$fatal(1,"GU post reference");
@@ -185,8 +186,10 @@ module tb_v3_pcore_three_job_chain;
     repeat(4)begin @(negedge clk);if(!job_done_valid||job_ready)$fatal(1,"completion hold");end
     job_done_ready=1;@(negedge clk);job_done_ready=0;ops++;
   endtask
-  always @(posedge clk)if(!reset)begin
+  always @(posedge clk)if(!reset&&!clear&&!fault_test)begin
     cycle++;
+    if(data_stalled&&(!post_data_valid||post_data!==held_data))$fatal(1,"post data changed under backpressure");
+    data_stalled=post_data_valid&&!post_data_ready;held_data=post_data;
     if(protocol_error)$fatal(1,"PCore protocol error owner=%0d ctrl=%b adapters=%b qoz=%b matrix=%b",active_adapter,dut.ctrl_error,dut.errors,dut.qoz_error,dut.matrix_error);
     if(gu_prefetch_valid&&gu_prefetch_ready)begin allowed_n=gu_prefetch_n;prefetches++;end
     if(dut.dispatch.matrix.req_valid)begin
@@ -246,6 +249,28 @@ module tb_v3_pcore_three_job_chain;
     for(int n=0;n<32;n++)begin count_gu[n]=0;first_gu[n]=0;last_gu[n]=0;commit_gu[n]=0;stall_a_n[n]=0;stall_b_n[n]=0;stall_slot_n[n]=0;handoff_n[n]=0;end
     for(int n=0;n<110;n++)begin count_attn[n]=0;first_attn[n]=0;last_attn[n]=0;commit_attn[n]=0;end
     repeat(35)@(negedge clk);reset=0;
+    if($test$plusargs("FAULT_WRITE")||$test$plusargs("FAULT_RELEASE"))begin
+      fault_test=1;
+      send_operation(OP_GU,90);wait(dut.qactive);@(negedge clk);
+      if($test$plusargs("FAULT_WRITE"))begin
+        post_result='0;post_result.header=job.header;post_result.header.job_id=91;
+        post_result.pair_data.row_valid=3;post_result_valid=1;
+        @(negedge clk);post_result_valid=0;
+      end else begin
+        force dut.qrelease=1'b1;@(negedge clk);force dut.qrelease=1'b0;
+      end
+      repeat(4)@(negedge clk);
+      if(!dut.qoz_error||!dut.ctrl_error||dut.ctrl.state_q!=3||job_ready||job_done_valid||!dut.qactive)
+        $fatal(1,"QOZ fabric error did not enter retaining FAULT");
+      repeat(5)begin @(negedge clk);if(job_done_valid||job_ready)$fatal(1,"FAULT escaped");end
+      clear=1;@(negedge clk);
+      if($test$plusargs("FAULT_RELEASE"))release dut.qrelease;
+      clear=0;@(negedge clk);
+      if(protocol_error||!job_ready||dut.qactive)$fatal(1,"fabric clear recovery failed");
+      send_operation(OP_DOWN_PROJ,92);wait(job_done_valid);
+      if(job_done.status!=JOB_UNSUPPORTED)$fatal(1,"dispatch after fabric clear failed");
+      $display("tb_v3_pcore_three_job_chain PASS fabric_fault=1 clear_recovery=1 write=%0d release=%0d",$test$plusargs("FAULT_WRITE"),$test$plusargs("FAULT_RELEASE"));$finish;
+    end
     if(!gu_only)begin
       send_operation(OP_Q_PROJ,1);fork feed_projection();finish_operation();join
       if(!qoz_complete||qoz_region.owner!=QOZ_Q||q_pairs!=416)$fatal(1,"Q region not complete");

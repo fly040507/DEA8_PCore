@@ -56,6 +56,7 @@ module dea8_projection_v3 #(
 
   always_comb begin
     service_req='0;service_req.start=matrix_job_start;service_req.mode=MAT_PROJECTION;
+    service_req.a_source=A_XBC;service_req.a_streaming=0;service_req.b_source=B_HBM;
     service_req.tiles=MATRIX_TILE_COUNT_BITS'(K_TILES);service_req.rows=ROWS;
     service_req.epoch=job_epoch;service_req.head=job_head;service_req.nt=matrix_launch_tile;
     service_req.final_k=1;service_req.exp_fold=job_exp_fold;service_req.slot_ready=1;

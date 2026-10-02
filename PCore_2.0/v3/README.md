@@ -1,6 +1,59 @@
 # PCore 2.0 v3 数据面
 
-## 2026-10-02：三 Operation 共享执行结构
+## PCore Execution Framework v3 Functional Freeze
+
+2026-10-02：按 `interaction/下一步方案.docx`、`AI工具意见.docx` 和 `冻结要求.docx` 完成本阶段接口、错误传播与遗留代码收尾。**功能冻结回归通过**，最终时间 **21:43:20 +08:00**。
+
+### 本次冻结改动
+
+- `pcore_ctrl.fabric_error` 接收 `qoz_error || matrix_error`；ACTIVE 中任一全局错误或当前 owner 的 adapter error 进入 FAULT。非 active adapter 的 error 不影响当前 Job。
+- FAULT 不产生正常 completion、不接受新 Job、不自动释放当前 QOZ generation；统一 clear/reset 后恢复。总控仅保留 Job 分发、owner、context、完成保持与全局错误处理。
+- `matrix_service_req_t` 显式携带 `a_source / a_streaming / b_source`，dispatcher 不再根据 owner 推断数据来源。字段由调用方持续驱动，覆盖预取、执行和排空期间；当前三条路径在 Operation 内保持固定。
+
+| Adapter 路径 | a_source | a_streaming | b_source |
+| --- | --- | ---: | --- |
+| Q Projection | A_XBC | 0 | B_HBM |
+| Attention | A_LOCAL | 1 | B_KVB |
+| G-U | A_LOCAL | 0 | B_HBM |
+
+### POST 接口冻结契约
+
+所有通道在 `valid && ready` 时转移；`valid && !ready` 时保持 valid 和完整 payload。command 接受后提供对应数据，result 与 done 原样携带接受时的 job_id/epoch/head/n；done 还须匹配原 post opcode。
+
+| post_job.op | post_data.row | first / second | row_valid / last |
+| --- | --- | --- | --- |
+| POST_PROJ_QUANT | pair index 0..25 | even / odd FP32 row | 11，尾 pair 为 01；pair 25 为 last |
+| POST_GU | row index 0..50 | Gate / Up FP32 row | 01；row 50 为 last |
+
+- `POST_GU(n)` 输入 51 行 Gate/Up，外部 subsystem 返回 26 个 Z pair 和一次 done。GELU、乘法、Quant 的具体实现不属于本工程职责。
+- `post_result.pair_data.tile_idx == n`，pair_idx 顺序为 0..25，row mask 遵循尾行规则，last 仅在 pair 25 置位。
+- 最后 pair 必须真正被 QOZ 接受后才允许 done；同拍提交与 done 合法。只进入外部队列不算完成。
+- clear/reset 取消旧 generation；外部 subsystem 同步丢弃旧 command/data/result/completion。
+
+### QOZ 生命周期冻结契约
+
+一个 32-tile 物理存储，单活动 region：**producer acquire → ordered writes → region_complete → consumer reads → consumer release**。
+
+| owner | tiles | producer | 合法 release consumer |
+| --- | ---: | --- | --- |
+| QOZ_Q | 16 | OP_Q_PROJ | OP_ATTENTION |
+| QOZ_O | 16 | OP_O_PROJ | 本阶段未定义，拒绝 release |
+| QOZ_Z | 32 | OP_GU | OP_DOWN_PROJ |
+
+producer 和 consumer 的 job_id 可以不同；release 校验 epoch/head 与 owner 对应的消费者操作。写入必须匹配生产者完整 header。O/Down 表项仅冻结资源接口，不表示已实现对应 Operation adapter。O region 当前只能通过全局 clear/reset 取消。
+
+### 最终验收与 legacy 隔离
+
+- `v3_all.f` 仅含正式接口与其 TB；旧 controller、旧 Job typedef、`tb_v3_pcore_ctrl` 和 `tb_v3_gu_32_system` 移到 `legacy/`，由 `legacy/regression.f` 单独编译。有效历史检查继续运行。
+- `run_v3_xsim.ps1` 完成 **25 个正式 TB + 2 个 legacy 兼容 TB**，以及 GU slow-post、Attention port-stress、2 个 fabric FAULT/clear 场景、3 类预期 context assertion。
+- 分发专项覆盖 active error、inactive error 隔离及 fabric FAULT；Top 用非法 QOZ write 和内部 release 注入验证保留 region、无 JOB_OK、clear 恢复。
+- QOZ 专项增加 O16、Z32→Down release、错误 consumer、乱序写、三类错误 tiles 检查；三任务 TB 检查两类 post 的 index/mask/last 与数据背压保持。
+- GU 保持每 N 3328 连续 issue、稳态 3346 拍、A/B stall=0、fast slot stall=0；slow post 仅 G63 slot 停顿 276 拍。Attention 保持 416 / 434 / 867 / 439；Projection golden、Z 832 次回读均通过。
+- 证据：`reports/v3_simulation_summary.txt`、`reports/v3_sources_sha256.csv`、`reports/tb_v3_pcore_fabric_WRITE.txt`、`reports/tb_v3_pcore_fabric_RELEASE.txt` 及各专项日志。回归脚本现在会将失败写成 FAILED，避免普通异常留下 RUNNING。
+
+本阶段到此冻结。下一阶段在此框架上增加 K/V/O/Down Operation adapter 行为和独立 Layer Sequencer。VPU/SFU 具体实现不列为本工程待办；本轮仍只做仿真，不包含综合/P&R。
+
+## 历史阶段：2026-10-02 三 Operation 共享执行结构
 
 当前 `dea8_pcore_exec_v3` 已串行跑通 `OP_Q_PROJ → OP_ATTENTION → OP_GU`，共用一个 Matrix 和一个物理 QOZ。最新完整回归于 **2026-10-02 17:53:51 +08:00** 结束：27 个 TB、额外 GU slow-post、Attention55 port-stress、3 类预期 completion 拒绝检查全部通过。证据：`reports/v3_simulation_summary.txt`、各 TB 日志及 `reports/v3_sources_sha256.csv`。
 
@@ -33,7 +86,7 @@ GU 加载由连续生产者、replay/FIFO credit 和 one-ahead 授权约束；�
 - VPU/SFU 非矩阵算术仍为 TB reference；共享 post 接口已接通，尚无真实后处理引擎 RTL 签核。
 - 三任务链验证共享执行与 Q 生命周期；GU 输入由 TB 提供，不代表完整模型层的 Attention 输出到 GU 输入数值链。
 - 新 PCore 未运行综合/P&R，不能引用下文冻结 DEQACC 的 250 MHz 结果作为共享 Top 签核。
-- 后续可接真实 VPU/SFU 与 Layer/Denoise sequencer，再验证完整数据依赖和物理实现。
+- 后续在已冻结接口上增加 K/V/O/Down 行为与 Layer/Denoise sequencer；VPU/SFU 实现由外部 subsystem 负责。
 
 ## 历史阶段：2026-10-01 PCore Job入口与完整OP_GU
 

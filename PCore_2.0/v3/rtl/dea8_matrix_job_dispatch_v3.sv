@@ -14,9 +14,9 @@ module dea8_matrix_job_dispatch_v3(
   for(genvar i=0;i<3;i++)assign responses[i]=(owner==i)?rsp:matrix_service_rsp_t'('0);
   assign protocol_error=rsp.a_error||rsp.b_error;
   dea8_matrix_v3 #(.SHARED_MODE(1)) matrix(
-    .clk,.reset,.clear,.runtime_local_a(owner!=0),.runtime_streaming(owner==1),
+    .clk,.reset,.clear,.runtime_local_a(req.a_source==A_LOCAL),.runtime_streaming(req.a_streaming),
     .xbc_valid,.xbc_ready,.xbc_entry,.local_a_valid(req.local_valid),.local_a_ready(rsp.local_ready),.local_a_entry(req.local_entry),
-    .hbm_valid,.hbm_ready,.hbm_entry,.kv_valid,.kv_ready,.kv_entry,.b_source(owner==1?B_KVB:B_HBM),
+    .hbm_valid,.hbm_ready,.hbm_entry,.kv_valid,.kv_ready,.kv_entry,.b_source(req.b_source),
     .job_start(req.start),.job_a_tile_idx('0),.job_b_tile_idx('0),.job_a_stream_idx(req.a_stream),.job_b_stream_idx(req.b_stream),
     .job_tiles(req.tiles),.job_m_rows(req.rows),.job_epoch(req.epoch),.job_head(req.head),.job_nt(req.nt),
     .job_nt_per_tile(req.nt_per_tile),.job_clear_each_tile(req.clear_each_tile),.job_final_k(req.final_k),

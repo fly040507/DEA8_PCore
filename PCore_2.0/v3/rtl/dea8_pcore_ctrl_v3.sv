@@ -1,7 +1,8 @@
 import pcore3_pkg::*;
 // Operation executor only. Algorithm state belongs to the selected adapter.
+// Keep block/tile/post counters, prefetch and resource scheduling in adapters.
 module dea8_pcore_ctrl_v3(
-  input logic clk,reset,clear,
+  input logic clk,reset,clear,input logic fabric_error,
   input logic job_valid,output logic job_ready,input pcore_job_t job,
   output logic job_done_valid,input logic job_done_ready,output pcore_completion_t job_done,
   output logic busy,protocol_error,output logic [1:0] owner,
@@ -41,7 +42,7 @@ module dea8_pcore_ctrl_v3(
           if(adapter_done[owner].header!=job_q.header)begin state_q<=FAULT;protocol_error<=1;end
           else begin job_done<=adapter_done[owner];state_q<=COMPLETE;end
         end
-        if(|adapter_error)begin state_q<=FAULT;protocol_error<=1;end
+        if(adapter_error[owner]||fabric_error)begin state_q<=FAULT;protocol_error<=1;end
         for(int i=0;i<3;i++) if(adapter_done_valid[i]&&(owner!=i||!sent_q))begin
           state_q<=FAULT;protocol_error<=1;
         end

@@ -24,6 +24,7 @@ package pcore3_pkg;
   parameter int DOT_EXP_OFFSET=266, EXP_FOLD_BITS=6;
   parameter int XBC_GROUPS=(ROWS+3)/4;
 
+  typedef enum logic {A_XBC=0,A_LOCAL=1} a_source_e;
   typedef enum logic [1:0] {B_HBM=0,B_KVB=1} b_source_e;
   typedef enum logic [1:0] {ACC_FACC_A=0,ACC_FACC_B=1,ACC_OACC=2} acc_sel_e;
   typedef enum logic {ACC_READ_DEQACC=0,ACC_READ_RESULT=1} acc_read_owner_e;
@@ -45,20 +46,12 @@ package pcore3_pkg;
   typedef struct packed {job_header_t header;} pcore_job_t;
   typedef enum logic [1:0] {JOB_OK,JOB_UNSUPPORTED,JOB_PROTOCOL_ERROR} job_status_e;
   typedef struct packed {job_header_t header;job_status_e status;} pcore_completion_t;
-  typedef struct packed {
-    job_header_t header;
-    matrix_mode_e mode;
-    logic [5:0] n;
-    logic [7:0] k_tiles;
-    logic [5:0] m_rows;
-  } pcore_matrix_job_t;
   typedef enum logic [1:0] {POST_GU=0,POST_PROJ_QUANT=1,POST_RESERVED=2} pcore_post_op_e;
-  typedef pcore_post_op_e pcore_vpu_op_e;
-  typedef enum logic {GELU_GU=0} pcore_sfu_op_e;
-  typedef struct packed {job_header_t header;pcore_vpu_op_e op;logic [5:0] n;} pcore_vpu_job_t;
-  typedef struct packed {job_header_t header;pcore_sfu_op_e op;logic [5:0] n;} pcore_sfu_job_t;
   typedef struct packed {job_header_t header;pcore_post_op_e op;logic [5:0] n;} pcore_post_job_t;
   typedef enum logic [1:0] {QOZ_NONE=0,QOZ_Q=1,QOZ_O=2,QOZ_Z=3} qoz_owner_e;
+  // One 32-tile physical region: acquire -> ordered writes -> complete ->
+  // consumer reads -> release. O consumer is not defined in this phase.
+  parameter int QOZ_Q_TILES=16,QOZ_O_TILES=16,QOZ_Z_TILES=32;
   typedef struct packed {
     job_header_t header;
     qoz_owner_e owner;
@@ -79,6 +72,10 @@ package pcore3_pkg;
     logic slot;
     logic [1:0] reserved;
   } a2_t;
+  // Interpreted by the accepted post_job.op:
+  // POST_PROJ_QUANT: row=pair 0..25, first=even, second=odd, row_valid=11/01.
+  // POST_GU: row=0..50, first=Gate, second=Up, row_valid=01.
+  // valid && !ready holds the complete payload; clear cancels the generation.
   typedef struct packed {
     job_header_t header;
     logic [5:0] n,row;
@@ -146,6 +143,9 @@ package pcore3_pkg;
   // Physical Matrix service port; algorithms remain in operation adapters.
   typedef struct packed {
     logic start;
+    a_source_e a_source;
+    logic a_streaming;
+    b_source_e b_source;
     matrix_mode_e mode;
     logic [5:0] gu_n;
     logic [TILE_BITS-1:0] a_stream,b_stream;

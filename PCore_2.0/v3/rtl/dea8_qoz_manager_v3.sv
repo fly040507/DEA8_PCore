@@ -15,9 +15,9 @@ module dea8_qoz_manager_v3(
 );
   logic store_error,store_begin_ready,store_release_ready,store_wr_ready;
   logic release_match,write_match,req_match;
-  assign req_match=(req.owner==QOZ_Q&&req.tiles==16&&req.header.op==OP_Q_PROJ)||
-    (req.owner==QOZ_Z&&req.tiles==32&&req.header.op==OP_GU)||
-    (req.owner==QOZ_O&&req.tiles==16&&req.header.op==OP_O_PROJ);
+  assign req_match=(req.owner==QOZ_Q&&req.tiles==QOZ_Q_TILES&&req.header.op==OP_Q_PROJ)||
+    (req.owner==QOZ_Z&&req.tiles==QOZ_Z_TILES&&req.header.op==OP_GU)||
+    (req.owner==QOZ_O&&req.tiles==QOZ_O_TILES&&req.header.op==OP_O_PROJ);
   assign write_match=wr.header==active_req.header&&wr.n==wr.pair_data.tile_idx&&
     wr.last==(wr.pair_data.pair_idx==PAIRS-1);
   assign release_match=consumer.epoch==active_req.header.epoch&&consumer.head==active_req.header.head&&

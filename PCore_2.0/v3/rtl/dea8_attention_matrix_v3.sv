@@ -133,6 +133,7 @@ module dea8_attention_matrix_v3 #(
 
   always_comb begin
     service_req='0;service_req.start=launch_fire;service_req.mode=MAT_ATTENTION;
+    service_req.a_source=A_LOCAL;service_req.a_streaming=1;service_req.b_source=B_KVB;
     service_req.a_stream=pending_base_q;service_req.b_stream=pending_base_q;
     service_req.tiles=ATTN_K_TILES;service_req.rows=pending_cmd_q.m_rows;
     service_req.epoch=pending_cmd_q.epoch;service_req.head=pending_cmd_q.head;

@@ -133,6 +133,7 @@ module dea8_gu_matrix_v3 #(
 
   always_comb begin
     service_req='0;service_req.start=matrix_job_start;service_req.mode=MAT_GU;service_req.gu_n=job_n;
+    service_req.a_source=A_LOCAL;service_req.a_streaming=0;service_req.b_source=B_HBM;
     service_req.tiles=GU_TILES;service_req.rows=ROWS;service_req.epoch=job_epoch;service_req.head=job_head;
     service_req.final_k=1;service_req.slot_ready=matrix_gu_slot_ready;service_req.acc_sel=ACC_FACC_A;
     service_req.local_valid=replay_out_valid;service_req.local_entry=replay_out_entry;

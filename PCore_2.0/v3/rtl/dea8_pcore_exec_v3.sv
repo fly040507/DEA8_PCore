@@ -37,7 +37,7 @@ module dea8_pcore_exec_v3(
   logic region_req_valid,region_req_ready; qoz_region_req_t region_req;
   logic z_commit;
   assign local_clear=clear||operation_clear;
-  assign protocol_error=ctrl_error||matrix_error||qoz_error||(|errors);
+  assign protocol_error=ctrl_error||matrix_error||qoz_error||errors[active_adapter];
   assign region_req_valid=rv[active_adapter];assign region_req=regions[active_adapter];
   assign rr=3'(region_req_ready)<<active_adapter;
   assign post_valid=pv[active_adapter];assign post_job=posts[active_adapter];
@@ -48,7 +48,7 @@ module dea8_pcore_exec_v3(
   assign rv[1]=0;assign regions[1]='0;assign pv[1]=0;assign posts[1]='0;assign pdr[1]=0;assign ddv[1]=0;assign datas[1]='0;
   dea8_pcore_ctrl_v3 ctrl(.clk,.reset,.clear,.job_valid,.job_ready,.job,.job_done_valid,.job_done_ready,.job_done,
     .busy,.protocol_error(ctrl_error),.owner(active_adapter),.adapter_valid(av),.adapter_ready(ar),.adapter_job(aj),
-    .adapter_done_valid(dv),.adapter_done_ready(dr),.adapter_done(dc),.adapter_error(errors),.operation_clear);
+    .adapter_done_valid(dv),.adapter_done_ready(dr),.adapter_done(dc),.adapter_error(errors),.fabric_error(qoz_error||matrix_error),.operation_clear);
   dea8_projection_job_adapter_v3 projection(.clk,.reset,.clear(local_clear),.op_valid(av[0]),.op_ready(ar[0]),.op_job(aj),
     .done_valid(dv[0]),.done_ready(dr[0]),.done(dc[0]),.error(errors[0]),.matrix_req(req[0]),.matrix_rsp(rsp[0]),
     .region_valid(rv[0]),.region_ready(rr[0]),.region(regions[0]),.region_complete(qoz_complete),

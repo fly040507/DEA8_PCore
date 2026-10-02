@@ -13,6 +13,8 @@ Push-Location $here
 try {
   & $xvlog -sv -f v3_all.f (Join-Path $VivadoRoot "data\verilog\src\glbl.v")
   if($LASTEXITCODE){throw "v3 xvlog failed"}
+  & $xvlog -sv -f legacy/regression.f
+  if($LASTEXITCODE){throw "legacy xvlog failed"}
   foreach($top in $tops){
     & $xelab $top glbl -s "${top}_sim" -timescale 1ns/1ps -L unisims_ver
     if($LASTEXITCODE){throw "v3 xelab failed: $top"}
@@ -47,10 +49,20 @@ try {
     $fatals=[regex]::Matches($text,'(?im)^\s*Fatal:.*$')
     if($fatals.Count -ne 1 -or $text -notmatch [regex]::Escape($expected) -or $text -match '(?im)^\s*Error:' -or $text -match 'tb_v3_attention_scheduler PASS'){throw "Context rejection did not match: $unit"}
   }
-  Get-ChildItem (Join-Path $here "rtl"),(Join-Path $here "tb") -File -Filter *.sv |
+  foreach($fault in @("WRITE","RELEASE")){
+    $out=& $xsim tb_v3_pcore_three_job_chain_sim -runall -testplusarg "FAULT_$fault" 2>&1
+    $code=$LASTEXITCODE;$out|Write-Output
+    $out|Set-Content (Join-Path $report "tb_v3_pcore_fabric_$fault.txt") -Encoding UTF8
+    $text=$out -join "`n"
+    if($code -ne 0 -or $text -match '(?im)^\s*(Fatal|Error):' -or $text -notmatch 'PASS fabric_fault=1 clear_recovery=1'){throw "Fabric FAULT failed: $fault"}
+  }
+  Get-ChildItem (Join-Path $here "rtl"),(Join-Path $here "tb"),(Join-Path $here "legacy") -File -Filter *.sv |
     Sort-Object FullName |
     Get-FileHash -Algorithm SHA256 |
     ForEach-Object { "$($_.Hash),$($_.Path.Substring($here.Length+1))" } |
     Set-Content (Join-Path $report "v3_sources_sha256.csv") -Encoding UTF8
-  "All $($tops.Count) v3 testbenches + Attention55 port-stress passed; G-U replay/golden/QOZ and 3 expected context rejections verified at $(Get-Date -Format o). Simulation only; no synthesis/P&R." | Set-Content (Join-Path $report "v3_simulation_summary.txt") -Encoding UTF8
+  "All $($tops.Count) testbenches (formal + legacy compatibility), GU slow-post, Attention55 port-stress, 2 fabric FAULT/clear cases and 3 expected context rejections passed at $(Get-Date -Format o). Simulation only; no synthesis/P&R." | Set-Content (Join-Path $report "v3_simulation_summary.txt") -Encoding UTF8
+} catch {
+  "FAILED at $(Get-Date -Format o): $_" | Set-Content (Join-Path $report "v3_simulation_summary.txt") -Encoding UTF8
+  throw
 } finally { Pop-Location }

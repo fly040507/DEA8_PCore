@@ -4,7 +4,7 @@ module tb_v3_pcore_job_dispatch;
   logic clk=0;always #2 clk=~clk;
   logic reset=1,clear=0,job_valid=0,job_ready,job_done_valid,job_done_ready=0;
   pcore_job_t job,adapter_job;pcore_completion_t job_done,adapter_done[0:2];
-  logic busy,protocol_error,operation_clear;logic [1:0] owner;
+  logic busy,protocol_error,operation_clear,fabric_error=0;logic [1:0] owner;
   logic [2:0] adapter_valid,adapter_ready=0,adapter_done_valid=0,adapter_done_ready,adapter_error=0;
   int accepts=0;
   dea8_pcore_ctrl_v3 dut(.*);
@@ -14,7 +14,7 @@ module tb_v3_pcore_job_dispatch;
     do @(posedge clk);while(!job_ready);@(negedge clk);job_valid=0;
   endtask
   task automatic recover;
-    @(negedge clk);clear=1;adapter_done_valid=0;adapter_ready=0;job_valid=0;
+    @(negedge clk);clear=1;adapter_done_valid=0;adapter_ready=0;job_valid=0;adapter_error=0;fabric_error=0;
     @(negedge clk);clear=0;#1;
     if(!job_ready||protocol_error)$fatal(1,"dispatch clear recovery");
   endtask
@@ -51,7 +51,15 @@ module tb_v3_pcore_job_dispatch;
       if(!protocol_error||job_ready||job_done_valid||!busy)$fatal(1,"bad completion escaped FAULT");
       recover();
     end
-    $display("tb_v3_pcore_job_dispatch PASS serial_ops=3 single_owner=1 stalled_commands=1 done_hold=1 wrong_context=1 wrong_adapter=1 unsupported=1");$finish;
+    for(int bad=0;bad<2;bad++)begin
+      send(OP_GU,300+bad);adapter_ready=4;@(negedge clk);adapter_ready=0;
+      adapter_error=1;
+      repeat(3)begin @(negedge clk);if(protocol_error||job_done_valid||!adapter_done_ready[2])$fatal(1,"inactive adapter error affected owner");end
+      adapter_error=bad==0?4:0;fabric_error=bad==1;
+      repeat(3)begin @(negedge clk);if(!protocol_error||job_ready||job_done_valid||adapter_valid||adapter_done_ready)$fatal(1,"error escaped FAULT");end
+      recover();
+    end
+    $display("tb_v3_pcore_job_dispatch PASS serial_ops=3 single_owner=1 stalled_commands=1 done_hold=1 wrong_context=1 wrong_adapter=1 unsupported=1 active_error=1 inactive_error_isolated=1 fabric_fault_clear=1");$finish;
   end
   initial begin #10000;$fatal(1,"dispatch watchdog");end
 endmodule
