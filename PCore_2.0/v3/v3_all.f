@@ -1,5 +1,12 @@
 rtl/pcore3_pkg.sv
 rtl/dea8_pcore_ctrl_v3.sv
+rtl/dea8_gu_ctrl_legacy.sv
+rtl/dea8_matrix_job_dispatch_v3.sv
+rtl/dea8_qoz_manager_v3.sv
+rtl/dea8_projection_job_adapter_v3.sv
+rtl/dea8_attention_job_adapter_v3.sv
+rtl/dea8_gu_job_adapter_v3.sv
+rtl/dea8_pcore_exec_v3.sv
 rtl/dea8_fp32_v3_pkg.sv
 rtl/DEQACC_3.3ns_lane.sv
 rtl/DEQACC_3.3ns.sv
@@ -50,6 +57,9 @@ tb/tb_v3_gu_matrix.sv
 tb/tb_v3_gu_scheduler.sv
 tb/tb_v3_gu_32_system.sv
 tb/tb_v3_pcore_ctrl.sv
+tb/tb_v3_pcore_three_job_chain.sv
+tb/tb_v3_pcore_job_dispatch.sv
+tb/tb_v3_qoz_manager.sv
 tb/tb_v3_qoz_shared.sv
 tb/tb_v3_gu_scheduler_stress.sv
 tb/tb_v3_attention_gu_chain.sv

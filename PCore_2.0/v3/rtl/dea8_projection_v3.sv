@@ -5,9 +5,11 @@ import pcore3_pkg::*;
 // next N Tile can start while the completed N Tile is being read out.
 module dea8_projection_v3 #(
   parameter int K_TILES=64,
-  parameter int N_TILES=16
+  parameter int N_TILES=16,
+  parameter bit EXTERNAL_MATRIX=0
 ) (
   input logic clk,reset,clear,
+  output matrix_service_req_t service_req,input matrix_service_rsp_t service_rsp,
   input logic start,
   input logic [EPOCH_BITS-1:0] job_epoch,
   input logic [2:0] job_head,
@@ -52,6 +54,23 @@ module dea8_projection_v3 #(
   logic matrix_inflight_q;
   logic read_pending_q,completion_pending_q;
 
+  always_comb begin
+    service_req='0;service_req.start=matrix_job_start;service_req.mode=MAT_PROJECTION;
+    service_req.tiles=MATRIX_TILE_COUNT_BITS'(K_TILES);service_req.rows=ROWS;
+    service_req.epoch=job_epoch;service_req.head=job_head;service_req.nt=matrix_launch_tile;
+    service_req.final_k=1;service_req.exp_fold=job_exp_fold;service_req.slot_ready=1;
+    service_req.acc_sel=matrix_launch_tile[0]?ACC_FACC_B:ACC_FACC_A;
+    service_req.rd_valid=result_rd_valid;service_req.rd_sel=result_rd_sel;service_req.rd_addr=result_rd_addr;
+  end
+  if(EXTERNAL_MATRIX) begin: external_matrix
+    assign matrix_ready=service_rsp.ready;assign matrix_busy=service_rsp.busy;
+    assign matrix_done=service_rsp.done;assign matrix_commit_valid=service_rsp.commit_valid;
+    assign matrix_commit_meta=service_rsp.meta;
+    assign result_rd_ready=service_rsp.rd_ready;assign result_rd_data_valid=service_rsp.rd_valid;
+    assign result_even_data=service_rsp.even_data;assign result_odd_data=service_rsp.odd_data;
+    assign matrix_a_protocol_error=service_rsp.a_error;assign matrix_b_protocol_error=service_rsp.b_error;
+    assign xbc_ready=0;assign hbm_ready=0;assign unused_dbg_data=0;
+  end else begin: private_matrix
   dea8_matrix_v3 matrix(
     .clk,.reset,.clear,
     .xbc_valid,.xbc_ready,.xbc_entry,
@@ -74,6 +93,7 @@ module dea8_projection_v3 #(
     .dbg_valid(1'b0),.dbg_sel(ACC_FACC_A),.dbg_parity(1'b0),.dbg_addr('0),
     .dbg_lane('0),.dbg_data(unused_dbg_data),
     .a_protocol_error(matrix_a_protocol_error),.b_protocol_error(matrix_b_protocol_error));
+  end
 
   assign busy=(state_q!=S_IDLE)&&(state_q!=S_DONE);
   assign launch_next=(state_q==S_OVERLAP)&&next_pending_q&&matrix_ready;

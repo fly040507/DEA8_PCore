@@ -315,7 +315,7 @@ module tb_v3_attention_55;
       request_cycle[requests]=cycle_count;requests++;request_seen=1;
     end
     if(matrix_valid&&matrix_ready) request_seen=0;
-    if(matrix.matrix.req_valid) begin
+    if(matrix.private_matrix.matrix.req_valid) begin
       if(issues_in_job==0) begin
         issue_cycle[issue_jobs]=cycle_count;
         issue_first_cycle[issue_jobs]=cycle_count;
@@ -335,15 +335,15 @@ module tb_v3_attention_55;
     if(tail_launch_ready&&tail_guard_release<0) tail_guard_release=cycle_count;
     if(result_rd_valid&&result_rd_ready) begin
       vpu_reads++;
-      if(matrix.matrix.job_busy) overlap_reads++;
+      if(matrix.private_matrix.matrix.job_busy) overlap_reads++;
     end
     if(vpu_wr_valid&&vpu_wr_ready) begin
       vpu_writes++;
-      if(matrix.matrix.job_busy) overlap_writes++;
+      if(matrix.private_matrix.matrix.job_busy) overlap_writes++;
     end
     if(qoz_load_valid&&qoz_load_ready) a_beats++;
     if(kv_valid&&kv_ready) b_beats++;
-    if(matrix.matrix.job_busy&&hbm_ready) $fatal(1,"Attention must select KVB during a job");
+    if(matrix.private_matrix.matrix.job_busy&&hbm_ready) $fatal(1,"Attention must select KVB during a job");
     if(matrix_valid&&matrix_ready) begin
       if(accepts>=JOBS) $fatal(1,"extra matrix command");
       if(accepts==0) begin expected_op=MATRIX_QK;expected_block=0;end

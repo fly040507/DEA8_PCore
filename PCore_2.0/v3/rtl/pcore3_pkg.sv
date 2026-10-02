@@ -52,11 +52,18 @@ package pcore3_pkg;
     logic [7:0] k_tiles;
     logic [5:0] m_rows;
   } pcore_matrix_job_t;
-  typedef enum logic {POST_GU=0} pcore_vpu_op_e;
+  typedef enum logic [1:0] {POST_GU=0,POST_PROJ_QUANT=1,POST_RESERVED=2} pcore_post_op_e;
+  typedef pcore_post_op_e pcore_vpu_op_e;
   typedef enum logic {GELU_GU=0} pcore_sfu_op_e;
   typedef struct packed {job_header_t header;pcore_vpu_op_e op;logic [5:0] n;} pcore_vpu_job_t;
   typedef struct packed {job_header_t header;pcore_sfu_op_e op;logic [5:0] n;} pcore_sfu_job_t;
+  typedef struct packed {job_header_t header;pcore_post_op_e op;logic [5:0] n;} pcore_post_job_t;
   typedef enum logic [1:0] {QOZ_NONE=0,QOZ_Q=1,QOZ_O=2,QOZ_Z=3} qoz_owner_e;
+  typedef struct packed {
+    job_header_t header;
+    qoz_owner_e owner;
+    logic [5:0] tiles;
+  } qoz_region_req_t;
   typedef enum logic {MATRIX_QK=0,MATRIX_PV=1} matrix_op_e;
 
   typedef struct packed {
@@ -72,6 +79,19 @@ package pcore3_pkg;
     logic slot;
     logic [1:0] reserved;
   } a2_t;
+  typedef struct packed {
+    job_header_t header;
+    logic [5:0] n,row;
+    logic [1:0] row_valid;
+    logic last;
+    logic [15:0][31:0] first,second;
+  } post_data_t;
+  typedef struct packed {
+    job_header_t header;
+    logic [5:0] n;
+    a2_t pair_data;
+    logic last;
+  } post_result_t;
 
   typedef struct packed {
     qvec16_t [0:3] row;
@@ -122,6 +142,37 @@ package pcore3_pkg;
     logic [TILE-1:0][SCALE_BITS-1:0] e_stat;
     pair_meta_t meta;
   } mxu_rsp_t;
+
+  // Physical Matrix service port; algorithms remain in operation adapters.
+  typedef struct packed {
+    logic start;
+    matrix_mode_e mode;
+    logic [5:0] gu_n;
+    logic [TILE_BITS-1:0] a_stream,b_stream;
+    logic [MATRIX_TILE_COUNT_BITS-1:0] tiles;
+    logic [5:0] rows;
+    logic [EPOCH_BITS-1:0] epoch;
+    logic [2:0] head;
+    logic [3:0] nt;
+    logic nt_per_tile,clear_each_tile,final_k,add_old,slot_ready;
+    logic signed [EXP_FOLD_BITS-1:0] exp_fold;
+    acc_sel_e acc_sel;
+    logic local_valid;
+    a2_t local_entry;
+    logic rd_valid;
+    acc_sel_e rd_sel;
+    logic [9:0] rd_addr;
+    logic wr_valid;
+    acc_write_t wr;
+  } matrix_service_req_t;
+  typedef struct packed {
+    logic ready,busy,done,issue_done,commit_valid,write_valid,slot_reserve;
+    pair_meta_t meta;
+    acc_write_t write_data;
+    logic local_ready,a_error,b_error;
+    logic rd_ready,rd_valid,wr_ready;
+    logic [15:0][31:0] even_data,odd_data;
+  } matrix_service_rsp_t;
 
   // Generic scheduler command. The datapath never needs to know whether the
   // caller is Projection, QK, PV or a future G-U operation.

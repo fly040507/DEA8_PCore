@@ -149,7 +149,7 @@ module tb_v3_gu_matrix;
       if(qz_last) begin qoz_z_complete<=1;qoz_z_owner_active<=0;end
     end
     watchdog++;
-    if(watchdog%1000==0) $display("GU progress cyc=%0d job=%0d seq=%0d ac=%0d ar=%0d bc=%0d load=%0d col=%0d hold=%0d half=%0d ov=%0d or=%0d lv=%0d rdy=%b bt=%0d cur=%0d ahead=%0d req=%0d pairres=%0d pairdone=%0d gc=%0d uc=%0d pe=%0d",watchdog,dut.matrix.job_busy_q,dut.matrix.tile_seq_q,dut.matrix.a_fifo.count,dut.matrix.a_fifo.running,dut.matrix.b_fifo.count,dut.matrix.b_loader.loading,dut.matrix.b_loader.column,dut.matrix.b_serializer.holding,dut.matrix.b_serializer.half,dut.matrix.b_serializer.out_valid,dut.matrix.b_serializer.out_ready,dut.matrix.b_loader.load_valid,dut.matrix.b_loader.bank_ready,dut.matrix.b_loader.bank_tile[0],dut.matrix.current_b,dut.matrix.a_head.tile_idx,dut.matrix.req_valid,dut.pair_buffer.reserved_q,dut.pair_buffer.complete,dut.pair_buffer.gate_count_q,dut.pair_buffer.up_count_q,dut.pair_buffer.protocol_error);
+    if(watchdog%1000==0) $display("GU progress cyc=%0d job=%0d seq=%0d",watchdog,dut.private_matrix.matrix.job_busy_q,dut.private_matrix.matrix.tile_seq_q);
     if(watchdog>20000) $fatal(1,"GU watchdog");
   end
 endmodule

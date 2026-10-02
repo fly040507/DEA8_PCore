@@ -6,6 +6,7 @@ $tops=@("tb_v3_fp32_equiv")+$tops
 $tops=@("tb_fp32_acc_lane_v5","tb_deqacc32_v5_stream")+$tops
 $tops=@("tb_v3_gu_scheduler","tb_v3_gu_scheduler_stress","tb_v3_gu_matrix","tb_v3_gu_32_system","tb_v3_qoz_shared","tb_v3_attention_gu_chain")+$tops
 $tops=@("tb_v3_pcore_ctrl")+$tops
+$tops=@("tb_v3_pcore_job_dispatch","tb_v3_qoz_manager","tb_v3_pcore_three_job_chain")+$tops
 New-Item -ItemType Directory -Force -Path $report | Out-Null
 "RUNNING at $(Get-Date -Format o)" | Set-Content (Join-Path $report "v3_simulation_summary.txt") -Encoding UTF8
 Push-Location $here
@@ -20,6 +21,13 @@ try {
     $text=$out -join "`n"
     if($code -ne 0 -or $text -match '(?im)^\s*(Fatal|Error):' -or $text -notmatch [regex]::Escape("$top PASS")){throw "v3 simulation failed: $top"}
   }
+  # Same execution top, GU-only slow POST: G0..U62 must continue and only the
+  # final Gate reservation may stall on the single result slot.
+  $out=& $xsim tb_v3_pcore_three_job_chain_sim -runall -testplusarg GU_ONLY -testplusarg SLOW_POST 2>&1
+  $code=$LASTEXITCODE;$out|Write-Output
+  $out|Set-Content (Join-Path $report "tb_v3_gu_prefetch_slow.txt") -Encoding UTF8
+  $text=$out -join "`n"
+  if($code -ne 0 -or $text -match '(?im)^\s*(Fatal|Error):' -or $text -notmatch 'tb_v3_pcore_three_job_chain PASS.*slow=1'){throw "GU slow-post prefetch failed"}
   # A separate 55-block run restores real OACC reads/writes and overlap checks.
   # It uses the SAME numerical golden, but does not assert scheduling latency.
   $out=& $xsim tb_v3_attention_55_sim -runall -testplusarg PORT_STRESS 2>&1

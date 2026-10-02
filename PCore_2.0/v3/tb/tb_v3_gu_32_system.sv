@@ -68,7 +68,7 @@ module tb_v3_gu_32_system;
   logic [135:0] computed_z[0:N_TILES-1][0:ROWS-1];
   int post_jobs=0,sfu_jobs=0,readbacks=0;
 
-  dea8_pcore_ctrl_v3 ctrl(
+  dea8_gu_ctrl_legacy ctrl(
     .clk,.reset,.clear,.job_valid(start),.job_ready(start_ready),.job(op_job),
     .job_done_valid(job_done),.job_done_ready(op_done_ready),.job_done(op_done),
     .busy(scheduler_busy),.protocol_error(scheduler_error),.active_header,
@@ -257,9 +257,9 @@ module tb_v3_gu_32_system;
 
   always @(posedge clk) begin
     cycle_count++;
-    if(matrix.matrix.req_valid) begin
+    if(matrix.private_matrix.matrix.req_valid) begin
       int issue_n;
-      issue_n=matrix.matrix.req_meta.gu_n;
+      issue_n=matrix.private_matrix.matrix.req_meta.gu_n;
       if(issue_n>=N_TILES) $fatal(1,"GU issue n out of range n=%0d",issue_n);
       issue_count[issue_n]++;
       if(first_issue[issue_n]<0) first_issue[issue_n]=cycle_count;

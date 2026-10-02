@@ -1,6 +1,43 @@
 # PCore 2.0 v3 数据面
 
-## 2026-10-01：PCore Job入口与完整OP_GU
+## 2026-10-02：三 Operation 共享执行结构
+
+当前 `dea8_pcore_exec_v3` 已串行跑通 `OP_Q_PROJ → OP_ATTENTION → OP_GU`，共用一个 Matrix 和一个物理 QOZ。最新完整回归于 **2026-10-02 17:53:51 +08:00** 结束：27 个 TB、额外 GU slow-post、Attention55 port-stress、3 类预期 completion 拒绝检查全部通过。证据：`reports/v3_simulation_summary.txt`、各 TB 日志及 `reports/v3_sources_sha256.csv`。
+
+### 控制与资源契约
+
+- `dea8_pcore_ctrl_v3`：Operation 分发、单 owner、完成保持和故障；G-U 内部 N/K 计数归 adapter。原 G-U 专用控制保存在 `dea8_gu_ctrl_legacy.sv`，供历史 TB 回归。
+- Projection、Attention、GU 三个 Job adapter 通过 `dea8_matrix_job_dispatch_v3` 使用共享 Matrix；运行时选择 A source/streaming。原私有 wrapper 路径保留。
+- `pcore_op_e` 与 `matrix_mode_e` 分层；当前共享入口支持 Q Projection、Attention、GU，其他 Operation 尚未接入。
+- Q Projection 申请 Q region，post 结果经 QOZ 接受并完成提交。Attention 以相同 epoch/head 消费 Q；消费者 job_id 不要求等于生产者 job_id。Attention 完成后释放 Q，GU 才申请同一物理存储的 Z region。
+- `POST_GU` 每 N 一个任务，消费实际 G/U 行数据；最后 Z pair 提交后才允许 post completion。32 个 post 完成且 Z region complete 后，`OP_GU` 才完成。Z 保留给后续消费者，不包含 Down。
+- 错误 owner/context、非法 completion、错误 QOZ release 由协议检查拒绝；清除故障时外部引擎也必须取消旧 generation。
+
+### 当前源码的仿真结果
+
+| 检查 | 结果 |
+| --- | --- |
+| 同 reset 三任务链 | 3 Operation、1 Matrix、1 QOZ、48 post、832 次 Z 回读 |
+| 正常 GU | 每 N 3328 次 issue；首个及稳态 N 间隔 3346 拍；slot stall=0 |
+| GU 预取 | 31 次 one-ahead prefetch；稳态 A/B 加载停顿检查通过 |
+| GU 冷启动与切换 | A/B 冷启动计数 54/26；Matrix handoff 总计 31，不能称为零开销 |
+| GU slow-post | 受影响间隔 3623 拍，slot stall=276；G63 前不因慢 post 停顿；其余稳态间隔 3346 |
+| Attention scheduling | body=416、普通首 issue 间隔=434、PV53→PV54=867、最终 tail=439 |
+| Attention port-stress | 13056 个最终值通过；真实 ACC 读写及 Matrix busy 期间 overlap 通过 |
+| 分发与 QOZ 专项 | 背压保持、错误 adapter/context、不支持操作、跨 job_id 消费 Q、错误 release 拒绝通过 |
+
+GU 加载由连续生产者、replay/FIFO credit 和 one-ahead 授权约束；正常稳态隐藏加载，慢 post 在单结果 slot 预留处停顿。日志：`reports/tb_v3_pcore_three_job_chain.txt`、`reports/tb_v3_gu_prefetch_slow.txt`。本次修复了加强后的 TB 对 Q reader ready 的错误层次引用，随后重新运行完整回归。
+
+### 范围与下一步
+
+- VPU/SFU 非矩阵算术仍为 TB reference；共享 post 接口已接通，尚无真实后处理引擎 RTL 签核。
+- 三任务链验证共享执行与 Q 生命周期；GU 输入由 TB 提供，不代表完整模型层的 Attention 输出到 GU 输入数值链。
+- 新 PCore 未运行综合/P&R，不能引用下文冻结 DEQACC 的 250 MHz 结果作为共享 Top 签核。
+- 后续可接真实 VPU/SFU 与 Layer/Denoise sequencer，再验证完整数据依赖和物理实现。
+
+## 历史阶段：2026-10-01 PCore Job入口与完整OP_GU
+
+以下为旧 G-U 专用控制阶段记录；其中“当前”“尚未完成”仅描述该历史阶段，最新集成状态以上节为准。
 
 已同步现有G-U replay、Matrix交错累加、Pair Buffer和shared QOZ增量。本轮新增 `rtl/dea8_pcore_ctrl_v3.sv`，在统一操作入口跑通一条 `OP_GU`。最终 **24个testbench + Attention55 port-stress通过，3类错误completion拒绝检查通过**；证据为 `reports/v3_simulation_summary.txt`。本轮未运行综合/P&R。
 
@@ -115,7 +152,7 @@ powershell -ExecutionPolicy Bypass -File .\run_v3_xsim.ps1
 
 ## 数值与协议验证
 
-统一入口 `run_v3_xsim.ps1`：17个正向 testbench、1次额外 Attention55 port-stress、3类错误 completion 的预期拒绝检查。最终状态以 `reports/v3_simulation_summary.txt` 为准，源码对应 `reports/v3_sources_sha256.csv`。负向测试只有命中指定 DUT context assertion 才通过，普通报错或 watchdog 不算成功。
+统一入口 `run_v3_xsim.ps1`：27个正向 testbench、额外 GU slow-post 与 Attention55 port-stress、3类错误 completion 的预期拒绝检查。最终状态以 `reports/v3_simulation_summary.txt` 为准，源码对应 `reports/v3_sources_sha256.csv`。负向测试只有命中指定 DUT context assertion 才通过，普通报错或 watchdog 不算成功。
 
 DEQACC 上轮收尾仅删除无调用的 `normalize()`；对应专项日志为 `reports/DEQACC_3.3ns/baseline_cleanup_xsim.log`。DEQACC 最终 checkpoint 是既有 refined 网表；本轮 Attention 修改后更新的是仿真源码清单，未生成新综合/布线证据。
 
@@ -189,7 +226,7 @@ Scheduling模式断言body=416、普通interval=434、尾部867及439，SFU P-ex
 
 按本轮要求暂不运行。55-entry pending scan保留，是否需要pointer/FIFO替换必须由后续实际综合路径决定；没有声称已消除其潜在时序风险。新scheduler/wrapper的250MHz与资源尚无当前源码签核，不能借用DEQACC的WNS。该项是评审中唯一明确后置的验证工作。
 
-## 数据面与接口边界
+## 历史 Attention baseline：数据面与接口边界
 
 - 双行 MXU：16×16、256 DSP48E2，7级；51行转26个row-pair。
 - Projection A：XBC4→2×A2→AFIFO；Attention A：QOZ/PBUF同步reader→A2→AFIFO。本地committed源使用4-entry streaming credit，外部XBC仍要求完整Tile。

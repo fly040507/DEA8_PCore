@@ -13,7 +13,7 @@ module tb_v3_pcore_ctrl;
   pcore_sfu_job_t sfu_job,sfu_done;
   logic qoz_begin_valid,qoz_begin_ready=0,z_tile_commit=0,qoz_complete=0,engine_error=0;
   logic [5:0] z_n=0;logic [EPOCH_BITS-1:0] z_epoch=1;logic [2:0] z_head=2;
-  dea8_pcore_ctrl_v3 #(.N_TILES(2)) dut(.*);
+  dea8_gu_ctrl_legacy #(.N_TILES(2)) dut(.*);
   task automatic launch(input pcore_op_e op,input int id);
     @(negedge clk);job.header='{job_id:16'(id),epoch:4'd1,head:3'd2,op:op};job_valid=1;
     do @(posedge clk);while(!job_ready);

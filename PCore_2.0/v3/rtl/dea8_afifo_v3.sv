@@ -2,8 +2,9 @@ import pcore3_pkg::*;
 
 // One logical 64-entry FIFO.  It accepts two consecutive A2 entries from an
 // XBC4 beat and emits at most one entry per cycle to the MXU.
-module dea8_afifo_v3 #(parameter int DEPTH=AFIFO_DEPTH,parameter bit STREAMING=0) (
+module dea8_afifo_v3 #(parameter int DEPTH=AFIFO_DEPTH,parameter bit STREAMING=0,parameter bit DYNAMIC_STREAMING=0) (
   input logic clk,reset,clear,
+  input logic streaming_mode,
   input logic [PAIR_BITS:0] pairs_cfg,
   input logic [PAIR_BITS:0] rows_cfg,
   input logic [1:0] in_valid,
@@ -42,6 +43,7 @@ module dea8_afifo_v3 #(parameter int DEPTH=AFIFO_DEPTH,parameter bit STREAMING=0
   logic rollover_available;
   logic [PAIR_BITS:0] active_pairs;
   logic [1:0] expected_mask;
+  wire stream_enabled=DYNAMIC_STREAMING?streaming_mode:STREAMING;
 
   assign active_pairs=(pairs_cfg==0)?PAIRS: pairs_cfg;
   assign expected_mask=(expected_pair==active_pairs-1 && rows_cfg[0]) ? 2'b01 : 2'b11;
@@ -68,7 +70,7 @@ module dea8_afifo_v3 #(parameter int DEPTH=AFIFO_DEPTH,parameter bit STREAMING=0
   assign rollover_available=running&&out_valid&&out_entry.pair_idx==active_pairs-1&&
     complete_tiles!=0&&count>=active_pairs+1;
   assign tile_available=!reset && !clear &&
-    (STREAMING ? (count>=4) :
+    (stream_enabled ? (count>=4) :
     ((!running&&complete_tiles!=0&&count>=active_pairs)||rollover_available));
   assign pop_fire=out_valid;
   assign reserve_fire=reserve_tile && tile_available;
@@ -111,7 +113,7 @@ module dea8_afifo_v3 #(parameter int DEPTH=AFIFO_DEPTH,parameter bit STREAMING=0
         3'b111: count<=count+1'b1;
         default: ;
       endcase
-      case({finish0,finish1,STREAMING?(pop_fire&&out_entry.pair_idx==active_pairs-1):reserve_fire})
+      case({finish0,finish1,stream_enabled?(pop_fire&&out_entry.pair_idx==active_pairs-1):reserve_fire})
         3'b100,3'b010,3'b110: complete_tiles<=complete_tiles+1'b1;
         3'b001: complete_tiles<=complete_tiles-1'b1;
         3'b101,3'b011: complete_tiles<=complete_tiles;
@@ -139,7 +141,7 @@ module dea8_afifo_v3 #(parameter int DEPTH=AFIFO_DEPTH,parameter bit STREAMING=0
       ((next_pair==active_pairs-1&&rows_cfg[0])?2'b01:2'b11),active_pairs,rows_cfg);
     if(reserve_tile&&!tile_available) $fatal(1,"AFIFO reserve without complete Tile");
     if(pop_fire&&!out_valid) $fatal(1,"AFIFO underflow");
-    if(STREAMING&&running&&count==0) $fatal(1,"Committed local source violated streaming credit guarantee");
+    if(stream_enabled&&running&&count==0) $fatal(1,"Committed local source violated streaming credit guarantee");
   end
   // synthesis translate_on
 endmodule

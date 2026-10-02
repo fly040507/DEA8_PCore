@@ -7,9 +7,10 @@ import pcore3_pkg::*;
 // downstream VPU/QOZ wrapper.
 module dea8_gu_matrix_v3 #(
   parameter int K_TILES=64,
-  parameter int GU_TILES=128
+  parameter int GU_TILES=128,parameter bit EXTERNAL_MATRIX=0
 ) (
   input logic clk,reset,clear,
+  output matrix_service_req_t service_req,input matrix_service_rsp_t service_rsp,
   input logic start,
   output logic start_ready,
   input logic [EPOCH_BITS-1:0] job_epoch,
@@ -130,6 +131,20 @@ module dea8_gu_matrix_v3 #(
     .out_entry(replay_out_entry),.protocol_error(replay_error));
   assign local_a_ready=replay_in_ready;
 
+  always_comb begin
+    service_req='0;service_req.start=matrix_job_start;service_req.mode=MAT_GU;service_req.gu_n=job_n;
+    service_req.tiles=GU_TILES;service_req.rows=ROWS;service_req.epoch=job_epoch;service_req.head=job_head;
+    service_req.final_k=1;service_req.slot_ready=matrix_gu_slot_ready;service_req.acc_sel=ACC_FACC_A;
+    service_req.local_valid=replay_out_valid;service_req.local_entry=replay_out_entry;
+  end
+  if(EXTERNAL_MATRIX) begin: external_matrix
+    assign matrix_ready=service_rsp.ready;assign matrix_busy=service_rsp.busy;assign matrix_done=service_rsp.done;
+    assign matrix_commit_valid=service_rsp.commit_valid;assign matrix_commit_meta=service_rsp.meta;
+    assign matrix_commit_write_valid=service_rsp.write_valid;assign matrix_commit_write=service_rsp.write_data;
+    assign matrix_gu_slot_reserve=service_rsp.slot_reserve;assign replay_out_ready=service_rsp.local_ready;
+    assign matrix_a_error=service_rsp.a_error;assign b_protocol_error=service_rsp.b_error;
+    assign hbm_ready=0;assign result_rd_ready=0;assign result_even_data=0;assign result_odd_data=0;assign dbg_data=0;
+  end else begin: private_matrix
   dea8_matrix_v3 #(.LOCAL_A(1'b1),.A_STREAMING(1'b0)) matrix(
     .clk,.reset,.clear,.xbc_valid(1'b0),.xbc_ready(),.xbc_entry('0),
     .local_a_valid(replay_out_valid),.local_a_ready(replay_out_ready),.local_a_entry(replay_out_entry),
@@ -152,6 +167,7 @@ module dea8_gu_matrix_v3 #(
     .vpu_wr_valid(1'b0),.vpu_wr_ready(),.vpu_wr('0),
     .dbg_valid(1'b0),.dbg_sel(ACC_FACC_A),.dbg_parity(1'b0),.dbg_addr('0),.dbg_lane('0),.dbg_data,
     .a_protocol_error(matrix_a_error),.b_protocol_error);
+  end
 
   // Reserve before G63, including a delayed reservation after B loading.
   // The pair buffer

@@ -234,7 +234,7 @@ module tb_v3_attention_matrix;
         if(!dut.pending_valid_q||dut.source_ready||dut.launch_fire)$fatal(1,"pending PV did not wait for P");
         for(int p=0;p<PAIRS;p++)send_replay(0,p,1);
         repeat(20)@(negedge clk);
-        if(!dut.source_ready||!dut.prefetched_q||dut.matrix.a_count<4||dut.launch_fire)
+        if(!dut.source_ready||!dut.prefetched_q||dut.private_matrix.matrix.a_count<4||dut.launch_fire)
           $fatal(1,"tail source did not prefetch while launch blocked");
         tail_launch_ready=1;
       end

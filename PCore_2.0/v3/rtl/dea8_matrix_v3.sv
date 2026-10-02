@@ -4,8 +4,9 @@ import pcore3_pkg::*;
 // advances one A Tile per configured row-pair count.  The AFIFO supports rollover
 // reservation on the last pair, while the B loader releases a stationary bank
 // one cycle after the final S1 multiply has consumed it.
-module dea8_matrix_v3 #(parameter bit LOCAL_A=0, parameter bit A_STREAMING=LOCAL_A) (
+module dea8_matrix_v3 #(parameter bit LOCAL_A=0, parameter bit A_STREAMING=LOCAL_A,parameter bit SHARED_MODE=0) (
   input logic clk,reset,clear,
+  input logic runtime_local_a,runtime_streaming,
   input logic xbc_valid, output logic xbc_ready, input xbc4_t xbc_entry,
   input logic local_a_valid,output logic local_a_ready,input a2_t local_a_entry,
   input logic hbm_valid, output logic hbm_ready, input b2_t hbm_entry,
@@ -57,7 +58,17 @@ module dea8_matrix_v3 #(parameter bit LOCAL_A=0, parameter bit A_STREAMING=LOCAL
   logic [PAIR_BITS:0] rows_q,pairs_q;
   logic [6:0] a_count;
   logic [$clog2(AFIFO_DEPTH+1)-1:0] a_complete;
-  if(!LOCAL_A) begin: external_a
+  if(SHARED_MODE) begin: shared_a
+    logic [1:0] ext_valid,ext_ready; a2_t ext_entry[0:1];logic ext_input_ready;
+    dea8_xbc4_adapter_v3 xbc_adapter(.clk,.reset,.clear,.in_valid(xbc_valid&&!runtime_local_a),
+      .in_ready(ext_input_ready),.in_entry(xbc_entry),.out_valid(ext_valid),.out_ready(ext_ready),.out_entry(ext_entry));
+    assign xbc_ready=!runtime_local_a&&ext_input_ready;
+    assign ext_ready=runtime_local_a?2'b0:a2_ready;
+    assign local_a_ready=runtime_local_a&&a2_ready[0];
+    assign a2_valid=runtime_local_a?{1'b0,local_a_valid}:ext_valid;
+    assign a2_entry[0]=runtime_local_a?local_a_entry:ext_entry[0];
+    assign a2_entry[1]=runtime_local_a?a2_t'('0):ext_entry[1];
+  end else if(!LOCAL_A) begin: external_a
   assign local_a_ready=0;
   dea8_xbc4_adapter_v3 xbc_adapter(
     .clk,.reset,.clear,.in_valid(xbc_valid),.in_ready(xbc_ready),.in_entry(xbc_entry),
@@ -69,7 +80,8 @@ module dea8_matrix_v3 #(parameter bit LOCAL_A=0, parameter bit A_STREAMING=LOCAL
     assign a2_entry[1]='0;
     assign local_a_ready=a2_ready[0];
   end
-  dea8_afifo_v3 #(.STREAMING(A_STREAMING)) a_fifo(
+  dea8_afifo_v3 #(.STREAMING(A_STREAMING),.DYNAMIC_STREAMING(SHARED_MODE)) a_fifo(
+    .streaming_mode(runtime_streaming),
     .clk,.reset,.clear,.pairs_cfg(pairs_q),.rows_cfg(rows_q),
     .in_valid(a2_valid),.in_ready(a2_ready),.in_entry(a2_entry),
     .reserve_tile(a_reserve),.tile_available(a_tile_available),.running(a_running),
@@ -82,7 +94,7 @@ module dea8_matrix_v3 #(parameter bit LOCAL_A=0, parameter bit A_STREAMING=LOCAL
   b_source_e ingress_b_source;
   // A local-source wrapper owns a fixed external source between jobs, allowing
   // next-job weights to fill the existing FIFO/banks before command acceptance.
-  assign ingress_b_source=(LOCAL_A&&!job_busy)?b_source:b_source_q;
+  assign ingress_b_source=((LOCAL_A||SHARED_MODE)&&!job_busy)?b_source:b_source_q;
   // A matrix Job owns its B source for its entire lifetime.  Live switching
   // between HBM and KVB would make the FIFO order depend on an asynchronous
   // external control signal.

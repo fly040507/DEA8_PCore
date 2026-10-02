@@ -4,9 +4,10 @@ import pcore3_pkg::*;
 // reserves the transport window; Matrix launch waits for complete source
 // context and uses the old job's final drain window for A prefetch.
 module dea8_attention_matrix_v3 #(
-  parameter bit EXTERNAL_QOZ=0
+  parameter bit EXTERNAL_QOZ=0,parameter bit EXTERNAL_MATRIX=0
 ) (
   input logic clk,reset,clear,
+  output matrix_service_req_t service_req,input matrix_service_rsp_t service_rsp,
   input logic cmd_valid,output logic cmd_ready,input matrix_cmd_t cmd,
   // Only the job_last descriptor is gated; prefetch proceeds while false.
   input logic tail_launch_ready,
@@ -130,6 +131,26 @@ module dea8_attention_matrix_v3 #(
     .rd_tile(4'b0),.rd_pair(pair_q),.rd_transport(reader_base_q+TILE_BITS'(tile_q)),
     .out_valid(p_out_valid),.out_ready(local_ready&&reader_is_pv),.out_entry(p_entry));
 
+  always_comb begin
+    service_req='0;service_req.start=launch_fire;service_req.mode=MAT_ATTENTION;
+    service_req.a_stream=pending_base_q;service_req.b_stream=pending_base_q;
+    service_req.tiles=ATTN_K_TILES;service_req.rows=pending_cmd_q.m_rows;
+    service_req.epoch=pending_cmd_q.epoch;service_req.head=pending_cmd_q.head;
+    service_req.nt_per_tile=pending_cmd_q.op==MATRIX_PV;service_req.clear_each_tile=pending_cmd_q.op==MATRIX_PV;
+    service_req.final_k=pending_cmd_q.result_last;service_req.exp_fold=pending_cmd_q.exp_fold;
+    service_req.acc_sel=pending_cmd_q.acc_sel;service_req.add_old=pending_cmd_q.add_old;service_req.slot_ready=1;
+    service_req.local_valid=reader_is_pv?p_out_valid:q_out_valid;service_req.local_entry=local_entry;
+    service_req.rd_valid=result_rd_valid;service_req.rd_sel=result_rd_sel;service_req.rd_addr=result_rd_addr;
+    service_req.wr_valid=vpu_wr_valid;service_req.wr=vpu_wr;
+  end
+  if(EXTERNAL_MATRIX) begin: external_matrix
+    assign matrix_ready=service_rsp.ready;assign matrix_busy=service_rsp.busy;assign matrix_done=service_rsp.done;
+    assign matrix_issue_done=service_rsp.issue_done;assign commit_valid=service_rsp.commit_valid;assign commit_meta=service_rsp.meta;
+    assign local_ready=service_rsp.local_ready;assign matrix_error=service_rsp.a_error;assign b_protocol_error=service_rsp.b_error;
+    assign result_rd_ready=service_rsp.rd_ready;assign result_rd_data_valid=service_rsp.rd_valid;
+    assign result_even_data=service_rsp.even_data;assign result_odd_data=service_rsp.odd_data;assign vpu_wr_ready=service_rsp.wr_ready;
+    assign hbm_ready=0;assign kv_ready=0;assign dbg_data=0;
+  end else begin: private_matrix
   dea8_matrix_v3 #(.LOCAL_A(1'b1)) matrix(
     .clk,.reset,.clear,.xbc_valid(1'b0),.xbc_ready(),.xbc_entry('0),
     .local_a_valid(reader_is_pv?p_out_valid:q_out_valid),.local_a_ready(local_ready),
@@ -150,6 +171,7 @@ module dea8_attention_matrix_v3 #(
     .result_rd_data_valid,.result_even_data,.result_odd_data,.vpu_wr_valid,.vpu_wr_ready,.vpu_wr,
     .dbg_valid,.dbg_sel,.dbg_parity,.dbg_addr,.dbg_lane,.dbg_data,
     .a_protocol_error(matrix_error),.b_protocol_error);
+  end
   assign a_protocol_error=q_error|p_error|cmd_error|matrix_error;
 
   always_ff @(posedge clk) begin
