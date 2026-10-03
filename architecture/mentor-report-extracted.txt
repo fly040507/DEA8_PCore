@@ -1,0 +1,135 @@
+
+===== PAGE 1 =====
+1
+2026.07.07
+Dataflow Architecture for VLA
+===== PAGE 2 =====
+VLA Model
+多相机图像
+3 × 224×224
+语言指令
+≤ 48 tokens
+机器人状态
+[B,32]
+带噪动作 xₜ
+[B,50,32]
+时间 t：[B]
+Prefix：
+PaliGemma VLM
+图像 tokens + 语言
+tokens
+最大 [B,816,2048]
+推理时只算 1 次
+Suffix：Action 
+Expert
+1 个状态 token
++ 50 个动作 tokens
+→ [B,51,1024]
+默认重复 10 次
+18 ×
+Transformer
+VLM 与 Action Expert
+参数独立
+但每层 Q/K/V 在 token 
+维联合注意力
+GQA：8Q / 1KV
+速度场
+vₜ
+[B,50,32]
+===== PAGE 3 =====
+Action Tranformer Block
+# 算子(代码调用) 权重 shape 输入→输出 FLOPs(M=51)
+1 input_layernorm GemmaRMSNorm γ[1024] [51,1024]→[51,1024] ~0.2M
+2 q_proj Linear(no bias) [1024,2048] [51,1024]→[51,8,256] 213.9M
+3 k_proj Linear [1024,256] →[51,1,256] 26.7M
+4 v_proj Linear [1024,256] →[51,1,256] 26.7M
+5 apply_rotary_pos_emb(Q,K) — RoPE base=10000 ~0.3M
+6 cat prefix-KV(cache)+suffix-KV — K/V→[867,1,256]
+7 repeat_kv 1→8 — 广播 MQA
+8 QKᵀ×scaling — scaling=256⁻⁰·⁵=0.0625 181.1M
+9 +mask, softmax(fp32) — [8,51,867] ~1.8M
+10 attn· V — →[51,8,256]→[51,2048] 181.1M
+11 o_proj Linear [2048,1024] [51,2048]→[51,1024] 213.9M
+12 _gated_residual(gate=None→纯加) — +residual ~0.05M
+13 post_attention_layernorm
+RMSNorm γ[1024] [51,1024] ~0.2M
+14 mlp.gate_proj Linear [1024,4096] →[51,4096] 427.8M
+15 mlp.up_proj Linear [1024,4096] →[51,4096] 427.8M
+16 gelu_pytorch_tanh(gate)⊙up — GeGLU 逐元素 ~0.2M
+17 mlp.down_proj Linear [4096,1024] [51,4096]→[51,1024] 427.8M
+18 _gated_residual — +residual ~0.05M
+===== PAGE 4 =====
+Action Tranformer Block
+算子 FLOPS Ratio
+A x W 1.766 83%
+A x A 0.362 17%
+Attention
+❑ MQA
+❑ Prefix KV Cache ~7.5M
+❑ Attention Score: [51, 867]=44 K
+===== PAGE 5 =====
+Insight
+ Model Size: ~300 M, 
+ Seq-Length 小且固定 （51= state 1 + action 50）: 
+ Skinny GEMM, [51, 1024] x [1024, 4096]→[51, 4096]
+ 10步Denoise 串行执行
+ 激活极小，最大[51, 4096], 可片上驻留
+ Attention 计算量占比低（17%）， Attention Score 数据
+量小（44 K)
+U50 FPGA Resource:
+❑ HBM Bandwidth: 316GB/s
+❑ 872 K LUTs
+❑ 5952 DSPs
+❑ 5.9 MB BRAMs
+❑ 22.5 MB URAMs
+===== PAGE 6 =====
+Overall Architecture V0
+MAC Array
+Output Buffer
+Weight 
+Buffer 0 
+m=51
+n=128
+Vector Unit
+DRAM
+Weight 
+Buffer 1 
+Activation Buffer
+Prefix KV 
+Cache
+ Output Stationary MAC Array: 51 x 128 = 6528，3.3 TOPS@250MHz
+ Prefix KV URAM: 7.5 MB@8-bit
+ 算力访存比：~10 < 51
+===== PAGE 7 =====
+Timeline
+𝑾𝑸𝟎DMA 𝑾𝑲 𝑾𝑽
+GEMM 𝑲 𝑽
+𝑾𝑸𝟕…
+𝑸𝟎 𝑸𝟕…
+Vector 𝑹𝑵 𝑹𝒐𝑷𝑬
+𝑸𝟎𝑲𝑻
+𝒔𝒐𝒇𝒕𝒎𝒂𝒙
+𝑺𝟎𝑽 𝑶
+𝒂𝒅𝒅
+− 𝑹𝑵
+𝑾𝒐
+𝑲𝑽
+𝑪𝒂𝒉𝒄𝒆
+𝑾𝒅DMA 𝑾𝒖𝒑 𝑾𝒈
+GEMM 𝑼𝒑 𝑮𝒂𝒕𝒆 𝑫𝒐𝒘𝒏
+Vector 𝑮𝒆𝑮𝑳𝑼 𝒂𝒅𝒅
+===== PAGE 8 =====
+Next Step
+ Multi-Core GEMM Arrays
+ Reduce Systolic Array Bubbles
+ Sub-kernel/Operator parallelism 
+ Reduce On-Chip Memory Usage
+ Flash-Attention 
+ Layer Fusion
+ Fine-Grained Scheduling
+ Algorithm Optimization
+ Prefix KV Cache Compression 
+ Weight Quantization, LUT-Tensor Core
+===== PAGE 9 =====
+9
+谢谢！

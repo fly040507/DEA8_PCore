@@ -1,0 +1,449 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2800" height="1900" viewBox="0 0 2800 1900">
+
+<defs>
+  <marker id="arrow-data" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#1769aa"/></marker>
+  <marker id="arrow-reduce" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#bd5d12"/></marker>
+  <marker id="arrow-control" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#7050a0"/></marker>
+  <style>
+    .title{font:700 32px "Microsoft YaHei","Noto Sans CJK SC",Arial;fill:#172033}
+    .subtitle{font:16px "Microsoft YaHei","Noto Sans CJK SC",Arial;fill:#4b5563}
+    .section{font:700 18px "Microsoft YaHei","Noto Sans CJK SC",Arial;fill:#172033}
+    .box-title{font:700 15px "Microsoft YaHei","Noto Sans CJK SC",Arial;fill:#172033}
+    .body{font:14px "Microsoft YaHei","Noto Sans CJK SC",Arial;fill:#27364a}
+    .small{font:12px "Microsoft YaHei","Noto Sans CJK SC",Arial;fill:#394960}
+    .tiny{font:11px "Microsoft YaHei","Noto Sans CJK SC",Arial;fill:#4b596d}
+    .edge-label{font:700 11px "Microsoft YaHei","Noto Sans CJK SC",Arial;fill:#0e4d82}
+    .hbm{fill:#e8ebef;stroke:#5f6b7a;stroke-width:2}
+    .core{fill:#f7fbff;stroke:#1769aa;stroke-width:2.5}
+    .matrix{fill:#dcecff;stroke:#1769aa;stroke-width:2}
+    .buffer{fill:#e5f2df;stroke:#39763d;stroke-width:2}
+    .vector{fill:#fff0d8;stroke:#bd5d12;stroke-width:2}
+    .shared{fill:#eee7f8;stroke:#7050a0;stroke-width:2}
+    .neutral{fill:#f8fafc;stroke:#94a0b2;stroke-width:1.5}
+    .data{fill:none;stroke:#1769aa;stroke-width:2.5;marker-end:url(#arrow-data)}
+    .reduce{fill:none;stroke:#bd5d12;stroke-width:2.5;marker-end:url(#arrow-reduce)}
+    .control{fill:none;stroke:#7050a0;stroke-width:2;stroke-dasharray:7 6;marker-end:url(#arrow-control)}
+  </style>
+</defs>
+
+<rect width="2800" height="1900" fill="#ffffff"/>
+<text x="40" y="48" class="title" text-anchor="start">pi0 Action Expert FPGA V3.2 物理规划与互连拓扑</text>
+<text x="40" y="78" class="subtitle" text-anchor="start">逻辑物理规划，不是 post-route die 截图；所有资源均为 250 MHz 解析估算</text>
+<text x="55" y="125" class="section" text-anchor="start">HBM Stack 0 / 左侧数据源</text>
+<text x="2180" y="125" class="section" text-anchor="start">HBM Stack 1 / 右侧数据源</text>
+<rect x="45" y="150" width="300" height="72" rx="6" class="hbm"/>
+<text x="195.0" y="175" class="box-title" text-anchor="middle">PC0/MC0</text>
+<text x="195.0" y="200" class="small" text-anchor="middle">Core0 private weights</text>
+<text x="195.0" y="220" class="small" text-anchor="middle">256-bit AXI + DMA/CDC</text>
+<rect x="45" y="242" width="300" height="72" rx="6" class="hbm"/>
+<text x="195.0" y="267" class="box-title" text-anchor="middle">PC2/MC1</text>
+<text x="195.0" y="292" class="small" text-anchor="middle">Core1 private weights</text>
+<text x="195.0" y="312" class="small" text-anchor="middle">256-bit AXI + DMA/CDC</text>
+<rect x="45" y="334" width="300" height="72" rx="6" class="hbm"/>
+<text x="195.0" y="359" class="box-title" text-anchor="middle">PC4/MC2</text>
+<text x="195.0" y="384" class="small" text-anchor="middle">Core2 private weights</text>
+<text x="195.0" y="404" class="small" text-anchor="middle">256-bit AXI + DMA/CDC</text>
+<rect x="45" y="426" width="300" height="72" rx="6" class="hbm"/>
+<text x="195.0" y="451" class="box-title" text-anchor="middle">PC6/MC3</text>
+<text x="195.0" y="476" class="small" text-anchor="middle">Core3 private weights</text>
+<text x="195.0" y="496" class="small" text-anchor="middle">256-bit AXI + DMA/CDC</text>
+<rect x="45" y="518" width="300" height="72" rx="6" class="hbm"/>
+<text x="195.0" y="543" class="box-title" text-anchor="middle">PC8/MC4</text>
+<text x="195.0" y="568" class="small" text-anchor="middle">all K/V weights</text>
+<text x="195.0" y="588" class="small" text-anchor="middle">256-bit AXI + DMA/CDC</text>
+<rect x="45" y="610" width="300" height="72" rx="6" class="hbm"/>
+<text x="195.0" y="635" class="box-title" text-anchor="middle">PC12/MC6</text>
+<text x="195.0" y="660" class="small" text-anchor="middle">input activations</text>
+<text x="195.0" y="680" class="small" text-anchor="middle">256-bit AXI + DMA/CDC</text>
+<rect x="45" y="702" width="300" height="72" rx="6" class="hbm"/>
+<text x="195.0" y="727" class="box-title" text-anchor="middle">PC14/MC7</text>
+<text x="195.0" y="752" class="small" text-anchor="middle">shared/pre-post weights</text>
+<text x="195.0" y="772" class="small" text-anchor="middle">256-bit AXI + DMA/CDC</text>
+<rect x="2455" y="150" width="300" height="72" rx="6" class="hbm"/>
+<text x="2605.0" y="175" class="box-title" text-anchor="middle">PC16/MC8</text>
+<text x="2605.0" y="200" class="small" text-anchor="middle">Core4 private weights</text>
+<text x="2605.0" y="220" class="small" text-anchor="middle">256-bit AXI + DMA/CDC</text>
+<rect x="2455" y="242" width="300" height="72" rx="6" class="hbm"/>
+<text x="2605.0" y="267" class="box-title" text-anchor="middle">PC18/MC9</text>
+<text x="2605.0" y="292" class="small" text-anchor="middle">Core5 private weights</text>
+<text x="2605.0" y="312" class="small" text-anchor="middle">256-bit AXI + DMA/CDC</text>
+<rect x="2455" y="334" width="300" height="72" rx="6" class="hbm"/>
+<text x="2605.0" y="359" class="box-title" text-anchor="middle">PC20/MC10</text>
+<text x="2605.0" y="384" class="small" text-anchor="middle">Core6 private weights</text>
+<text x="2605.0" y="404" class="small" text-anchor="middle">256-bit AXI + DMA/CDC</text>
+<rect x="2455" y="426" width="300" height="72" rx="6" class="hbm"/>
+<text x="2605.0" y="451" class="box-title" text-anchor="middle">PC22/MC11</text>
+<text x="2605.0" y="476" class="small" text-anchor="middle">Core7 private weights</text>
+<text x="2605.0" y="496" class="small" text-anchor="middle">256-bit AXI + DMA/CDC</text>
+<rect x="2455" y="518" width="300" height="72" rx="6" class="hbm"/>
+<text x="2605.0" y="543" class="box-title" text-anchor="middle">PC24/MC12</text>
+<text x="2605.0" y="568" class="small" text-anchor="middle">Prefix K/V backing</text>
+<text x="2605.0" y="588" class="small" text-anchor="middle">256-bit AXI + DMA/CDC</text>
+<rect x="2455" y="610" width="300" height="72" rx="6" class="hbm"/>
+<text x="2605.0" y="635" class="box-title" text-anchor="middle">PC28/MC14</text>
+<text x="2605.0" y="660" class="small" text-anchor="middle">output/debug</text>
+<text x="2605.0" y="680" class="small" text-anchor="middle">256-bit AXI + DMA/CDC</text>
+<rect x="390" y="185" width="650" height="270" rx="7" class="core"/>
+<text x="410" y="213" class="section" text-anchor="start">Private Core 0</text>
+<rect x="410" y="233" width="185" height="82" rx="6" class="buffer"/>
+<text x="502.5" y="258" class="box-title" text-anchor="middle">Weight/Tile BRAM</text>
+<text x="502.5" y="283" class="small" text-anchor="middle">PP 32 KiB</text>
+<text x="502.5" y="303" class="small" text-anchor="middle">K/V W 64 KiB</text>
+<rect x="615" y="233" width="200" height="82" rx="6" class="matrix"/>
+<text x="715.0" y="258" class="box-title" text-anchor="middle">8x64 INT8 MAC</text>
+<text x="715.0" y="283" class="small" text-anchor="middle">512 DSP</text>
+<text x="715.0" y="303" class="small" text-anchor="middle">Q/K/V/QK/PV/O/FFN</text>
+<rect x="835" y="233" width="185" height="82" rx="6" class="vector"/>
+<text x="927.5" y="258" class="box-title" text-anchor="middle">Local Vector</text>
+<text x="927.5" y="283" class="small" text-anchor="middle">RoPE/GeGLU/MAX</text>
+<text x="927.5" y="303" class="small" text-anchor="middle">8 DSP</text>
+<rect x="410" y="335" width="185" height="90" rx="6" class="buffer"/>
+<text x="502.5" y="360" class="box-title" text-anchor="middle">Local Buffers</text>
+<text x="502.5" y="385" class="small" text-anchor="middle">Q/Gate/GeGLU/Psum</text>
+<text x="502.5" y="405" class="small" text-anchor="middle">non-attention total: 78 BRAM36</text>
+<rect x="615" y="335" width="200" height="90" rx="6" class="vector"/>
+<text x="715.0" y="360" class="box-title" text-anchor="middle">Online Attention</text>
+<text x="715.0" y="385" class="small" text-anchor="middle">2 EXP + 4 Scale/FMA</text>
+<text x="715.0" y="405" class="small" text-anchor="middle">14 DSP; 18 BRAM36</text>
+<rect x="835" y="335" width="185" height="90" rx="6" class="buffer"/>
+<text x="927.5" y="360" class="box-title" text-anchor="middle">Local K/V URAM</text>
+<text x="927.5" y="385" class="small" text-anchor="middle">K 8 + V 8 URAM</text>
+<text x="927.5" y="405" class="small" text-anchor="middle">512-bit read/side</text>
+<path d="M595,274 L607,274" class="data"/>
+<path d="M815,274 L827,274" class="data"/>
+<path d="M815,380 L827,380" class="data"/>
+<rect x="390" y="500" width="650" height="270" rx="7" class="core"/>
+<text x="410" y="528" class="section" text-anchor="start">Private Core 1</text>
+<rect x="410" y="548" width="185" height="82" rx="6" class="buffer"/>
+<text x="502.5" y="573" class="box-title" text-anchor="middle">Weight/Tile BRAM</text>
+<text x="502.5" y="598" class="small" text-anchor="middle">PP 32 KiB</text>
+<text x="502.5" y="618" class="small" text-anchor="middle">K/V W 64 KiB</text>
+<rect x="615" y="548" width="200" height="82" rx="6" class="matrix"/>
+<text x="715.0" y="573" class="box-title" text-anchor="middle">8x64 INT8 MAC</text>
+<text x="715.0" y="598" class="small" text-anchor="middle">512 DSP</text>
+<text x="715.0" y="618" class="small" text-anchor="middle">Q/K/V/QK/PV/O/FFN</text>
+<rect x="835" y="548" width="185" height="82" rx="6" class="vector"/>
+<text x="927.5" y="573" class="box-title" text-anchor="middle">Local Vector</text>
+<text x="927.5" y="598" class="small" text-anchor="middle">RoPE/GeGLU/MAX</text>
+<text x="927.5" y="618" class="small" text-anchor="middle">8 DSP</text>
+<rect x="410" y="650" width="185" height="90" rx="6" class="buffer"/>
+<text x="502.5" y="675" class="box-title" text-anchor="middle">Local Buffers</text>
+<text x="502.5" y="700" class="small" text-anchor="middle">Q/Gate/GeGLU/Psum</text>
+<text x="502.5" y="720" class="small" text-anchor="middle">non-attention total: 78 BRAM36</text>
+<rect x="615" y="650" width="200" height="90" rx="6" class="vector"/>
+<text x="715.0" y="675" class="box-title" text-anchor="middle">Online Attention</text>
+<text x="715.0" y="700" class="small" text-anchor="middle">2 EXP + 4 Scale/FMA</text>
+<text x="715.0" y="720" class="small" text-anchor="middle">14 DSP; 18 BRAM36</text>
+<rect x="835" y="650" width="185" height="90" rx="6" class="buffer"/>
+<text x="927.5" y="675" class="box-title" text-anchor="middle">Local K/V URAM</text>
+<text x="927.5" y="700" class="small" text-anchor="middle">K 8 + V 8 URAM</text>
+<text x="927.5" y="720" class="small" text-anchor="middle">512-bit read/side</text>
+<path d="M595,589 L607,589" class="data"/>
+<path d="M815,589 L827,589" class="data"/>
+<path d="M815,695 L827,695" class="data"/>
+<rect x="390" y="815" width="650" height="270" rx="7" class="core"/>
+<text x="410" y="843" class="section" text-anchor="start">Private Core 2</text>
+<rect x="410" y="863" width="185" height="82" rx="6" class="buffer"/>
+<text x="502.5" y="888" class="box-title" text-anchor="middle">Weight/Tile BRAM</text>
+<text x="502.5" y="913" class="small" text-anchor="middle">PP 32 KiB</text>
+<text x="502.5" y="933" class="small" text-anchor="middle">K/V W 64 KiB</text>
+<rect x="615" y="863" width="200" height="82" rx="6" class="matrix"/>
+<text x="715.0" y="888" class="box-title" text-anchor="middle">8x64 INT8 MAC</text>
+<text x="715.0" y="913" class="small" text-anchor="middle">512 DSP</text>
+<text x="715.0" y="933" class="small" text-anchor="middle">Q/K/V/QK/PV/O/FFN</text>
+<rect x="835" y="863" width="185" height="82" rx="6" class="vector"/>
+<text x="927.5" y="888" class="box-title" text-anchor="middle">Local Vector</text>
+<text x="927.5" y="913" class="small" text-anchor="middle">RoPE/GeGLU/MAX</text>
+<text x="927.5" y="933" class="small" text-anchor="middle">8 DSP</text>
+<rect x="410" y="965" width="185" height="90" rx="6" class="buffer"/>
+<text x="502.5" y="990" class="box-title" text-anchor="middle">Local Buffers</text>
+<text x="502.5" y="1015" class="small" text-anchor="middle">Q/Gate/GeGLU/Psum</text>
+<text x="502.5" y="1035" class="small" text-anchor="middle">non-attention total: 78 BRAM36</text>
+<rect x="615" y="965" width="200" height="90" rx="6" class="vector"/>
+<text x="715.0" y="990" class="box-title" text-anchor="middle">Online Attention</text>
+<text x="715.0" y="1015" class="small" text-anchor="middle">2 EXP + 4 Scale/FMA</text>
+<text x="715.0" y="1035" class="small" text-anchor="middle">14 DSP; 18 BRAM36</text>
+<rect x="835" y="965" width="185" height="90" rx="6" class="buffer"/>
+<text x="927.5" y="990" class="box-title" text-anchor="middle">Local K/V URAM</text>
+<text x="927.5" y="1015" class="small" text-anchor="middle">K 8 + V 8 URAM</text>
+<text x="927.5" y="1035" class="small" text-anchor="middle">512-bit read/side</text>
+<path d="M595,904 L607,904" class="data"/>
+<path d="M815,904 L827,904" class="data"/>
+<path d="M815,1010 L827,1010" class="data"/>
+<rect x="390" y="1130" width="650" height="270" rx="7" class="core"/>
+<text x="410" y="1158" class="section" text-anchor="start">Private Core 3</text>
+<rect x="410" y="1178" width="185" height="82" rx="6" class="buffer"/>
+<text x="502.5" y="1203" class="box-title" text-anchor="middle">Weight/Tile BRAM</text>
+<text x="502.5" y="1228" class="small" text-anchor="middle">PP 32 KiB</text>
+<text x="502.5" y="1248" class="small" text-anchor="middle">K/V W 64 KiB</text>
+<rect x="615" y="1178" width="200" height="82" rx="6" class="matrix"/>
+<text x="715.0" y="1203" class="box-title" text-anchor="middle">8x64 INT8 MAC</text>
+<text x="715.0" y="1228" class="small" text-anchor="middle">512 DSP</text>
+<text x="715.0" y="1248" class="small" text-anchor="middle">Q/K/V/QK/PV/O/FFN</text>
+<rect x="835" y="1178" width="185" height="82" rx="6" class="vector"/>
+<text x="927.5" y="1203" class="box-title" text-anchor="middle">Local Vector</text>
+<text x="927.5" y="1228" class="small" text-anchor="middle">RoPE/GeGLU/MAX</text>
+<text x="927.5" y="1248" class="small" text-anchor="middle">8 DSP</text>
+<rect x="410" y="1280" width="185" height="90" rx="6" class="buffer"/>
+<text x="502.5" y="1305" class="box-title" text-anchor="middle">Local Buffers</text>
+<text x="502.5" y="1330" class="small" text-anchor="middle">Q/Gate/GeGLU/Psum</text>
+<text x="502.5" y="1350" class="small" text-anchor="middle">non-attention total: 78 BRAM36</text>
+<rect x="615" y="1280" width="200" height="90" rx="6" class="vector"/>
+<text x="715.0" y="1305" class="box-title" text-anchor="middle">Online Attention</text>
+<text x="715.0" y="1330" class="small" text-anchor="middle">2 EXP + 4 Scale/FMA</text>
+<text x="715.0" y="1350" class="small" text-anchor="middle">14 DSP; 18 BRAM36</text>
+<rect x="835" y="1280" width="185" height="90" rx="6" class="buffer"/>
+<text x="927.5" y="1305" class="box-title" text-anchor="middle">Local K/V URAM</text>
+<text x="927.5" y="1330" class="small" text-anchor="middle">K 8 + V 8 URAM</text>
+<text x="927.5" y="1350" class="small" text-anchor="middle">512-bit read/side</text>
+<path d="M595,1219 L607,1219" class="data"/>
+<path d="M815,1219 L827,1219" class="data"/>
+<path d="M815,1325 L827,1325" class="data"/>
+<rect x="1760" y="185" width="650" height="270" rx="7" class="core"/>
+<text x="1780" y="213" class="section" text-anchor="start">Private Core 4</text>
+<rect x="1780" y="233" width="185" height="82" rx="6" class="buffer"/>
+<text x="1872.5" y="258" class="box-title" text-anchor="middle">Weight/Tile BRAM</text>
+<text x="1872.5" y="283" class="small" text-anchor="middle">PP 32 KiB</text>
+<text x="1872.5" y="303" class="small" text-anchor="middle">K/V W 64 KiB</text>
+<rect x="1985" y="233" width="200" height="82" rx="6" class="matrix"/>
+<text x="2085.0" y="258" class="box-title" text-anchor="middle">8x64 INT8 MAC</text>
+<text x="2085.0" y="283" class="small" text-anchor="middle">512 DSP</text>
+<text x="2085.0" y="303" class="small" text-anchor="middle">Q/K/V/QK/PV/O/FFN</text>
+<rect x="2205" y="233" width="185" height="82" rx="6" class="vector"/>
+<text x="2297.5" y="258" class="box-title" text-anchor="middle">Local Vector</text>
+<text x="2297.5" y="283" class="small" text-anchor="middle">RoPE/GeGLU/MAX</text>
+<text x="2297.5" y="303" class="small" text-anchor="middle">8 DSP</text>
+<rect x="1780" y="335" width="185" height="90" rx="6" class="buffer"/>
+<text x="1872.5" y="360" class="box-title" text-anchor="middle">Local Buffers</text>
+<text x="1872.5" y="385" class="small" text-anchor="middle">Q/Gate/GeGLU/Psum</text>
+<text x="1872.5" y="405" class="small" text-anchor="middle">non-attention total: 78 BRAM36</text>
+<rect x="1985" y="335" width="200" height="90" rx="6" class="vector"/>
+<text x="2085.0" y="360" class="box-title" text-anchor="middle">Online Attention</text>
+<text x="2085.0" y="385" class="small" text-anchor="middle">2 EXP + 4 Scale/FMA</text>
+<text x="2085.0" y="405" class="small" text-anchor="middle">14 DSP; 18 BRAM36</text>
+<rect x="2205" y="335" width="185" height="90" rx="6" class="buffer"/>
+<text x="2297.5" y="360" class="box-title" text-anchor="middle">Local K/V URAM</text>
+<text x="2297.5" y="385" class="small" text-anchor="middle">K 8 + V 8 URAM</text>
+<text x="2297.5" y="405" class="small" text-anchor="middle">512-bit read/side</text>
+<path d="M1965,274 L1977,274" class="data"/>
+<path d="M2185,274 L2197,274" class="data"/>
+<path d="M2185,380 L2197,380" class="data"/>
+<rect x="1760" y="500" width="650" height="270" rx="7" class="core"/>
+<text x="1780" y="528" class="section" text-anchor="start">Private Core 5</text>
+<rect x="1780" y="548" width="185" height="82" rx="6" class="buffer"/>
+<text x="1872.5" y="573" class="box-title" text-anchor="middle">Weight/Tile BRAM</text>
+<text x="1872.5" y="598" class="small" text-anchor="middle">PP 32 KiB</text>
+<text x="1872.5" y="618" class="small" text-anchor="middle">K/V W 64 KiB</text>
+<rect x="1985" y="548" width="200" height="82" rx="6" class="matrix"/>
+<text x="2085.0" y="573" class="box-title" text-anchor="middle">8x64 INT8 MAC</text>
+<text x="2085.0" y="598" class="small" text-anchor="middle">512 DSP</text>
+<text x="2085.0" y="618" class="small" text-anchor="middle">Q/K/V/QK/PV/O/FFN</text>
+<rect x="2205" y="548" width="185" height="82" rx="6" class="vector"/>
+<text x="2297.5" y="573" class="box-title" text-anchor="middle">Local Vector</text>
+<text x="2297.5" y="598" class="small" text-anchor="middle">RoPE/GeGLU/MAX</text>
+<text x="2297.5" y="618" class="small" text-anchor="middle">8 DSP</text>
+<rect x="1780" y="650" width="185" height="90" rx="6" class="buffer"/>
+<text x="1872.5" y="675" class="box-title" text-anchor="middle">Local Buffers</text>
+<text x="1872.5" y="700" class="small" text-anchor="middle">Q/Gate/GeGLU/Psum</text>
+<text x="1872.5" y="720" class="small" text-anchor="middle">non-attention total: 78 BRAM36</text>
+<rect x="1985" y="650" width="200" height="90" rx="6" class="vector"/>
+<text x="2085.0" y="675" class="box-title" text-anchor="middle">Online Attention</text>
+<text x="2085.0" y="700" class="small" text-anchor="middle">2 EXP + 4 Scale/FMA</text>
+<text x="2085.0" y="720" class="small" text-anchor="middle">14 DSP; 18 BRAM36</text>
+<rect x="2205" y="650" width="185" height="90" rx="6" class="buffer"/>
+<text x="2297.5" y="675" class="box-title" text-anchor="middle">Local K/V URAM</text>
+<text x="2297.5" y="700" class="small" text-anchor="middle">K 8 + V 8 URAM</text>
+<text x="2297.5" y="720" class="small" text-anchor="middle">512-bit read/side</text>
+<path d="M1965,589 L1977,589" class="data"/>
+<path d="M2185,589 L2197,589" class="data"/>
+<path d="M2185,695 L2197,695" class="data"/>
+<rect x="1760" y="815" width="650" height="270" rx="7" class="core"/>
+<text x="1780" y="843" class="section" text-anchor="start">Private Core 6</text>
+<rect x="1780" y="863" width="185" height="82" rx="6" class="buffer"/>
+<text x="1872.5" y="888" class="box-title" text-anchor="middle">Weight/Tile BRAM</text>
+<text x="1872.5" y="913" class="small" text-anchor="middle">PP 32 KiB</text>
+<text x="1872.5" y="933" class="small" text-anchor="middle">K/V W 64 KiB</text>
+<rect x="1985" y="863" width="200" height="82" rx="6" class="matrix"/>
+<text x="2085.0" y="888" class="box-title" text-anchor="middle">8x64 INT8 MAC</text>
+<text x="2085.0" y="913" class="small" text-anchor="middle">512 DSP</text>
+<text x="2085.0" y="933" class="small" text-anchor="middle">Q/K/V/QK/PV/O/FFN</text>
+<rect x="2205" y="863" width="185" height="82" rx="6" class="vector"/>
+<text x="2297.5" y="888" class="box-title" text-anchor="middle">Local Vector</text>
+<text x="2297.5" y="913" class="small" text-anchor="middle">RoPE/GeGLU/MAX</text>
+<text x="2297.5" y="933" class="small" text-anchor="middle">8 DSP</text>
+<rect x="1780" y="965" width="185" height="90" rx="6" class="buffer"/>
+<text x="1872.5" y="990" class="box-title" text-anchor="middle">Local Buffers</text>
+<text x="1872.5" y="1015" class="small" text-anchor="middle">Q/Gate/GeGLU/Psum</text>
+<text x="1872.5" y="1035" class="small" text-anchor="middle">non-attention total: 78 BRAM36</text>
+<rect x="1985" y="965" width="200" height="90" rx="6" class="vector"/>
+<text x="2085.0" y="990" class="box-title" text-anchor="middle">Online Attention</text>
+<text x="2085.0" y="1015" class="small" text-anchor="middle">2 EXP + 4 Scale/FMA</text>
+<text x="2085.0" y="1035" class="small" text-anchor="middle">14 DSP; 18 BRAM36</text>
+<rect x="2205" y="965" width="185" height="90" rx="6" class="buffer"/>
+<text x="2297.5" y="990" class="box-title" text-anchor="middle">Local K/V URAM</text>
+<text x="2297.5" y="1015" class="small" text-anchor="middle">K 8 + V 8 URAM</text>
+<text x="2297.5" y="1035" class="small" text-anchor="middle">512-bit read/side</text>
+<path d="M1965,904 L1977,904" class="data"/>
+<path d="M2185,904 L2197,904" class="data"/>
+<path d="M2185,1010 L2197,1010" class="data"/>
+<rect x="1760" y="1130" width="650" height="270" rx="7" class="core"/>
+<text x="1780" y="1158" class="section" text-anchor="start">Private Core 7</text>
+<rect x="1780" y="1178" width="185" height="82" rx="6" class="buffer"/>
+<text x="1872.5" y="1203" class="box-title" text-anchor="middle">Weight/Tile BRAM</text>
+<text x="1872.5" y="1228" class="small" text-anchor="middle">PP 32 KiB</text>
+<text x="1872.5" y="1248" class="small" text-anchor="middle">K/V W 64 KiB</text>
+<rect x="1985" y="1178" width="200" height="82" rx="6" class="matrix"/>
+<text x="2085.0" y="1203" class="box-title" text-anchor="middle">8x64 INT8 MAC</text>
+<text x="2085.0" y="1228" class="small" text-anchor="middle">512 DSP</text>
+<text x="2085.0" y="1248" class="small" text-anchor="middle">Q/K/V/QK/PV/O/FFN</text>
+<rect x="2205" y="1178" width="185" height="82" rx="6" class="vector"/>
+<text x="2297.5" y="1203" class="box-title" text-anchor="middle">Local Vector</text>
+<text x="2297.5" y="1228" class="small" text-anchor="middle">RoPE/GeGLU/MAX</text>
+<text x="2297.5" y="1248" class="small" text-anchor="middle">8 DSP</text>
+<rect x="1780" y="1280" width="185" height="90" rx="6" class="buffer"/>
+<text x="1872.5" y="1305" class="box-title" text-anchor="middle">Local Buffers</text>
+<text x="1872.5" y="1330" class="small" text-anchor="middle">Q/Gate/GeGLU/Psum</text>
+<text x="1872.5" y="1350" class="small" text-anchor="middle">non-attention total: 78 BRAM36</text>
+<rect x="1985" y="1280" width="200" height="90" rx="6" class="vector"/>
+<text x="2085.0" y="1305" class="box-title" text-anchor="middle">Online Attention</text>
+<text x="2085.0" y="1330" class="small" text-anchor="middle">2 EXP + 4 Scale/FMA</text>
+<text x="2085.0" y="1350" class="small" text-anchor="middle">14 DSP; 18 BRAM36</text>
+<rect x="2205" y="1280" width="185" height="90" rx="6" class="buffer"/>
+<text x="2297.5" y="1305" class="box-title" text-anchor="middle">Local K/V URAM</text>
+<text x="2297.5" y="1330" class="small" text-anchor="middle">K 8 + V 8 URAM</text>
+<text x="2297.5" y="1350" class="small" text-anchor="middle">512-bit read/side</text>
+<path d="M1965,1219 L1977,1219" class="data"/>
+<path d="M2185,1219 L2197,1219" class="data"/>
+<path d="M2185,1325 L2197,1325" class="data"/>
+<rect x="1090" y="120" width="620" height="1515" rx="8" class="shared"/>
+<text x="1400" y="153" class="section" text-anchor="middle">Central Shared Spine</text>
+<rect x="1120" y="175" width="560" height="100" rx="6" class="shared"/>
+<text x="1400.0" y="200" class="box-title" text-anchor="middle">Scheduler / AXI-Lite / Barrier</text>
+<text x="1400.0" y="225" class="small" text-anchor="middle">Layer/step/tile FSM</text>
+<text x="1400.0" y="245" class="small" text-anchor="middle">DMA descriptor + performance counter</text>
+<rect x="1120" y="305" width="560" height="100" rx="6" class="buffer"/>
+<text x="1400.0" y="330" class="box-title" text-anchor="middle">Shared Activation Buffers</text>
+<text x="1400.0" y="355" class="small" text-anchor="middle">BF16 A/B: 204 KiB, 48 BRAM36</text>
+<text x="1400.0" y="375" class="small" text-anchor="middle">INT8 normalized: 51 KiB, 16 BRAM36</text>
+<rect x="1120" y="435" width="560" height="100" rx="6" class="vector"/>
+<text x="1400.0" y="460" class="box-title" text-anchor="middle">RMSNorm + Quant</text>
+<text x="1400.0" y="485" class="small" text-anchor="middle">48 + 16 DSP</text>
+<text x="1400.0" y="505" class="small" text-anchor="middle">writes 51 KiB Shared INT8 buffer</text>
+<rect x="1120" y="565" width="560" height="100" rx="6" class="matrix"/>
+<text x="1400.0" y="590" class="box-title" text-anchor="middle">2x4 Activation Multicast</text>
+<text x="1400.0" y="615" class="small" text-anchor="middle">256-bit registered tree</text>
+<text x="1400.0" y="635" class="small" text-anchor="middle">Q/K/V and Gate/Up reuse</text>
+<rect x="1120" y="695" width="560" height="100" rx="6" class="matrix"/>
+<text x="1400.0" y="720" class="box-title" text-anchor="middle">K/V Weight DMA + 8-way Demux</text>
+<text x="1400.0" y="745" class="small" text-anchor="middle">PC8 513 KiB/layer</text>
+<text x="1400.0" y="765" class="small" text-anchor="middle">writes 64 KiB/core during Q</text>
+<rect x="1120" y="825" width="560" height="100" rx="6" class="buffer"/>
+<text x="1400.0" y="850" class="box-title" text-anchor="middle">K/V Assemble + Suffix Buffer</text>
+<text x="1400.0" y="875" class="small" text-anchor="middle">8 x 32-d concatenate</text>
+<text x="1400.0" y="895" class="small" text-anchor="middle">Suffix K/V 25.5 KiB</text>
+<rect x="1120" y="955" width="560" height="100" rx="6" class="buffer"/>
+<text x="1400.0" y="980" class="box-title" text-anchor="middle">Prefix K/V Central URAM</text>
+<text x="1400.0" y="1005" class="small" text-anchor="middle">K 116 + V 116 = 232 URAM</text>
+<text x="1400.0" y="1025" class="small" text-anchor="middle">18 layers resident</text>
+<rect x="1120" y="1085" width="560" height="100" rx="6" class="matrix"/>
+<text x="1400.0" y="1110" class="box-title" text-anchor="middle">Prefix/Suffix Streamer + 2x4 KV Multicast</text>
+<text x="1400.0" y="1135" class="small" text-anchor="middle">867 x 256 x K/V</text>
+<text x="1400.0" y="1155" class="small" text-anchor="middle">13,872 cycles -&gt; 8 caches</text>
+<rect x="1120" y="1215" width="560" height="100" rx="6" class="vector"/>
+<text x="1400.0" y="1240" class="box-title" text-anchor="middle">MAX Tree + Scale Broadcast</text>
+<text x="1400.0" y="1265" class="small" text-anchor="middle">8-input, 3 stages, 0 DSP</text>
+<text x="1400.0" y="1285" class="small" text-anchor="middle">K/O/Down common scale</text>
+<rect x="1120" y="1345" width="560" height="100" rx="6" class="vector"/>
+<text x="1400.0" y="1370" class="box-title" text-anchor="middle">SUM Tree + Post-SUM</text>
+<text x="1400.0" y="1395" class="small" text-anchor="middle">8 x 256-bit -&gt; 256-bit</text>
+<text x="1400.0" y="1415" class="small" text-anchor="middle">56 INT32 adders, 3-stage tail</text>
+<rect x="1120" y="1475" width="560" height="100" rx="6" class="vector"/>
+<text x="1400.0" y="1500" class="box-title" text-anchor="middle">Dequant / Residual / Output DMA</text>
+<text x="1400.0" y="1525" class="small" text-anchor="middle">16 DSP post-SUM</text>
+<text x="1400.0" y="1545" class="small" text-anchor="middle">feedback to BF16 bank or PC28</text>
+<path d="M345,186 L365,186 L365,275 L382,275" class="data"/>
+<path d="M2455,186 L2435,186 L2435,275 L2418,275" class="data"/>
+<path d="M345,278 L365,278 L365,590 L382,590" class="data"/>
+<path d="M2455,278 L2435,278 L2435,590 L2418,590" class="data"/>
+<path d="M345,370 L365,370 L365,905 L382,905" class="data"/>
+<path d="M2455,370 L2435,370 L2435,905 L2418,905" class="data"/>
+<path d="M345,462 L365,462 L365,1220 L382,1220" class="data"/>
+<path d="M2455,462 L2435,462 L2435,1220 L2418,1220" class="data"/>
+<path d="M345,554 L1045,554 L1045,745 L1112,745" class="data"/>
+<text x="886.75" y="642.5" class="edge-label" text-anchor="middle">PC8 K/V</text>
+<path d="M345,646 L1060,646 L1060,355 L1112,355" class="data"/>
+<text x="894.25" y="493.5" class="edge-label" text-anchor="middle">input</text>
+<path d="M345,738 L1075,738 L1075,485 L1112,485" class="data"/>
+<text x="901.75" y="604.5" class="edge-label" text-anchor="middle">shared weights</text>
+<path d="M2455,554 L1730,554 L1730,1005 L1688,1005" class="data"/>
+<text x="1900.75" y="772.5" class="edge-label" text-anchor="middle">Prefix init</text>
+<path d="M1688,1525 L1730,1525 L1730,646 L2455,646" class="data"/>
+<text x="1900.75" y="1078.5" class="edge-label" text-anchor="middle">output/debug</text>
+<path d="M1400,405 L1400,427" class="data"/>
+<path d="M1400,535 L1400,557" class="data"/>
+<path d="M1400,615 L1400,687" class="data"/>
+<path d="M1400,795 L1400,817" class="data"/>
+<path d="M1400,925 L1400,947" class="data"/>
+<path d="M1400,1055 L1400,1077" class="data"/>
+<path d="M1400,1135 L1400,1207" class="data"/>
+<path d="M1400,1265 L1400,1337" class="data"/>
+<path d="M1400,1395 L1400,1467" class="data"/>
+<path d="M1120,615 L1065,615 L1065,274 L1048,274" class="data"/>
+<path d="M1680,615 L1735,615 L1735,274 L1752,274" class="data"/>
+<path d="M1120,615 L1065,615 L1065,589 L1048,589" class="data"/>
+<path d="M1680,615 L1735,615 L1735,589 L1752,589" class="data"/>
+<path d="M1120,615 L1065,615 L1065,904 L1048,904" class="data"/>
+<path d="M1680,615 L1735,615 L1735,904 L1752,904" class="data"/>
+<path d="M1120,615 L1065,615 L1065,1219 L1048,1219" class="data"/>
+<path d="M1680,615 L1735,615 L1735,1219 L1752,1219" class="data"/>
+<path d="M1120,745 L1075,745 L1075,250 L1048,250" class="data"/>
+<path d="M1680,745 L1725,745 L1725,250 L1752,250" class="data"/>
+<path d="M1120,745 L1075,745 L1075,565 L1048,565" class="data"/>
+<path d="M1680,745 L1725,745 L1725,565 L1752,565" class="data"/>
+<path d="M1120,745 L1075,745 L1075,880 L1048,880" class="data"/>
+<path d="M1680,745 L1725,745 L1725,880 L1752,880" class="data"/>
+<path d="M1120,745 L1075,745 L1075,1195 L1048,1195" class="data"/>
+<path d="M1680,745 L1725,745 L1725,1195 L1752,1195" class="data"/>
+<path d="M1048,405 L1070,405 L1070,875 L1112,875" class="data"/>
+<path d="M1752,405 L1730,405 L1730,875 L1688,875" class="data"/>
+<path d="M1120,1135 L1085,1135 L1085,385 L1048,385" class="data"/>
+<path d="M1680,1135 L1715,1135 L1715,385 L1752,385" class="data"/>
+<path d="M1048,720 L1070,720 L1070,875 L1112,875" class="data"/>
+<path d="M1752,720 L1730,720 L1730,875 L1688,875" class="data"/>
+<path d="M1120,1135 L1085,1135 L1085,700 L1048,700" class="data"/>
+<path d="M1680,1135 L1715,1135 L1715,700 L1752,700" class="data"/>
+<path d="M1048,1035 L1070,1035 L1070,875 L1112,875" class="data"/>
+<path d="M1752,1035 L1730,1035 L1730,875 L1688,875" class="data"/>
+<path d="M1120,1135 L1085,1135 L1085,1015 L1048,1015" class="data"/>
+<path d="M1680,1135 L1715,1135 L1715,1015 L1752,1015" class="data"/>
+<path d="M1048,1350 L1070,1350 L1070,875 L1112,875" class="data"/>
+<path d="M1752,1350 L1730,1350 L1730,875 L1688,875" class="data"/>
+<path d="M1120,1135 L1085,1135 L1085,1330 L1048,1330" class="data"/>
+<path d="M1680,1135 L1715,1135 L1715,1330 L1752,1330" class="data"/>
+<path d="M1048,430 L1090,430 L1090,1265 L1112,1265" class="reduce"/>
+<path d="M1752,430 L1710,430 L1710,1265 L1688,1265" class="reduce"/>
+<path d="M1048,320 L1100,320 L1100,1395 L1112,1395" class="reduce"/>
+<path d="M1752,320 L1700,320 L1700,1395 L1688,1395" class="reduce"/>
+<path d="M1048,745 L1090,745 L1090,1265 L1112,1265" class="reduce"/>
+<path d="M1752,745 L1710,745 L1710,1265 L1688,1265" class="reduce"/>
+<path d="M1048,635 L1100,635 L1100,1395 L1112,1395" class="reduce"/>
+<path d="M1752,635 L1700,635 L1700,1395 L1688,1395" class="reduce"/>
+<path d="M1048,1060 L1090,1060 L1090,1265 L1112,1265" class="reduce"/>
+<path d="M1752,1060 L1710,1060 L1710,1265 L1688,1265" class="reduce"/>
+<path d="M1048,950 L1100,950 L1100,1395 L1112,1395" class="reduce"/>
+<path d="M1752,950 L1700,950 L1700,1395 L1688,1395" class="reduce"/>
+<path d="M1048,1375 L1090,1375 L1090,1265 L1112,1265" class="reduce"/>
+<path d="M1752,1375 L1710,1375 L1710,1265 L1688,1265" class="reduce"/>
+<path d="M1048,1265 L1100,1265 L1100,1395 L1112,1395" class="reduce"/>
+<path d="M1752,1265 L1700,1265 L1700,1395 L1688,1395" class="reduce"/>
+<path d="M1400,1575 L1400,1665 L1025,1665 L1025,355 L1112,355" class="data"/>
+<text x="1192.4" y="1116.0" class="edge-label" text-anchor="middle">layer feedback</text>
+<path d="M1120,225 L1060,225 L1060,1650 L365,1650 L365,320 L382,320" class="control"/>
+<path d="M1680,225 L1740,225 L1740,1650 L2435,1650 L2435,320 L2418,320" class="control"/>
+<rect x="45" y="1710" width="2710" height="135" rx="6" class="neutral"/>
+<text x="70" y="1740" class="section" text-anchor="start">资源总账（解析预算）</text>
+<text x="70" y="1770" class="body" text-anchor="start">DSP: 8 x (512 MAC + 14 Online + 8 Local Vector) + 112 shared = 4384 / 4920，余 536</text>
+<text x="70" y="1792" class="body" text-anchor="start">BRAM36: 96/core x 8 + 96 shared = 864；仅与芯片标称 1344 对比，base_5 动态区必须看 Link Summary</text>
+<text x="70" y="1814" class="body" text-anchor="start">URAM: Prefix 232 + Local K/V 16/core x 8 = 360 / 544，余 184</text>
+<text x="70" y="1836" class="body" text-anchor="start">蓝线=data，橙线=SUM/MAX reduction，紫色虚线=control/event；Multicast 均采用注册化 2x4 树</text>
+</svg>

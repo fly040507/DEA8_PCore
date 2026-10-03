@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="950" viewBox="0 0 1600 950">
+  <defs>
+    <marker id="a" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L9,3 z" fill="#1769aa"/>
+    </marker>
+    <style>
+      .title { font: 700 30px "Microsoft YaHei", Arial, sans-serif; fill:#14213d; }
+      .sub { font: 16px "Microsoft YaHei", Arial, sans-serif; fill:#475569; }
+      .label { font: 700 18px "Microsoft YaHei", Arial, sans-serif; fill:#14213d; }
+      .small { font: 15px "Microsoft YaHei", Arial, sans-serif; fill:#334155; }
+      .tiny { font: 13px "Microsoft YaHei", Arial, sans-serif; fill:#334155; }
+      .storage { fill:#e5e7eb; stroke:#596273; stroke-width:2; }
+      .buffer { fill:#dff4df; stroke:#2e7d32; stroke-width:2; }
+      .compute { fill:#dceeff; stroke:#1769aa; stroke-width:2.5; }
+      .vector { fill:#fff1d6; stroke:#cf6a15; stroke-width:2; }
+      .arrow { fill:none; stroke:#1769aa; stroke-width:3.5; marker-end:url(#a); }
+      .thin { fill:none; stroke:#1769aa; stroke-width:2.2; marker-end:url(#a); }
+    </style>
+  </defs>
+  <rect width="1600" height="950" fill="#ffffff"/>
+  <text x="55" y="55" class="title">单核物理 Tile：8×64 PE，K_t=256</text>
+  <text x="55" y="84" class="sub">输出驻留（output-stationary）；51 行按 7 个 M Tile 处理，边缘 Tile 有 3 行有效数据</text>
+
+  <rect x="55" y="120" width="230" height="235" rx="5" class="storage"/>
+  <text x="170" y="153" text-anchor="middle" class="label">HBM 权重 PC_i</text>
+  <text x="80" y="188" class="small">每核每层：2 MiB</text>
+  <text x="80" y="217" class="small">18 层：36 MiB</text>
+  <text x="80" y="255" class="small">AXI burst 按 Tile：</text>
+  <text x="80" y="282" class="small">W[K_t,N_t]</text>
+  <text x="80" y="310" class="small">= 256×64 INT8</text>
+  <text x="80" y="337" class="small">= 16 KiB</text>
+
+  <rect x="335" y="120" width="320" height="235" rx="5" class="buffer"/>
+  <text x="495" y="153" text-anchor="middle" class="label">Weight Buffer ping / pong</text>
+  <rect x="365" y="181" width="115" height="105" rx="3" fill="#b7e4b9" stroke="#2e7d32"/>
+  <text x="422" y="216" text-anchor="middle" class="small">Ping</text>
+  <text x="422" y="245" text-anchor="middle" class="small">16 KiB</text>
+  <rect x="510" y="181" width="115" height="105" rx="3" fill="#b7e4b9" stroke="#2e7d32"/>
+  <text x="567" y="216" text-anchor="middle" class="small">Pong</text>
+  <text x="567" y="245" text-anchor="middle" class="small">16 KiB</text>
+  <text x="495" y="324" text-anchor="middle" class="tiny">当前 Tile 计算时预取下一 Tile</text>
+
+  <rect x="335" y="405" width="320" height="205" rx="5" class="buffer"/>
+  <text x="495" y="438" text-anchor="middle" class="label">Activation / Partial Buffer</text>
+  <text x="365" y="479" class="small">X Tile：8×256 INT8 = 2 KiB</text>
+  <text x="365" y="516" class="small">输出 Tile：8×64 INT32 = 2 KiB</text>
+  <text x="365" y="553" class="small">scale：按张量/通道读取</text>
+  <text x="365" y="584" class="tiny">O/Down 的 INT32 partial 暂存后送归约树</text>
+
+  <rect x="735" y="120" width="505" height="490" rx="5" class="compute"/>
+  <text x="987" y="155" text-anchor="middle" class="label">8 行 × 64 列 MAC PE 阵列：512 DSP</text>
+  <text x="987" y="184" text-anchor="middle" class="small">每周期注入 8 个激活与 64 个权重，沿 K 维流过 256 拍</text>
+  <g fill="#a8d3f5" stroke="#1769aa" stroke-width="1.2">
+    <rect x="790" y="232" width="42" height="34"/><rect x="842" y="232" width="42" height="34"/>
+    <rect x="894" y="232" width="42" height="34"/><rect x="946" y="232" width="42" height="34"/>
+    <rect x="998" y="232" width="42" height="34"/><rect x="1050" y="232" width="42" height="34"/>
+    <rect x="1102" y="232" width="42" height="34"/><rect x="1154" y="232" width="42" height="34"/>
+    <rect x="790" y="276" width="42" height="34"/><rect x="842" y="276" width="42" height="34"/>
+    <rect x="894" y="276" width="42" height="34"/><rect x="946" y="276" width="42" height="34"/>
+    <rect x="998" y="276" width="42" height="34"/><rect x="1050" y="276" width="42" height="34"/>
+    <rect x="1102" y="276" width="42" height="34"/><rect x="1154" y="276" width="42" height="34"/>
+    <rect x="790" y="320" width="42" height="34"/><rect x="842" y="320" width="42" height="34"/>
+    <rect x="894" y="320" width="42" height="34"/><rect x="946" y="320" width="42" height="34"/>
+    <rect x="998" y="320" width="42" height="34"/><rect x="1050" y="320" width="42" height="34"/>
+    <rect x="1102" y="320" width="42" height="34"/><rect x="1154" y="320" width="42" height="34"/>
+    <rect x="790" y="364" width="42" height="34"/><rect x="842" y="364" width="42" height="34"/>
+    <rect x="894" y="364" width="42" height="34"/><rect x="946" y="364" width="42" height="34"/>
+    <rect x="998" y="364" width="42" height="34"/><rect x="1050" y="364" width="42" height="34"/>
+    <rect x="1102" y="364" width="42" height="34"/><rect x="1154" y="364" width="42" height="34"/>
+    <rect x="790" y="408" width="42" height="34"/><rect x="842" y="408" width="42" height="34"/>
+    <rect x="894" y="408" width="42" height="34"/><rect x="946" y="408" width="42" height="34"/>
+    <rect x="998" y="408" width="42" height="34"/><rect x="1050" y="408" width="42" height="34"/>
+    <rect x="1102" y="408" width="42" height="34"/><rect x="1154" y="408" width="42" height="34"/>
+    <rect x="790" y="452" width="42" height="34"/><rect x="842" y="452" width="42" height="34"/>
+    <rect x="894" y="452" width="42" height="34"/><rect x="946" y="452" width="42" height="34"/>
+    <rect x="998" y="452" width="42" height="34"/><rect x="1050" y="452" width="42" height="34"/>
+    <rect x="1102" y="452" width="42" height="34"/><rect x="1154" y="452" width="42" height="34"/>
+  </g>
+  <text x="760" y="224" class="tiny">M=8</text>
+  <text x="1190" y="218" text-anchor="end" class="tiny">示意 8×8，实际 N=64 列</text>
+  <text x="987" y="527" text-anchor="middle" class="small">INT8 × INT8 → INT32 accumulator</text>
+  <text x="987" y="558" text-anchor="middle" class="small">K Tile 完成后保留 partial；遍历全部 K Tile 后输出</text>
+  <text x="987" y="586" text-anchor="middle" class="tiny">Tile 周期近似：K_extent + M_t + N_t - 2</text>
+
+  <rect x="1310" y="120" width="235" height="490" rx="5" class="vector"/>
+  <text x="1427" y="155" text-anchor="middle" class="label">输出路径</text>
+  <text x="1337" y="205" class="small">Q / Gate / Up：</text>
+  <text x="1337" y="232" class="tiny">写独立 N 地址</text>
+  <text x="1337" y="258" class="tiny">无需跨核求和</text>
+  <text x="1337" y="312" class="small">O / Down：</text>
+  <text x="1337" y="339" class="tiny">输出是 K 分片 partial</text>
+  <text x="1337" y="365" class="tiny">送 8 路 INT32 归约树</text>
+  <text x="1337" y="419" class="small">Attention：</text>
+  <text x="1337" y="446" class="tiny">一核保留完整 256-d Head</text>
+  <text x="1337" y="472" class="tiny">无需 Head 内分数归约</text>
+  <text x="1337" y="526" class="small">最后：</text>
+  <text x="1337" y="553" class="tiny">scale / requantize / BF16</text>
+  <text x="1337" y="579" class="tiny">进入向量非线性单元</text>
+
+  <path d="M285 236 L327 236" class="arrow"/>
+  <path d="M655 236 L727 236" class="arrow"/>
+  <path d="M655 500 L727 500" class="arrow"/>
+  <path d="M1240 365 L1302 365" class="arrow"/>
+
+  <rect x="55" y="665" width="1490" height="220" rx="5" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="80" y="700" class="label">为什么不是导师草图里的 51×128 阵列？</text>
+  <text x="80" y="738" class="small">51×128 = 6528 个 MAC lane，已经超过 U50 的 5952 个 DSP，还没有给 K/V、归约和向量单元留资源。</text>
+  <text x="80" y="775" class="small">改为 8×64 后，每核 512 DSP；8 个私有核加共享 K/V 共 4608 DSP，留下 22.6% 余量。</text>
+  <text x="80" y="812" class="small">51 行切为 7 个 8 行 Tile，行利用率为 51/56 = 91.1%；64 整除 Q/FFN 的各核 N 分片，256 与 Head Dim 对齐。</text>
+  <text x="80" y="849" class="small">因此 Tile 是由 DSP 上限、矩阵维度整除性、Buffer 容量和数据复用共同推导出来的物理结构。</text>
+</svg>

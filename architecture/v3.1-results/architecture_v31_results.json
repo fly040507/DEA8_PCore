@@ -1,0 +1,184 @@
+{
+  "model": {
+    "tokens": 51,
+    "hidden": 1024,
+    "ffn": 4096,
+    "query_heads": 8,
+    "head_dim": 256,
+    "prefix_tokens": 816,
+    "full_kv_tokens": 867,
+    "layers": 18,
+    "denoise_steps": 10
+  },
+  "hardware": {
+    "frequency_mhz": 250.0,
+    "cores": 8,
+    "array_m": 8,
+    "array_n": 64,
+    "k_tile": 256,
+    "stream_width_bits": 256,
+    "base5_dsp_available": 4920,
+    "chip_dsp_total": 5952,
+    "base5_uram_available": 544,
+    "uram_native_width_bits": 72,
+    "uram_native_depth": 4096,
+    "online_exp_lanes_per_core": 2,
+    "online_state_lanes_per_core": 4,
+    "vector_lanes": 16
+  },
+  "result": {
+    "architecture": {
+      "cores": 8,
+      "array_per_core": "8x64 INT8 MAC",
+      "tile": {
+        "m": 8,
+        "n": 64,
+        "k": 256
+      },
+      "online_exp_lanes_per_core": 2,
+      "online_state_lanes_per_core": 4,
+      "attention_blocks": [
+        {
+          "keys": 256,
+          "qk_cycles": 1304,
+          "pv_cycles": 1304,
+          "exp_work_cycles": 1024,
+          "state_work_cycles": 512,
+          "exp_hidden_by_qk": true,
+          "state_hidden_by_pv": true
+        },
+        {
+          "keys": 256,
+          "qk_cycles": 1304,
+          "pv_cycles": 1304,
+          "exp_work_cycles": 1024,
+          "state_work_cycles": 512,
+          "exp_hidden_by_qk": true,
+          "state_hidden_by_pv": true
+        },
+        {
+          "keys": 256,
+          "qk_cycles": 1304,
+          "pv_cycles": 1304,
+          "exp_work_cycles": 1024,
+          "state_work_cycles": 512,
+          "exp_hidden_by_qk": true,
+          "state_hidden_by_pv": true
+        },
+        {
+          "keys": 99,
+          "qk_cycles": 652,
+          "pv_cycles": 676,
+          "exp_work_cycles": 396,
+          "state_work_cycles": 512,
+          "exp_hidden_by_qk": true,
+          "state_hidden_by_pv": true
+        }
+      ]
+    },
+    "dsp": {
+      "main_array": 4096,
+      "online_attention_nominal": 120,
+      "online_attention_planned": 144,
+      "shared_rmsnorm_nominal": 41,
+      "shared_rmsnorm_planned": 48,
+      "local_vector_units": 64,
+      "post_sum_dequant": 16,
+      "shared_quant_conversion": 16,
+      "non_matrix_nominal": 257,
+      "non_matrix_planned": 288,
+      "non_matrix_hard_cap": 320,
+      "planned_total": 4384,
+      "hard_cap_total": 4416,
+      "base5_planned_margin": 536,
+      "base5_hard_cap_margin": 504
+    },
+    "cycles": {
+      "q": 36512,
+      "distributed_k": 9128,
+      "distributed_v": 9128,
+      "q_k_v": 54768,
+      "kv_multicast": 13872,
+      "qk_total": 31948,
+      "pv_total": 32116,
+      "attention_matrix": 64064,
+      "online_final_normalize": 512,
+      "online_attention": 64576,
+      "o": 36512,
+      "gate": 73024,
+      "up": 73024,
+      "down": 73024,
+      "sum_payload_per_reduction": 6528,
+      "sum_stream_per_reduction": 6531,
+      "sum_tail_per_reduction": 3,
+      "two_sum_tails": 6,
+      "rmsnorm_pass": 3264,
+      "rmsnorm_quant_tail": 64,
+      "one_rmsnorm": 6592,
+      "two_rmsnorm": 13184,
+      "matrix_and_interconnect": 388806,
+      "first_order_layer": 401990
+    },
+    "latency_ms": {
+      "q": 0.146048,
+      "distributed_k": 0.036512,
+      "distributed_v": 0.036512,
+      "q_k_v": 0.219072,
+      "kv_multicast": 0.055488,
+      "qk_total": 0.127792,
+      "pv_total": 0.128464,
+      "attention_matrix": 0.256256,
+      "online_final_normalize": 0.002048,
+      "online_attention": 0.258304,
+      "o": 0.146048,
+      "gate": 0.292096,
+      "up": 0.292096,
+      "down": 0.292096,
+      "sum_payload_per_reduction": 0.026112,
+      "sum_stream_per_reduction": 0.026124,
+      "sum_tail_per_reduction": 1.2e-05,
+      "two_sum_tails": 2.4e-05,
+      "rmsnorm_pass": 0.013056,
+      "rmsnorm_quant_tail": 0.000256,
+      "one_rmsnorm": 0.026368,
+      "two_rmsnorm": 0.052736,
+      "matrix_and_interconnect": 1.555224,
+      "first_order_layer": 1.60796
+    },
+    "buffers": {
+      "score_ping_pong_per_core": 16384,
+      "probability_ping_pong_per_core": 8192,
+      "dual_query_context_per_core": 16384,
+      "pv_output_fifo_per_core": 8192,
+      "attention_total_per_core": 49152,
+      "attention_total_all_cores": 393216,
+      "attention_bram36_capacity_lower_bound": 86,
+      "attention_bram36_engineering_budget": 144,
+      "bram_like_per_core": 293120,
+      "bram_like_all_cores": 2344960,
+      "prefix_kv_all_layers": 7520256,
+      "local_kv_per_core": 443904
+    },
+    "uram": {
+      "prefix_kv": 232,
+      "local_kv_all_cores": 128,
+      "planned": 360,
+      "base5_available": 544,
+      "margin": 184
+    },
+    "hbm": {
+      "stream_width_bits": 256,
+      "bytes_per_cycle": 32,
+      "gbps_per_port": 8.0,
+      "kv_layer_prefetch_bytes": 525312,
+      "kv_layer_prefetch_cycles": 16416,
+      "q_window_cycles": 36512,
+      "kv_prefetch_margin_cycles": 20096
+    }
+  },
+  "provenance": {
+    "status": "analytic estimate",
+    "frequency": "250 MHz target, pending timing closure",
+    "dsp_baseline": "one signed INT8 MAC per DSP"
+  }
+}

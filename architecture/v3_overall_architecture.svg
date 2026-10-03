@@ -1,0 +1,454 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2400" height="1650" viewBox="0 0 2400 1650">
+  <defs>
+    <marker id="arrow-blue" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#1769aa"/>
+    </marker>
+    <marker id="arrow-orange" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#c45f0b"/>
+    </marker>
+    <marker id="arrow-purple" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#7651b5"/>
+    </marker>
+    <style>
+      .title { font: 700 31px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #14213d; }
+      .subtitle { font: 16px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #475569; }
+      .section { font: 700 18px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #14213d; }
+      .label { font: 700 15px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #14213d; }
+      .small { font: 13px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #26364d; }
+      .tiny { font: 11px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #334155; }
+      .micro { font: 10px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #334155; }
+      .storage { fill: #e4e7eb; stroke: #596273; stroke-width: 2; }
+      .storage-cell { fill: #cfd6df; stroke: #667386; stroke-width: 1.4; }
+      .buffer { fill: #dff2dc; stroke: #2f7d32; stroke-width: 2; }
+      .compute { fill: #dcecff; stroke: #1769aa; stroke-width: 2.2; }
+      .vector { fill: #fff0d4; stroke: #c45f0b; stroke-width: 2; }
+      .control { fill: #f1e8ff; stroke: #7651b5; stroke-width: 2; }
+      .core { fill: #f8fbff; stroke: #1769aa; stroke-width: 2.4; }
+      .neutral { fill: #f7f9fc; stroke: #8a97aa; stroke-width: 1.5; }
+      .data { fill: none; stroke: #1769aa; stroke-width: 3; marker-end: url(#arrow-blue); }
+      .data-thick { fill: none; stroke: #1769aa; stroke-width: 5; marker-end: url(#arrow-blue); }
+      .reduce { fill: none; stroke: #c45f0b; stroke-width: 3.5; marker-end: url(#arrow-orange); }
+      .control-line { fill: none; stroke: #7651b5; stroke-width: 2; stroke-dasharray: 8 6; marker-end: url(#arrow-purple); }
+      .feedback { fill: none; stroke: #1769aa; stroke-width: 4; marker-end: url(#arrow-blue); }
+      .bus-label { font: 700 10px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #0f4f86; paint-order: stroke; stroke: white; stroke-width: 4; }
+      .reduce-label { font: 700 10px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #9b4808; paint-order: stroke; stroke: white; stroke-width: 4; }
+      .control-label { font: 700 10px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #5e3c96; paint-order: stroke; stroke: white; stroke-width: 4; }
+    </style>
+  </defs>
+
+  <rect width="2400" height="1650" fill="#ffffff"/>
+  <text x="42" y="46" class="title">π0 Action Expert FPGA 总体架构 V3 - 8 核同构阵列，分时计算 Q/K/V</text>
+  <text x="42" y="72" class="subtitle">AMD Alveo U50 | 250 MHz | W8A8 Linear / INT32 累加 / BF16 主干 / FP32 Softmax 与 RMSNorm 统计 | 暂不固定 HBM 物理地址</text>
+
+  <!-- HBM -->
+  <rect x="40" y="94" width="2320" height="205" rx="5" class="storage"/>
+  <text x="62" y="123" class="section">1. HBM pseudo-channel 冻结分配（逻辑 m_axi 到 PC；每个高带宽流独占不同 MC）</text>
+
+  <g>
+    <rect x="62" y="142" width="232" height="62" rx="3" class="storage-cell"/>
+    <text x="178" y="166" text-anchor="middle" class="label">PC0 / MC0</text>
+    <text x="178" y="188" text-anchor="middle" class="tiny">Core0 私有权重，36 MiB</text>
+
+    <rect x="306" y="142" width="232" height="62" rx="3" class="storage-cell"/>
+    <text x="422" y="166" text-anchor="middle" class="label">PC2 / MC1</text>
+    <text x="422" y="188" text-anchor="middle" class="tiny">Core1 私有权重，36 MiB</text>
+
+    <rect x="550" y="142" width="232" height="62" rx="3" class="storage-cell"/>
+    <text x="666" y="166" text-anchor="middle" class="label">PC4 / MC2</text>
+    <text x="666" y="188" text-anchor="middle" class="tiny">Core2 私有权重，36 MiB</text>
+
+    <rect x="794" y="142" width="232" height="62" rx="3" class="storage-cell"/>
+    <text x="910" y="166" text-anchor="middle" class="label">PC6 / MC3</text>
+    <text x="910" y="188" text-anchor="middle" class="tiny">Core3 私有权重，36 MiB</text>
+
+    <rect x="1038" y="142" width="232" height="62" rx="3" class="storage-cell"/>
+    <text x="1154" y="166" text-anchor="middle" class="label">PC8 / MC4</text>
+    <text x="1154" y="188" text-anchor="middle" class="tiny">共享 K/V 权重，9 MiB</text>
+
+    <rect x="1282" y="142" width="232" height="62" rx="3" class="storage-cell"/>
+    <text x="1398" y="166" text-anchor="middle" class="label">PC16 / MC8</text>
+    <text x="1398" y="188" text-anchor="middle" class="tiny">Core4 私有权重，36 MiB</text>
+
+    <rect x="1526" y="142" width="232" height="62" rx="3" class="storage-cell"/>
+    <text x="1642" y="166" text-anchor="middle" class="label">PC18 / MC9</text>
+    <text x="1642" y="188" text-anchor="middle" class="tiny">Core5 私有权重，36 MiB</text>
+
+    <rect x="1770" y="142" width="232" height="62" rx="3" class="storage-cell"/>
+    <text x="1886" y="166" text-anchor="middle" class="label">PC20 / MC10</text>
+    <text x="1886" y="188" text-anchor="middle" class="tiny">Core6 私有权重，36 MiB</text>
+
+    <rect x="2014" y="142" width="322" height="62" rx="3" class="storage-cell"/>
+    <text x="2175" y="166" text-anchor="middle" class="label">PC22 / MC11</text>
+    <text x="2175" y="188" text-anchor="middle" class="tiny">Core7 私有权重，36 MiB</text>
+
+    <rect x="62" y="218" width="330" height="58" rx="3" class="storage-cell"/>
+    <text x="227" y="242" text-anchor="middle" class="label">PC12 / MC6</text>
+    <text x="227" y="263" text-anchor="middle" class="tiny">输入、初始激活与动作状态</text>
+
+    <rect x="405" y="218" width="330" height="58" rx="3" class="storage-cell"/>
+    <text x="570" y="242" text-anchor="middle" class="label">PC24 / MC12</text>
+    <text x="570" y="263" text-anchor="middle" class="tiny">18 层 Prefix KV backing，约 7.17 MiB</text>
+
+    <rect x="748" y="218" width="330" height="58" rx="3" class="storage-cell"/>
+    <text x="913" y="242" text-anchor="middle" class="label">PC28 / MC14</text>
+    <text x="913" y="263" text-anchor="middle" class="tiny">最终输出与 debug trace</text>
+
+    <rect x="1091" y="218" width="1245" height="58" rx="3" class="neutral"/>
+    <text x="1713" y="242" text-anchor="middle" class="label">统一数据接口：256 bit = 32 Byte/cycle；250 MHz 设计侧上限 = 8 GB/s/端口</text>
+    <text x="1713" y="263" text-anchor="middle" class="tiny">PC0/2/4/6 与 PC16/18/20/22 分散到两个 HBM Stack；最终端口编号由 Vitis Link Summary 确认</text>
+  </g>
+
+  <!-- Control and DMA -->
+  <rect x="40" y="326" width="278" height="264" rx="5" class="control"/>
+  <text x="179" y="357" text-anchor="middle" class="section">2. Host / 全局控制</text>
+  <text x="61" y="392" class="small">Host/XRT + AXI-Lite Slave</text>
+  <text x="61" y="420" class="small">Layer / Denoise Scheduler</text>
+  <text x="61" y="448" class="small">Operator FSM / Tile Loop</text>
+  <text x="61" y="476" class="small">DMA Descriptor / Barrier</text>
+  <text x="61" y="504" class="small">Ping-Pong Ownership</text>
+  <text x="61" y="532" class="small">Scale Metadata / Event</text>
+  <text x="61" y="560" class="small">Performance Counter / Trace</text>
+
+  <rect x="342" y="326" width="2018" height="118" rx="5" class="buffer"/>
+  <text x="363" y="355" class="section">3. HBM DMA、CDC 与 burst 调度</text>
+  <g>
+    <rect x="365" y="373" width="650" height="50" rx="3" class="neutral"/>
+    <text x="690" y="393" text-anchor="middle" class="label">8× Private Weight DMA + Async FIFO</text>
+    <text x="690" y="412" text-anchor="middle" class="tiny">D0-D7：Q/O/Gate/Up/Down，INT8 + per-output-channel scale，8×256-bit AXI</text>
+
+    <rect x="1030" y="373" width="385" height="50" rx="3" class="neutral"/>
+    <text x="1222" y="393" text-anchor="middle" class="label">K/V Weight DMA + 8 路 Demux</text>
+    <text x="1222" y="412" text-anchor="middle" class="tiny">D8-D10：513 KiB Layer Prefetch -> 8×64 KiB/core</text>
+
+    <rect x="1430" y="373" width="280" height="50" rx="3" class="neutral"/>
+    <text x="1570" y="393" text-anchor="middle" class="label">Input DMA</text>
+    <text x="1570" y="412" text-anchor="middle" class="tiny">D11：[51,1024] BF16</text>
+
+    <rect x="1725" y="373" width="300" height="50" rx="3" class="neutral"/>
+    <text x="1875" y="393" text-anchor="middle" class="label">Prefix KV DMA</text>
+    <text x="1875" y="412" text-anchor="middle" class="tiny">D12：INT8 K/V + BF16 scale</text>
+
+    <rect x="2040" y="373" width="295" height="50" rx="3" class="neutral"/>
+    <text x="2187" y="393" text-anchor="middle" class="label">Output DMA</text>
+    <text x="2187" y="412" text-anchor="middle" class="tiny">D39：BF16 output / trace</text>
+  </g>
+
+  <path d="M178 299 L178 318" class="control-line"/>
+  <text x="190" y="315" class="control-label">C0</text>
+  <path d="M318 455 L334 455" class="control-line"/>
+  <path d="M334 455 L334 388 L357 388" class="control-line"/>
+  <text x="337" y="447" class="control-label">C1：descriptor / event / barrier</text>
+
+  <path d="M690 299 L690 365" class="data"/>
+  <text x="700" y="338" class="bus-label">D0-D7</text>
+  <path d="M1154 204 L1154 365" class="data"/>
+  <text x="1164" y="320" class="bus-label">D8</text>
+  <path d="M227 276 L227 330 L1570 330 L1570 365" class="data"/>
+  <text x="1048" y="325" class="bus-label">D11</text>
+  <path d="M570 276 L570 314 L1875 314 L1875 365" class="data"/>
+  <text x="1420" y="309" class="bus-label">D12</text>
+  <path d="M2187 365 L2187 306 L913 306 L913 284" class="data"/>
+  <text x="1980" y="301" class="bus-label">D39</text>
+
+  <!-- Shared front end -->
+  <rect x="342" y="466" width="2018" height="145" rx="5" class="buffer"/>
+  <text x="363" y="494" class="section">4. 共享 BF16 前端、量化与广播</text>
+  <g>
+    <rect x="368" y="515" width="300" height="67" rx="3" class="buffer"/>
+    <text x="518" y="539" text-anchor="middle" class="label">Shared Activation Buffer</text>
+    <text x="518" y="559" text-anchor="middle" class="tiny">双 bank，[51,1024] BF16，102 KiB</text>
+    <text x="518" y="575" text-anchor="middle" class="micro">保留 residual，接收下一层反馈</text>
+
+    <rect x="720" y="515" width="260" height="67" rx="3" class="vector"/>
+    <text x="850" y="539" text-anchor="middle" class="label">RMSNorm Unit</text>
+    <text x="850" y="559" text-anchor="middle" class="tiny">BF16 I/O，FP32 sum/mean/rsqrt</text>
+    <text x="850" y="575" text-anchor="middle" class="micro">每层 attention 前和 FFN 前各一次</text>
+
+    <rect x="1032" y="515" width="285" height="67" rx="3" class="vector"/>
+    <text x="1174" y="539" text-anchor="middle" class="label">Activation Quantizer</text>
+    <text x="1174" y="559" text-anchor="middle" class="tiny">BF16 -> INT8，per-token scale</text>
+    <text x="1174" y="575" text-anchor="middle" class="micro">O/Down 前使用跨核公共 scale</text>
+
+    <rect x="1369" y="515" width="292" height="67" rx="3" class="compute"/>
+    <text x="1515" y="539" text-anchor="middle" class="label">256-bit Activation Multicast</text>
+    <text x="1515" y="559" text-anchor="middle" class="tiny">D15：8 核共享输入，INT8 + scale</text>
+    <text x="1515" y="575" text-anchor="middle" class="micro">Q/K/V 只量化并广播一次</text>
+
+    <rect x="1713" y="515" width="290" height="67" rx="3" class="buffer"/>
+    <text x="1858" y="539" text-anchor="middle" class="label">Scale SRAM / RoPE ROM</text>
+    <text x="1858" y="559" text-anchor="middle" class="tiny">BF16 scale、weight scale、sin/cos</text>
+    <text x="1858" y="575" text-anchor="middle" class="micro">zero point 固定为 0</text>
+
+    <rect x="2055" y="515" width="280" height="67" rx="3" class="control"/>
+    <text x="2195" y="539" text-anchor="middle" class="label">Shared Vector Scheduler</text>
+    <text x="2195" y="559" text-anchor="middle" class="tiny">RMSNorm/RoPE/GeGLU/Residual</text>
+    <text x="2195" y="575" text-anchor="middle" class="micro">与阵列 phase barrier 对齐</text>
+  </g>
+
+  <path d="M1570 423 L1570 478 L518 478 L518 507" class="data"/>
+  <text x="1540" y="472" class="bus-label">D11</text>
+  <path d="M668 548 L712 548" class="data"/>
+  <text x="684" y="540" class="bus-label">D13 BF16/256b</text>
+  <path d="M980 548 L1024 548" class="data"/>
+  <text x="988" y="540" class="bus-label">D14 BF16/256b</text>
+  <path d="M1317 548 L1361 548" class="data-thick"/>
+  <text x="1322" y="540" class="bus-label">D15 INT8/256b</text>
+  <path d="M318 542 L334 542 L334 500 L2047 500" class="control-line"/>
+
+  <!-- Core cluster -->
+  <rect x="342" y="636" width="2018" height="475" rx="5" class="core"/>
+  <text x="363" y="666" class="section">5. 8 个同构私有核（总计 8×512 = 4096 DSP；同一阵列按 phase 分时复用）</text>
+
+  <rect x="367" y="689" width="1055" height="389" rx="4" class="neutral"/>
+  <text x="894" y="715" text-anchor="middle" class="label">单核内部模板 ×8</text>
+
+  <rect x="391" y="739" width="235" height="68" rx="3" class="buffer"/>
+  <text x="508" y="763" text-anchor="middle" class="label">Private Weight P/P</text>
+  <text x="508" y="784" text-anchor="middle" class="tiny">2×16 KiB，Q/O/Gate/Up/Down</text>
+  <text x="508" y="800" text-anchor="middle" class="micro">D16：64×INT8/cycle = 512 bit</text>
+
+  <rect x="391" y="829" width="235" height="68" rx="3" class="buffer"/>
+  <text x="508" y="853" text-anchor="middle" class="label">K/V Layer Weight Buffer</text>
+  <text x="508" y="874" text-anchor="middle" class="tiny">K 32 KiB + V 32 KiB = 64 KiB/core</text>
+  <text x="508" y="890" text-anchor="middle" class="micro">D17：K_t=256 段，32 active cols = 256 bit</text>
+
+  <rect x="391" y="919" width="235" height="68" rx="3" class="buffer"/>
+  <text x="508" y="943" text-anchor="middle" class="label">Activation / Prob Tile</text>
+  <text x="508" y="964" text-anchor="middle" class="tiny">A：8×INT8 = 64 bit/cycle</text>
+  <text x="508" y="980" text-anchor="middle" class="micro">D18；S×V 时 D19：8×U16 = 128 bit</text>
+
+  <rect x="684" y="748" width="270" height="171" rx="4" class="compute"/>
+  <text x="819" y="777" text-anchor="middle" class="section">8×64 INT8 MAC Array</text>
+  <text x="819" y="806" text-anchor="middle" class="label">M_t=8，N_t=64，K_t=256</text>
+  <text x="819" y="832" text-anchor="middle" class="small">512 DSP / core，INT32 accumulator</text>
+  <text x="819" y="858" text-anchor="middle" class="tiny">C_tile = K_extent + 8 + 64 - 2</text>
+  <text x="819" y="879" text-anchor="middle" class="tiny">Q/K/V/QK/S×V/O/Gate/Up/Down</text>
+  <text x="819" y="900" text-anchor="middle" class="micro">K 维时间展开，所以 K_t 不乘入 DSP 数</text>
+
+  <rect x="684" y="942" width="270" height="91" rx="3" class="buffer"/>
+  <text x="819" y="968" text-anchor="middle" class="label">INT32 Psum + Output Router</text>
+  <text x="819" y="990" text-anchor="middle" class="tiny">[51,64]，12.75 KiB；D21：256-bit 流</text>
+  <text x="819" y="1012" text-anchor="middle" class="micro">N-slice 直写 | K-slice 送 SUM | K/V 送 Assemble</text>
+
+  <rect x="1012" y="739" width="378" height="68" rx="3" class="vector"/>
+  <text x="1201" y="763" text-anchor="middle" class="label">Q/K RoPE + Requant</text>
+  <text x="1201" y="784" text-anchor="middle" class="tiny">Q：[51,256] BF16/INT8；K slice：[51,32]</text>
+  <text x="1201" y="800" text-anchor="middle" class="micro">D22-D24：K 做跨核 MAX 后统一 per-token scale</text>
+
+  <rect x="1012" y="829" width="378" height="68" rx="3" class="buffer"/>
+  <text x="1201" y="853" text-anchor="middle" class="label">Local K/V URAM Cache</text>
+  <text x="1201" y="874" text-anchor="middle" class="tiny">[867,256] K + V，433.5 KiB/core</text>
+  <text x="1201" y="890" text-anchor="middle" class="micro">D20：64×INT8/cycle = 512-bit B 侧读口</text>
+
+  <rect x="1012" y="919" width="378" height="68" rx="3" class="vector"/>
+  <text x="1201" y="943" text-anchor="middle" class="label">Score Tile -> FP32 Softmax -> U16 Prob</text>
+  <text x="1201" y="964" text-anchor="middle" class="tiny">D28 score / D29 softmax / D30 probability，[8,867]</text>
+  <text x="1201" y="980" text-anchor="middle" class="micro">概率 scale=2^-15，整数和修正为 32768</text>
+
+  <rect x="1012" y="1007" width="378" height="48" rx="3" class="vector"/>
+  <text x="1201" y="1027" text-anchor="middle" class="label">S×V / Attention Output</text>
+  <text x="1201" y="1045" text-anchor="middle" class="micro">U16×INT8 -> INT32 -> BF16，[51,256]/core</text>
+
+  <path d="M626 773 L676 773" class="data"/>
+  <text x="638" y="764" class="bus-label">D16 512b</text>
+  <path d="M626 863 L654 863 L654 823 L676 823" class="data"/>
+  <text x="630" y="852" class="bus-label">D17 256b</text>
+  <path d="M626 953 L654 953 L654 873 L676 873" class="data"/>
+  <text x="631" y="942" class="bus-label">D18/D19</text>
+  <path d="M819 919 L819 934" class="data"/>
+  <text x="828" y="932" class="bus-label">D21</text>
+  <path d="M954 972 L987 972 L987 773 L1004 773" class="data"/>
+  <text x="965" y="763" class="bus-label">D22 Q/K</text>
+  <path d="M1390 863 L1410 863 L1410 832 L966 832" class="data"/>
+  <text x="1275" y="824" class="bus-label">D20 K/V 512b</text>
+  <path d="M1201 897 L1201 911" class="data"/>
+  <text x="1211" y="909" class="bus-label">QK</text>
+  <path d="M1201 987 L1201 999" class="data"/>
+  <text x="1211" y="1000" class="bus-label">D30</text>
+  <path d="M1012 1031 L976 1031 L976 898 L962 898" class="data"/>
+  <text x="981" y="1023" class="bus-label">S×V mode</text>
+
+  <!-- Core identities -->
+  <rect x="1448" y="689" width="885" height="389" rx="4" class="neutral"/>
+  <text x="1890" y="715" text-anchor="middle" class="label">8 核映射与本地长期状态</text>
+
+  <g>
+    <rect x="1472" y="739" width="200" height="125" rx="3" class="core"/>
+    <text x="1572" y="765" text-anchor="middle" class="label">Core 0 / Q Head 0</text>
+    <text x="1572" y="790" text-anchor="middle" class="tiny">Q:N0 | K/V:N[0:32]</text>
+    <text x="1572" y="811" text-anchor="middle" class="tiny">O:K0 | FFN:N0/K0</text>
+    <text x="1572" y="835" text-anchor="middle" class="micro">512 DSP + 16 URAM</text>
+    <text x="1572" y="852" text-anchor="middle" class="micro">BRAM-like ≈278.9 KiB</text>
+
+    <rect x="1684" y="739" width="200" height="125" rx="3" class="core"/>
+    <text x="1784" y="765" text-anchor="middle" class="label">Core 1 / Q Head 1</text>
+    <text x="1784" y="790" text-anchor="middle" class="tiny">Q:N1 | K/V:N[32:64]</text>
+    <text x="1784" y="811" text-anchor="middle" class="tiny">O:K1 | FFN:N1/K1</text>
+    <text x="1784" y="835" text-anchor="middle" class="micro">512 DSP + 16 URAM</text>
+    <text x="1784" y="852" text-anchor="middle" class="micro">私有权重 PC2</text>
+
+    <rect x="1896" y="739" width="200" height="125" rx="3" class="core"/>
+    <text x="1996" y="765" text-anchor="middle" class="label">Core 2 / Q Head 2</text>
+    <text x="1996" y="790" text-anchor="middle" class="tiny">Q:N2 | K/V:N[64:96]</text>
+    <text x="1996" y="811" text-anchor="middle" class="tiny">O:K2 | FFN:N2/K2</text>
+    <text x="1996" y="835" text-anchor="middle" class="micro">512 DSP + 16 URAM</text>
+    <text x="1996" y="852" text-anchor="middle" class="micro">私有权重 PC4</text>
+
+    <rect x="2108" y="739" width="200" height="125" rx="3" class="core"/>
+    <text x="2208" y="765" text-anchor="middle" class="label">Core 3 / Q Head 3</text>
+    <text x="2208" y="790" text-anchor="middle" class="tiny">Q:N3 | K/V:N[96:128]</text>
+    <text x="2208" y="811" text-anchor="middle" class="tiny">O:K3 | FFN:N3/K3</text>
+    <text x="2208" y="835" text-anchor="middle" class="micro">512 DSP + 16 URAM</text>
+    <text x="2208" y="852" text-anchor="middle" class="micro">私有权重 PC6</text>
+
+    <rect x="1472" y="888" width="200" height="125" rx="3" class="core"/>
+    <text x="1572" y="914" text-anchor="middle" class="label">Core 4 / Q Head 4</text>
+    <text x="1572" y="939" text-anchor="middle" class="tiny">Q:N4 | K/V:N[128:160]</text>
+    <text x="1572" y="960" text-anchor="middle" class="tiny">O:K4 | FFN:N4/K4</text>
+    <text x="1572" y="984" text-anchor="middle" class="micro">512 DSP + 16 URAM</text>
+    <text x="1572" y="1001" text-anchor="middle" class="micro">私有权重 PC16</text>
+
+    <rect x="1684" y="888" width="200" height="125" rx="3" class="core"/>
+    <text x="1784" y="914" text-anchor="middle" class="label">Core 5 / Q Head 5</text>
+    <text x="1784" y="939" text-anchor="middle" class="tiny">Q:N5 | K/V:N[160:192]</text>
+    <text x="1784" y="960" text-anchor="middle" class="tiny">O:K5 | FFN:N5/K5</text>
+    <text x="1784" y="984" text-anchor="middle" class="micro">512 DSP + 16 URAM</text>
+    <text x="1784" y="1001" text-anchor="middle" class="micro">私有权重 PC18</text>
+
+    <rect x="1896" y="888" width="200" height="125" rx="3" class="core"/>
+    <text x="1996" y="914" text-anchor="middle" class="label">Core 6 / Q Head 6</text>
+    <text x="1996" y="939" text-anchor="middle" class="tiny">Q:N6 | K/V:N[192:224]</text>
+    <text x="1996" y="960" text-anchor="middle" class="tiny">O:K6 | FFN:N6/K6</text>
+    <text x="1996" y="984" text-anchor="middle" class="micro">512 DSP + 16 URAM</text>
+    <text x="1996" y="1001" text-anchor="middle" class="micro">私有权重 PC20</text>
+
+    <rect x="2108" y="888" width="200" height="125" rx="3" class="core"/>
+    <text x="2208" y="914" text-anchor="middle" class="label">Core 7 / Q Head 7</text>
+    <text x="2208" y="939" text-anchor="middle" class="tiny">Q:N7 | K/V:N[224:256]</text>
+    <text x="2208" y="960" text-anchor="middle" class="tiny">O:K7 | FFN:N7/K7</text>
+    <text x="2208" y="984" text-anchor="middle" class="micro">512 DSP + 16 URAM</text>
+    <text x="2208" y="1001" text-anchor="middle" class="micro">私有权重 PC22</text>
+  </g>
+
+  <path d="M690 423 L690 620 L334 620 L334 773 L383 773" class="data-thick"/>
+  <text x="346" y="614" class="bus-label">D0-D7：每核私有 P/P</text>
+  <path d="M1222 423 L1222 616 L324 616 L324 863 L383 863" class="data-thick"/>
+  <text x="812" y="610" class="bus-label">D10：整层落片，8×64 KiB K/V Buffer</text>
+  <path d="M1515 582 L1515 612 L314 612 L314 953 L383 953" class="data-thick"/>
+  <text x="1230" y="606" class="bus-label">D15：INT8 activation multicast</text>
+  <path d="M2195 582 L2195 625 L1418 625 L1418 703" class="control-line"/>
+
+  <!-- Shared KV path -->
+  <rect x="40" y="1135" width="1510" height="218" rx="5" class="buffer"/>
+  <text x="62" y="1165" class="section">6. K/V Assemble、Prefix/Suffix 拼接与当前层 K/V 广播（K/V 的 8×32-d 是按 N 拼接，不求和）</text>
+
+  <rect x="64" y="1190" width="260" height="68" rx="3" class="compute"/>
+  <text x="194" y="1215" text-anchor="middle" class="label">K/V Slice Assemble</text>
+  <text x="194" y="1236" text-anchor="middle" class="tiny">D25：8×256-bit 输入</text>
+  <text x="194" y="1252" text-anchor="middle" class="micro">8×32-d -> 完整 256-d，按通道拼接</text>
+
+  <rect x="369" y="1190" width="245" height="68" rx="3" class="buffer"/>
+  <text x="491" y="1215" text-anchor="middle" class="label">Suffix K/V Buffer</text>
+  <text x="491" y="1236" text-anchor="middle" class="tiny">51×256，INT8 K/V</text>
+  <text x="491" y="1252" text-anchor="middle" class="micro">K per-token scale；V per-layer scale</text>
+
+  <rect x="659" y="1190" width="265" height="68" rx="3" class="buffer"/>
+  <text x="791" y="1215" text-anchor="middle" class="label">Prefix KV Central URAM</text>
+  <text x="791" y="1236" text-anchor="middle" class="tiny">816×256×K/V×18，232 URAM</text>
+  <text x="791" y="1252" text-anchor="middle" class="micro">运行主副本；HBM PC24 仅 backing</text>
+
+  <rect x="969" y="1190" width="250" height="68" rx="3" class="compute"/>
+  <text x="1094" y="1215" text-anchor="middle" class="label">Prefix/Suffix Streamer</text>
+  <text x="1094" y="1236" text-anchor="middle" class="tiny">D26：867×256，先 Prefix 后 Suffix</text>
+  <text x="1094" y="1252" text-anchor="middle" class="micro">逻辑 token 拼接，不做算术操作</text>
+
+  <rect x="1264" y="1190" width="260" height="68" rx="3" class="compute"/>
+  <text x="1394" y="1215" text-anchor="middle" class="label">256-bit KV Multicast</text>
+  <text x="1394" y="1236" text-anchor="middle" class="tiny">D27：一次广播写 8 核 Local Cache</text>
+  <text x="1394" y="1252" text-anchor="middle" class="micro">443,904 Byte -> 13,872 cycles</text>
+
+  <rect x="64" y="1282" width="1460" height="45" rx="3" class="neutral"/>
+  <text x="794" y="1302" text-anchor="middle" class="label">K scale 路径：8 核 K slice local MAX -> 8 输入 Scalar MAX Tree -> 每 token BF16 scale -> 广播回 8 个 K Quantizer</text>
+  <text x="794" y="1320" text-anchor="middle" class="micro">D23-D24；V 不走 per-token MAX，使用每层公共静态 BF16 scale，保证 S×V 可纯 INT32 累加</text>
+
+  <path d="M819 1033 L819 1122 L194 1122 L194 1182" class="data-thick"/>
+  <text x="214" y="1117" class="bus-label">D25：K/V slice</text>
+  <path d="M324 1224 L361 1224" class="data"/>
+  <path d="M614 1224 L961 1224" class="data"/>
+  <text x="730" y="1216" class="bus-label">Suffix 51 token</text>
+  <path d="M1875 423 L2368 423 L2368 1122 L791 1122 L791 1182" class="data"/>
+  <text x="1960" y="417" class="bus-label">D12：PC24 -> Prefix URAM</text>
+  <path d="M924 1224 L961 1224" class="data"/>
+  <text x="924" y="1216" class="bus-label">Prefix 816 token</text>
+  <path d="M1219 1224 L1256 1224" class="data-thick"/>
+  <text x="1224" y="1216" class="bus-label">D26 256b</text>
+  <path d="M1394 1190 L1394 1128 L1201 1128 L1201 905" class="data-thick"/>
+  <text x="1210" y="1122" class="bus-label">D27 -> 8×Local K/V</text>
+  <path d="M1201 807 L990 807 L990 1120 L1710 1120 L1710 1182" class="reduce"/>
+  <text x="1000" y="1114" class="reduce-label">D23：K local MAX -> shared MAX Tree</text>
+  <path d="M1955 1258 L1955 1378 L330 1378 L330 720 L990 720 L990 790 L1004 790" class="reduce"/>
+  <text x="520" y="1370" class="reduce-label">D24：K common scale -> 8×K Quantizer</text>
+
+  <!-- Reduction, residual, output -->
+  <rect x="1575" y="1135" width="785" height="350" rx="5" class="vector"/>
+  <text x="1598" y="1165" class="section">7. 跨核 MAX/SUM、反量化、Residual 与层循环</text>
+
+  <rect x="1600" y="1190" width="220" height="68" rx="3" class="vector"/>
+  <text x="1710" y="1215" text-anchor="middle" class="label">8-input MAX Tree</text>
+  <text x="1710" y="1236" text-anchor="middle" class="tiny">D23/D31/D36：K、O、Down local max</text>
+  <text x="1710" y="1252" text-anchor="middle" class="micro">三种 phase 分时复用同一 8-input tree</text>
+
+  <rect x="1845" y="1190" width="220" height="68" rx="3" class="vector"/>
+  <text x="1955" y="1215" text-anchor="middle" class="label">Common Scale Broadcast</text>
+  <text x="1955" y="1236" text-anchor="middle" class="tiny">D24/D32/D37：BF16 scalar/token</text>
+  <text x="1955" y="1252" text-anchor="middle" class="micro">8 核重新量化到统一 INT8 scale</text>
+
+  <rect x="2090" y="1190" width="245" height="68" rx="3" class="vector"/>
+  <text x="2212" y="1215" text-anchor="middle" class="label">8×256-bit SUM Tree</text>
+  <text x="2212" y="1236" text-anchor="middle" class="tiny">D33/D38：8 lane INT32/input</text>
+  <text x="2212" y="1252" text-anchor="middle" class="micro">3-stage pipeline：6528+3=6531 cycles</text>
+
+  <rect x="1600" y="1290" width="330" height="72" rx="3" class="vector"/>
+  <text x="1765" y="1316" text-anchor="middle" class="label">Dequant + BF16/FP32 Residual</text>
+  <text x="1765" y="1338" text-anchor="middle" class="tiny">D34：INT32 × act scale × weight scale</text>
+  <text x="1765" y="1355" text-anchor="middle" class="micro">O residual 后再 RMSNorm；Down residual 后输出层</text>
+
+  <rect x="1955" y="1290" width="380" height="72" rx="3" class="buffer"/>
+  <text x="2145" y="1316" text-anchor="middle" class="label">Layer Output / Feedback Buffer</text>
+  <text x="2145" y="1338" text-anchor="middle" class="tiny">[51,1024] BF16，写回 Shared Activation</text>
+  <text x="2145" y="1355" text-anchor="middle" class="micro">第 18 层后送 Output DMA；否则进入下一层</text>
+
+  <rect x="1600" y="1394" width="735" height="66" rx="3" class="neutral"/>
+  <text x="1967" y="1417" text-anchor="middle" class="label">FFN：Gate Psum -> Gate Buffer；Up Psum -> GeGLU；GeGLU [51,512]/core</text>
+  <text x="1967" y="1440" text-anchor="middle" class="tiny">D35-D38：Down MAX/Quant -> Down MAC -> SUM；Gate/Up 沿 N 切分不求和，Down 沿 K 切分求和</text>
+
+  <path d="M1201 1055 L1201 1096 L1710 1096 L1710 1182" class="reduce"/>
+  <text x="1210" y="1088" class="reduce-label">D31：O local max；D36：GeGLU local max</text>
+  <path d="M1820 1224 L1837 1224" class="reduce"/>
+  <text x="1820" y="1216" class="reduce-label">MAX</text>
+  <path d="M1955 1190 L1955 1112 L370 1112 L370 953 L383 953" class="reduce"/>
+  <text x="1490" y="1128" class="reduce-label">D32/D37：O/Down common scale -> 8×Quantizer</text>
+  <path d="M954 992 L970 992 L970 1100 L2075 1100 L2075 1224 L2082 1224" class="reduce"/>
+  <text x="1755" y="1094" class="reduce-label">D33/D38：8×INT32 partial，8×256-bit</text>
+  <path d="M2212 1258 L2212 1278 L1765 1278 L1765 1282" class="reduce"/>
+  <text x="2050" y="1273" class="reduce-label">D34 INT32 sum</text>
+  <path d="M1930 1326 L1947 1326" class="data"/>
+  <path d="M2145 1290 L2378 1290 L2378 455 L518 455 L518 507" class="feedback"/>
+  <text x="1880" y="449" class="bus-label">Layer feedback -> Shared Activation</text>
+  <path d="M2145 1362 L2145 1382" class="data"/>
+  <path d="M2187 1362 L2388 1362 L2388 398 L2343 398" class="data"/>
+  <text x="2292" y="1356" class="bus-label">D39 -> Output DMA</text>
+
+  <!-- Legend and phase sequence -->
+  <rect x="40" y="1510" width="2320" height="105" rx="5" class="neutral"/>
+  <text x="62" y="1539" class="section">图例与执行顺序</text>
+  <line x1="65" y1="1564" x2="135" y2="1564" class="data"/>
+  <text x="146" y="1569" class="small">蓝色：数据流 / multicast / feedback</text>
+  <line x1="450" y1="1564" x2="520" y2="1564" class="reduce"/>
+  <text x="531" y="1569" class="small">橙色：MAX 或 SUM 归约及 scale 广播</text>
+  <line x1="900" y1="1564" x2="970" y2="1564" class="control-line"/>
+  <text x="981" y="1569" class="small">紫色虚线：控制、barrier、ownership</text>
+  <text x="62" y="1597" class="small">单层 phase：RMSNorm -> Q -> 分布式 K -> 分布式 V -> K/V Assemble + Multicast -> QK -> Softmax -> S×V -> O + SUM -> Residual/RMSNorm -> Gate -> Up/GeGLU -> Down + SUM -> Residual</text>
+  <text x="1960" y="1569" class="label">资源检查</text>
+  <text x="1960" y="1597" class="tiny">DSP 4096/4920，余 824；URAM 360/544，余 184</text>
+</svg>

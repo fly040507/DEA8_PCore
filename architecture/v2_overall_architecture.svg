@@ -1,0 +1,163 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1050" viewBox="0 0 1600 1050">
+  <defs>
+    <marker id="arrow-blue" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#1769aa"/>
+    </marker>
+    <marker id="arrow-orange" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#cf6a15"/>
+    </marker>
+    <style>
+      .title { font: 700 30px "Microsoft YaHei", Arial, sans-serif; fill: #14213d; }
+      .subtitle { font: 16px "Microsoft YaHei", Arial, sans-serif; fill: #475569; }
+      .label { font: 700 17px "Microsoft YaHei", Arial, sans-serif; fill: #14213d; }
+      .small { font: 14px "Microsoft YaHei", Arial, sans-serif; fill: #334155; }
+      .tiny { font: 12px "Microsoft YaHei", Arial, sans-serif; fill: #334155; }
+      .white { fill: #ffffff; }
+      .storage { fill: #e5e7eb; stroke: #596273; stroke-width: 2; }
+      .buffer { fill: #dff4df; stroke: #2e7d32; stroke-width: 2; }
+      .compute { fill: #dceeff; stroke: #1769aa; stroke-width: 2.4; }
+      .vector { fill: #fff1d6; stroke: #cf6a15; stroke-width: 2; }
+      .control { fill: #f3e8ff; stroke: #7e57c2; stroke-width: 2; }
+      .core { fill: #f8fbff; stroke: #1769aa; stroke-width: 2; }
+      .bus { fill: none; stroke: #1769aa; stroke-width: 5; marker-end: url(#arrow-blue); }
+      .data { fill: none; stroke: #1769aa; stroke-width: 3; marker-end: url(#arrow-blue); }
+      .reduce { fill: none; stroke: #cf6a15; stroke-width: 3.5; marker-end: url(#arrow-orange); }
+      .ctrl { fill: none; stroke: #7e57c2; stroke-width: 2; stroke-dasharray: 7 5; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="1050" fill="#ffffff"/>
+  <text x="60" y="55" class="title">π0 Action Expert on Alveo U50：冻结的 8 核 V1 架构</text>
+  <text x="60" y="84" class="subtitle">18 层，W8A8 / INT32 累加 / BF16 非线性；8 个完整 Q Head 分配到 8 个私有核</text>
+
+  <rect x="55" y="112" width="1490" height="112" rx="5" class="storage"/>
+  <text x="76" y="141" class="label">U50 HBM：32 个 pseudo-channel，按独立 AXI master 使用</text>
+  <g>
+    <rect x="76" y="157" width="118" height="45" rx="3" fill="#cbd5e1" stroke="#596273"/>
+    <text x="135" y="177" text-anchor="middle" class="small">PC0</text>
+    <text x="135" y="195" text-anchor="middle" class="tiny">Core 0 权重</text>
+    <rect x="204" y="157" width="118" height="45" rx="3" fill="#cbd5e1" stroke="#596273"/>
+    <text x="263" y="177" text-anchor="middle" class="small">PC1</text>
+    <text x="263" y="195" text-anchor="middle" class="tiny">Core 1 权重</text>
+    <rect x="332" y="157" width="118" height="45" rx="3" fill="#cbd5e1" stroke="#596273"/>
+    <text x="391" y="177" text-anchor="middle" class="small">PC2</text>
+    <text x="391" y="195" text-anchor="middle" class="tiny">Core 2 权重</text>
+    <rect x="460" y="157" width="118" height="45" rx="3" fill="#cbd5e1" stroke="#596273"/>
+    <text x="519" y="177" text-anchor="middle" class="small">PC3</text>
+    <text x="519" y="195" text-anchor="middle" class="tiny">Core 3 权重</text>
+    <rect x="588" y="157" width="118" height="45" rx="3" fill="#cbd5e1" stroke="#596273"/>
+    <text x="647" y="177" text-anchor="middle" class="small">PC4</text>
+    <text x="647" y="195" text-anchor="middle" class="tiny">Core 4 权重</text>
+    <rect x="716" y="157" width="118" height="45" rx="3" fill="#cbd5e1" stroke="#596273"/>
+    <text x="775" y="177" text-anchor="middle" class="small">PC5</text>
+    <text x="775" y="195" text-anchor="middle" class="tiny">Core 5 权重</text>
+    <rect x="844" y="157" width="118" height="45" rx="3" fill="#cbd5e1" stroke="#596273"/>
+    <text x="903" y="177" text-anchor="middle" class="small">PC6</text>
+    <text x="903" y="195" text-anchor="middle" class="tiny">Core 6 权重</text>
+    <rect x="972" y="157" width="118" height="45" rx="3" fill="#cbd5e1" stroke="#596273"/>
+    <text x="1031" y="177" text-anchor="middle" class="small">PC7</text>
+    <text x="1031" y="195" text-anchor="middle" class="tiny">Core 7 权重</text>
+    <rect x="1100" y="157" width="132" height="45" rx="3" fill="#cbd5e1" stroke="#596273"/>
+    <text x="1166" y="177" text-anchor="middle" class="small">PC8</text>
+    <text x="1166" y="195" text-anchor="middle" class="tiny">共享 K/V 权重</text>
+    <rect x="1242" y="157" width="278" height="45" rx="3" fill="#cbd5e1" stroke="#596273"/>
+    <text x="1381" y="177" text-anchor="middle" class="small">PC9-PC31</text>
+    <text x="1381" y="195" text-anchor="middle" class="tiny">输入/输出、Prefix KV、条带化扩展</text>
+  </g>
+
+  <rect x="55" y="255" width="215" height="276" rx="5" class="control"/>
+  <text x="162" y="288" text-anchor="middle" class="label">Host CPU / 控制器</text>
+  <text x="78" y="322" class="small">• 层与 denoise step 调度</text>
+  <text x="78" y="350" class="small">• DMA descriptor 生成</text>
+  <text x="78" y="378" class="small">• Tile 三重循环计数</text>
+  <text x="78" y="406" class="small">• 量化 scale / zero-point</text>
+  <text x="78" y="434" class="small">• Buffer ping/pong 切换</text>
+  <text x="78" y="462" class="small">• 广播与归约同步</text>
+  <text x="78" y="500" class="tiny">AXI-Lite 控制面</text>
+
+  <rect x="300" y="255" width="1235" height="93" rx="5" class="buffer"/>
+  <text x="325" y="286" class="label">DMA + 片上共享激活 / Prefix KV 管理</text>
+  <text x="325" y="317" class="small">每个权重 PC 独立 AXI master；输入 X[51,1024] 广播；Prefix KV INT8 + per-token K/V scale</text>
+  <path d="M270 392 L292 392" class="ctrl"/>
+  <path d="M1166 224 L1166 249" class="data"/>
+  <path d="M1381 224 L1381 249" class="data"/>
+
+  <rect x="300" y="378" width="310" height="235" rx="5" class="compute"/>
+  <text x="455" y="411" text-anchor="middle" class="label">共享 K/V 引擎</text>
+  <text x="455" y="439" text-anchor="middle" class="small">8×64 MAC，K_t=256，512 DSP</text>
+  <rect x="327" y="462" width="256" height="48" rx="3" class="buffer"/>
+  <text x="455" y="483" text-anchor="middle" class="small">K/V Weight ping-pong</text>
+  <text x="455" y="501" text-anchor="middle" class="tiny">每层共 0.5 MiB 权重</text>
+  <rect x="327" y="529" width="256" height="56" rx="3" fill="#b9ddff" stroke="#1769aa"/>
+  <text x="455" y="552" text-anchor="middle" class="small">K=XWk，V=XWv</text>
+  <text x="455" y="574" text-anchor="middle" class="tiny">当前 51 token 与 816-token Prefix 拼接</text>
+
+  <rect x="640" y="378" width="895" height="350" rx="5" fill="#ffffff" stroke="#1769aa" stroke-width="2.5"/>
+  <text x="1087" y="410" text-anchor="middle" class="label">8 个私有计算核：同一物理 Tile，参数分片不同</text>
+
+  <g>
+    <rect x="666" y="435" width="194" height="118" rx="4" class="core"/>
+    <text x="763" y="460" text-anchor="middle" class="label">Core 0 / Head 0</text>
+    <text x="763" y="486" text-anchor="middle" class="small">8×64 MAC，512 DSP</text>
+    <text x="763" y="510" text-anchor="middle" class="tiny">Q:N0 | O:K0</text>
+    <text x="763" y="531" text-anchor="middle" class="tiny">FFN:N0 / K0</text>
+    <rect x="878" y="435" width="194" height="118" rx="4" class="core"/>
+    <text x="975" y="460" text-anchor="middle" class="label">Core 1 / Head 1</text>
+    <text x="975" y="486" text-anchor="middle" class="small">8×64 MAC，512 DSP</text>
+    <text x="975" y="510" text-anchor="middle" class="tiny">Q:N1 | O:K1</text>
+    <text x="975" y="531" text-anchor="middle" class="tiny">FFN:N1 / K1</text>
+    <rect x="1090" y="435" width="194" height="118" rx="4" class="core"/>
+    <text x="1187" y="460" text-anchor="middle" class="label">Core 2 / Head 2</text>
+    <text x="1187" y="486" text-anchor="middle" class="small">8×64 MAC，512 DSP</text>
+    <text x="1187" y="510" text-anchor="middle" class="tiny">Q:N2 | O:K2</text>
+    <text x="1187" y="531" text-anchor="middle" class="tiny">FFN:N2 / K2</text>
+    <rect x="1302" y="435" width="194" height="118" rx="4" class="core"/>
+    <text x="1399" y="460" text-anchor="middle" class="label">Core 3 / Head 3</text>
+    <text x="1399" y="486" text-anchor="middle" class="small">8×64 MAC，512 DSP</text>
+    <text x="1399" y="510" text-anchor="middle" class="tiny">Q:N3 | O:K3</text>
+    <text x="1399" y="531" text-anchor="middle" class="tiny">FFN:N3 / K3</text>
+    <rect x="666" y="578" width="194" height="118" rx="4" class="core"/>
+    <text x="763" y="603" text-anchor="middle" class="label">Core 4 / Head 4</text>
+    <text x="763" y="629" text-anchor="middle" class="small">8×64 MAC，512 DSP</text>
+    <text x="763" y="653" text-anchor="middle" class="tiny">Q:N4 | O:K4</text>
+    <text x="763" y="674" text-anchor="middle" class="tiny">FFN:N4 / K4</text>
+    <rect x="878" y="578" width="194" height="118" rx="4" class="core"/>
+    <text x="975" y="603" text-anchor="middle" class="label">Core 5 / Head 5</text>
+    <text x="975" y="629" text-anchor="middle" class="small">8×64 MAC，512 DSP</text>
+    <text x="975" y="653" text-anchor="middle" class="tiny">Q:N5 | O:K5</text>
+    <text x="975" y="674" text-anchor="middle" class="tiny">FFN:N5 / K5</text>
+    <rect x="1090" y="578" width="194" height="118" rx="4" class="core"/>
+    <text x="1187" y="603" text-anchor="middle" class="label">Core 6 / Head 6</text>
+    <text x="1187" y="629" text-anchor="middle" class="small">8×64 MAC，512 DSP</text>
+    <text x="1187" y="653" text-anchor="middle" class="tiny">Q:N6 | O:K6</text>
+    <text x="1187" y="674" text-anchor="middle" class="tiny">FFN:N6 / K6</text>
+    <rect x="1302" y="578" width="194" height="118" rx="4" class="core"/>
+    <text x="1399" y="603" text-anchor="middle" class="label">Core 7 / Head 7</text>
+    <text x="1399" y="629" text-anchor="middle" class="small">8×64 MAC，512 DSP</text>
+    <text x="1399" y="653" text-anchor="middle" class="tiny">Q:N7 | O:K7</text>
+    <text x="1399" y="674" text-anchor="middle" class="tiny">FFN:N7 / K7</text>
+  </g>
+
+  <path d="M610 545 L633 545" class="bus"/>
+  <text x="621" y="528" text-anchor="middle" class="tiny">K/V 广播</text>
+  <path d="M918 348 L918 369" class="data"/>
+  <text x="943" y="365" class="tiny">X 广播</text>
+  <path d="M135 224 L135 247 L1400 247 L1400 369" fill="none" stroke="#596273" stroke-width="2"/>
+
+  <rect x="300" y="758" width="465" height="129" rx="5" class="vector"/>
+  <text x="532" y="789" text-anchor="middle" class="label">BF16 向量与 Attention 单元</text>
+  <text x="325" y="819" class="small">RMSNorm / RoPE / Residual / GeGLU</text>
+  <text x="325" y="848" class="small">QK: INT8×INT8→INT32；Softmax: FP32</text>
+  <text x="325" y="875" class="small">S×V: Q0.15×INT8→INT32，再转 BF16</text>
+
+  <rect x="800" y="758" width="735" height="129" rx="5" class="vector"/>
+  <text x="1167" y="789" text-anchor="middle" class="label">跨核归约树：只服务 O 与 Down</text>
+  <text x="825" y="819" class="small">O：各核计算 X[:, K_i] × W_o[K_i, :]，8 路 INT32 求和</text>
+  <text x="825" y="848" class="small">Down：各核计算 H[:, K_i] × W_d[K_i, :]，8 路 INT32 求和</text>
+  <text x="825" y="875" class="small">Q、Gate、Up 沿 N 分片，直接写不同地址，不进入归约树</text>
+  <path d="M1087 728 L1087 750" class="reduce"/>
+
+  <rect x="55" y="922" width="1480" height="85" rx="5" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="78" y="950" class="label">DSP 预算（保守按 1 MAC / DSP）</text>
+  <text x="78" y="979" class="small">私有核 8×(8×64)=4096 DSP　+　共享 K/V 8×64=512 DSP　=　4608 DSP；U50 共 5952，余 1344（22.6%）用于归约、向量和时序收敛。</text>
+</svg>

@@ -1,0 +1,573 @@
+{
+  "model": {
+    "suffix_tokens": 51,
+    "prefix_tokens": 816,
+    "total_kv_tokens": 867,
+    "hidden": 1024,
+    "query_heads": 8,
+    "head_dim": 256,
+    "ffn": 4096,
+    "layers": 18,
+    "denoise_steps": 10
+  },
+  "hardware": {
+    "frequency_mhz": 250,
+    "cores": 8,
+    "array_m": 8,
+    "array_n": 64,
+    "k_tile": 256,
+    "stream_bits": 256,
+    "base5_dsp_available": 4920,
+    "base5_uram_available": 544,
+    "chip_bram36_nominal": 1344
+  },
+  "result": {
+    "scope": {
+      "included": "18-layer pi0 Action Expert Transformer body with cached Prefix K/V",
+      "excluded_from_401990_cycles": [
+        "PaliGemma VLM prefix generation",
+        "state_proj 32->1024",
+        "action_in_proj 32->1024",
+        "action_time_mlp 2048->1024->1024",
+        "action_out_proj 1024->32",
+        "host/PCIe and robot I/O"
+      ],
+      "note": "PC14 reserves storage for the small pre/post projections, but their cycles require a separate schedule."
+    },
+    "hbm": {
+      "mapping": [
+        {
+          "pc": "PC0",
+          "mc": "MC0",
+          "owner": "Core0",
+          "content": "Q/O/Gate/Up/Down 私有 INT8 权重+scale",
+          "size_mib": 36.1142578125
+        },
+        {
+          "pc": "PC2",
+          "mc": "MC1",
+          "owner": "Core1",
+          "content": "Q/O/Gate/Up/Down 私有 INT8 权重+scale",
+          "size_mib": 36.1142578125
+        },
+        {
+          "pc": "PC4",
+          "mc": "MC2",
+          "owner": "Core2",
+          "content": "Q/O/Gate/Up/Down 私有 INT8 权重+scale",
+          "size_mib": 36.1142578125
+        },
+        {
+          "pc": "PC6",
+          "mc": "MC3",
+          "owner": "Core3",
+          "content": "Q/O/Gate/Up/Down 私有 INT8 权重+scale",
+          "size_mib": 36.1142578125
+        },
+        {
+          "pc": "PC8",
+          "mc": "MC4",
+          "owner": "K/V DMA",
+          "content": "18 层 K/V INT8 权重+scale",
+          "size_mib": 9.017578125
+        },
+        {
+          "pc": "PC12",
+          "mc": "MC6",
+          "owner": "Input DMA",
+          "content": "初始 state/action 激活与运行时输入",
+          "size_mib": null
+        },
+        {
+          "pc": "PC14",
+          "mc": "MC7",
+          "owner": "Shared Weight DMA",
+          "content": "RMSNorm gamma、state/action/time/out 小型投影权重",
+          "size_mib": null
+        },
+        {
+          "pc": "PC16",
+          "mc": "MC8",
+          "owner": "Core4",
+          "content": "Q/O/Gate/Up/Down 私有 INT8 权重+scale",
+          "size_mib": 36.1142578125
+        },
+        {
+          "pc": "PC18",
+          "mc": "MC9",
+          "owner": "Core5",
+          "content": "Q/O/Gate/Up/Down 私有 INT8 权重+scale",
+          "size_mib": 36.1142578125
+        },
+        {
+          "pc": "PC20",
+          "mc": "MC10",
+          "owner": "Core6",
+          "content": "Q/O/Gate/Up/Down 私有 INT8 权重+scale",
+          "size_mib": 36.1142578125
+        },
+        {
+          "pc": "PC22",
+          "mc": "MC11",
+          "owner": "Core7",
+          "content": "Q/O/Gate/Up/Down 私有 INT8 权重+scale",
+          "size_mib": 36.1142578125
+        },
+        {
+          "pc": "PC24",
+          "mc": "MC12",
+          "owner": "Prefix DMA",
+          "content": "18 层 Prefix K/V HBM backing",
+          "size_mib": 7.171875
+        },
+        {
+          "pc": "PC28",
+          "mc": "MC14",
+          "owner": "Output DMA",
+          "content": "最终动作、性能计数器和 debug trace",
+          "size_mib": null
+        }
+      ],
+      "stream_width_bits": 256,
+      "bytes_per_cycle": 32,
+      "design_bandwidth_gbps_per_port": 8.0,
+      "private_weight_per_layer_per_core_bytes": 2103808,
+      "private_weight_all_layers_per_core_bytes": 37868544,
+      "kv_weight_per_layer_bytes": 525312,
+      "kv_prefetch_cycles": 16416,
+      "kv_prefetch_hidden_in_q": true,
+      "kv_prefetch_margin_cycles": 20096
+    },
+    "cores": {
+      "count": 8,
+      "per_core_mapping": {
+        "q": "one complete 256-d query head",
+        "k": "one 32-d output slice; all 8 cores run together",
+        "v": "one 32-d output slice; all 8 cores run together after K",
+        "o": "one 256-d K slice -> complete 1024-d INT32 partial",
+        "gate_up": "one 512-d N slice",
+        "down": "one 512-d K slice -> complete 1024-d INT32 partial"
+      },
+      "dsp": {
+        "int8_mac_array": 512,
+        "online_softmax_nominal": 14,
+        "local_vector_unit": 8,
+        "nominal_total": 534
+      },
+      "bram36_engineering_budget": 96,
+      "logical_buffer_bytes": 293120,
+      "buffers": [
+        {
+          "name": "Private Weight Ping/Pong",
+          "bytes": 32768,
+          "bram36": 16,
+          "medium": "BRAM"
+        },
+        {
+          "name": "K/V Layer Weight Buffer",
+          "bytes": 65536,
+          "bram36": 16,
+          "medium": "BRAM"
+        },
+        {
+          "name": "Activation Tile",
+          "bytes": 2048,
+          "bram36": 1,
+          "medium": "BRAM"
+        },
+        {
+          "name": "INT32 Psum Slice",
+          "bytes": 13056,
+          "bram36": 4,
+          "medium": "BRAM"
+        },
+        {
+          "name": "Q Buffer",
+          "bytes": 26112,
+          "bram36": 8,
+          "medium": "BRAM"
+        },
+        {
+          "name": "Gate Buffer",
+          "bytes": 52224,
+          "bram36": 16,
+          "medium": "BRAM"
+        },
+        {
+          "name": "GeGLU Buffer",
+          "bytes": 52224,
+          "bram36": 16,
+          "medium": "BRAM"
+        },
+        {
+          "name": "Score A/B",
+          "bytes": 16384,
+          "bram36": 6,
+          "medium": "BRAM"
+        },
+        {
+          "name": "P A/B",
+          "bytes": 8192,
+          "bram36": 3,
+          "medium": "BRAM"
+        },
+        {
+          "name": "Dual Query Context",
+          "bytes": 16384,
+          "bram36": 6,
+          "medium": "BRAM"
+        },
+        {
+          "name": "PV Output FIFO",
+          "bytes": 8192,
+          "bram36": 3,
+          "medium": "BRAM"
+        },
+        {
+          "name": "Local control/skid reserve",
+          "bytes": 0,
+          "bram36": 1,
+          "medium": "BRAM/LUTRAM"
+        }
+      ],
+      "local_kv_uram_per_core": 16
+    },
+    "shared": {
+      "dsp": {
+        "shared_reciprocal": 8,
+        "rmsnorm_sfu_planned": 48,
+        "post_sum_dequant": 16,
+        "quant_conversion": 16,
+        "online_ip_engineering_margin": 24,
+        "total": 112
+      },
+      "bram36_engineering_budget": 96,
+      "buffers": [
+        {
+          "name": "Shared BF16 Activation A/B",
+          "bytes": 208896,
+          "bram36": 48,
+          "medium": "BRAM",
+          "reason": "两个完整 bank；一边保留 residual，一边接收 O/Down 结果"
+        },
+        {
+          "name": "Shared INT8 Normalized Activation",
+          "bytes": 52224,
+          "bram36": 16,
+          "medium": "BRAM",
+          "reason": "RMSNorm 后量化一次，Q/K/V 或 Gate/Up 分阶段重复读取"
+        },
+        {
+          "name": "Suffix K/V Buffer",
+          "bytes": 26112,
+          "bram36": 8,
+          "medium": "BRAM",
+          "reason": "暂存 51-token K/V，再与 Prefix 按 token 顺序拼接"
+        },
+        {
+          "name": "RoPE ROM + Scale SRAM",
+          "bytes": 26112,
+          "bram36": 8,
+          "medium": "BRAM/ROM",
+          "reason": "51 个位置的 BF16 sin/cos，加少量动态 scale 元数据"
+        },
+        {
+          "name": "DMA/CDC/Reduction FIFO Reserve",
+          "bytes": 0,
+          "bram36": 16,
+          "medium": "BRAM/LUTRAM",
+          "reason": "AXI 异步 FIFO、multicast skid、SUM/MAX 对齐和 debug FIFO"
+        }
+      ],
+      "sum_tree": {
+        "inputs": 8,
+        "lanes": 8,
+        "int32_adders": 56,
+        "pipeline_depth": 3,
+        "dsp": 0,
+        "payload_cycles": 6528,
+        "tail_cycles": 3
+      },
+      "max_tree": {
+        "inputs": 8,
+        "comparators_per_scalar_lane": 7,
+        "pipeline_depth": 3,
+        "dsp": 0,
+        "uses": [
+          "K scale",
+          "O input common scale",
+          "Down input common scale"
+        ]
+      }
+    },
+    "dsp": {
+      "per_core": {
+        "int8_mac_array": 512,
+        "online_softmax_nominal": 14,
+        "local_vector_unit": 8,
+        "nominal_total": 534
+      },
+      "all_core_local": 4272,
+      "shared": {
+        "shared_reciprocal": 8,
+        "rmsnorm_sfu_planned": 48,
+        "post_sum_dequant": 16,
+        "quant_conversion": 16,
+        "online_ip_engineering_margin": 24,
+        "total": 112
+      },
+      "planned_total": 4384,
+      "available": 4920,
+      "margin": 536
+    },
+    "bram36": {
+      "per_core": 96,
+      "all_cores": 768,
+      "shared": 96,
+      "planned_total": 864,
+      "chip_nominal": 1344,
+      "chip_nominal_margin": 480,
+      "warning": "base_5 dynamic-region BRAM availability must be confirmed in Vitis Link Summary"
+    },
+    "uram": {
+      "prefix_k": 116,
+      "prefix_v": 116,
+      "prefix_total": 232,
+      "local_kv_per_core": 16,
+      "local_kv_all_cores": 128,
+      "planned_total": 360,
+      "available": 544,
+      "margin": 184
+    },
+    "links": [
+      {
+        "name": "Private weight AXI",
+        "count": 8,
+        "width_bits": 256,
+        "format": "INT8 + BF16 scale",
+        "source": "PC0/2/4/6/16/18/20/22",
+        "sink": "8 Private Weight DMA/CDC"
+      },
+      {
+        "name": "K/V weight AXI",
+        "count": 1,
+        "width_bits": 256,
+        "format": "INT8 + BF16 scale",
+        "source": "PC8",
+        "sink": "K/V DMA -> 8-way Demux"
+      },
+      {
+        "name": "Shared activation backbone",
+        "count": 1,
+        "width_bits": 256,
+        "format": "BF16 or INT8 by phase",
+        "source": "Shared buffers/RMSNorm",
+        "sink": "2x4 Activation Multicast"
+      },
+      {
+        "name": "MAC A-side",
+        "count": 8,
+        "width_bits": 64,
+        "format": "8xINT8/cycle; PV uses 8xU16=128-bit",
+        "source": "Activation/P Buffer",
+        "sink": "8x64 MAC"
+      },
+      {
+        "name": "MAC B-side private",
+        "count": 8,
+        "width_bits": 512,
+        "format": "64xINT8/cycle",
+        "source": "Private Weight PP",
+        "sink": "MAC B"
+      },
+      {
+        "name": "MAC B-side K/V",
+        "count": 8,
+        "width_bits": 256,
+        "format": "32xINT8/cycle",
+        "source": "K/V Layer Weight Buffer",
+        "sink": "MAC B lower 32 columns"
+      },
+      {
+        "name": "Local K/V cache read",
+        "count": 16,
+        "width_bits": 512,
+        "format": "64xINT8/cycle",
+        "source": "K or V URAM bank",
+        "sink": "QK/PV MAC B"
+      },
+      {
+        "name": "K/V slice collect",
+        "count": 8,
+        "width_bits": 256,
+        "format": "32xINT8",
+        "source": "Core K/V routers",
+        "sink": "K/V Assemble"
+      },
+      {
+        "name": "K/V multicast",
+        "count": 1,
+        "width_bits": 256,
+        "format": "INT8 + scale",
+        "source": "Prefix/Suffix Streamer",
+        "sink": "2x4 tree -> 8 Local K/V caches"
+      },
+      {
+        "name": "SUM inputs",
+        "count": 8,
+        "width_bits": 256,
+        "format": "8xINT32",
+        "source": "Core O/Down partials",
+        "sink": "3-stage SUM Tree"
+      },
+      {
+        "name": "SUM output",
+        "count": 1,
+        "width_bits": 256,
+        "format": "8xINT32",
+        "source": "SUM Tree",
+        "sink": "Post-SUM Dequant/Residual"
+      },
+      {
+        "name": "MAX inputs",
+        "count": 8,
+        "width_bits": 16,
+        "format": "BF16 scalar",
+        "source": "Core local max",
+        "sink": "3-stage MAX Tree"
+      },
+      {
+        "name": "Control/event network",
+        "count": 1,
+        "width_bits": 32,
+        "format": "descriptor/event/barrier",
+        "source": "Scheduler",
+        "sink": "DMA, cores, buffers, reductions"
+      }
+    ],
+    "cycles": {
+      "rmsnorm_one": 6592,
+      "q": 36512,
+      "k": 9128,
+      "v": 9128,
+      "kv_multicast": 13872,
+      "qk": 31948,
+      "pv": 32116,
+      "attention_matrix": 64064,
+      "attention_final_tail": 512,
+      "online_attention": 64576,
+      "o": 36512,
+      "gate": 73024,
+      "up": 73024,
+      "down": 73024,
+      "sum_payload": 6528,
+      "sum_tail_each": 3,
+      "layer": 401990,
+      "layer_ms": 1.60796,
+      "eighteen_layers": 7235820,
+      "eighteen_layers_ms": 28.94328,
+      "ten_denoise_steps": 72358200,
+      "ten_denoise_steps_ms": 289.4328
+    },
+    "timeline": [
+      {
+        "id": "rmsnorm1",
+        "label": "RMSNorm 1 + Quant",
+        "resource": "Shared RMSNorm/Quant",
+        "start": 0,
+        "end": 6592,
+        "parallel": "输入/残差保留在 Shared BF16 Bank A；末段写 Shared INT8 Buffer"
+      },
+      {
+        "id": "q",
+        "label": "Q Projection",
+        "resource": "8 Core MAC Arrays",
+        "start": 6592,
+        "end": 43104,
+        "parallel": "PC8 预取本层 K/V；Private DMA 做权重 ping-pong；Local Vector 做 RoPE"
+      },
+      {
+        "id": "k",
+        "label": "K Projection",
+        "resource": "8 Core MAC Arrays",
+        "start": 43104,
+        "end": 52232,
+        "parallel": "8 核各算 32-d；Local Vector 做 RoPE/local max；MAX Tree 产生公共 K scale"
+      },
+      {
+        "id": "v",
+        "label": "V Projection",
+        "resource": "8 Core MAC Arrays",
+        "start": 52232,
+        "end": 61360,
+        "parallel": "8 核各算 32-d；K/V Assemble 按通道拼接，不求和"
+      },
+      {
+        "id": "kv_multicast",
+        "label": "Prefix/Suffix K/V Multicast",
+        "resource": "Central KV Fabric",
+        "start": 61360,
+        "end": 75232,
+        "parallel": "Prefix URAM 与 Suffix Buffer 顺序出流；2x4 广播写 8 个 Local K/V URAM"
+      },
+      {
+        "id": "attention",
+        "label": "QK + Online Softmax + PV",
+        "resource": "Core MAC + Online Vector",
+        "start": 75232,
+        "end": 139808,
+        "parallel": "QK/PV 在同一 MAC 上串行；Softmax/FMA block-wise 重叠；最后 512-cycle 归一化尾巴"
+      },
+      {
+        "id": "o",
+        "label": "O Projection + SUM",
+        "resource": "8 Core MAC + SUM Tree",
+        "start": 139808,
+        "end": 176323,
+        "parallel": "SUM/Dequant/Residual 跟随输出流；只保留 3-cycle tree tail"
+      },
+      {
+        "id": "rmsnorm2",
+        "label": "RMSNorm 2 + Quant",
+        "resource": "Shared RMSNorm/Quant",
+        "start": 176323,
+        "end": 182915,
+        "parallel": "Bank B 保留 FFN residual；归一化结果写 Shared INT8 Buffer"
+      },
+      {
+        "id": "gate",
+        "label": "Gate Projection",
+        "resource": "8 Core MAC Arrays",
+        "start": 182915,
+        "end": 255939,
+        "parallel": "Private DMA ping-pong；输出写每核 Gate Buffer"
+      },
+      {
+        "id": "up",
+        "label": "Up Projection + GeGLU",
+        "resource": "8 Core MAC + Local Vector",
+        "start": 255939,
+        "end": 328963,
+        "parallel": "Up 流出时读取 Gate Buffer，GeGLU 流式写 GeGLU Buffer"
+      },
+      {
+        "id": "down",
+        "label": "Down Projection + SUM",
+        "resource": "8 Core MAC + SUM Tree",
+        "start": 328963,
+        "end": 401990,
+        "parallel": "公共 scale 后做 INT32 partial；SUM/Dequant/Residual 流式重叠，3-cycle tail"
+      }
+    ],
+    "provenance": {
+      "status": "analytic estimate",
+      "clock": "250 MHz target",
+      "not_measured": [
+        "HLS/RTL synthesis",
+        "timing closure",
+        "Vitis link",
+        "board test"
+      ]
+    }
+  }
+}

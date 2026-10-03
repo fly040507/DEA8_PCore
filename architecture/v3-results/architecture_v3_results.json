@@ -1,0 +1,228 @@
+{
+  "model": {
+    "tokens": 51,
+    "hidden": 1024,
+    "ffn": 4096,
+    "query_heads": 8,
+    "kv_heads": 1,
+    "head_dim": 256,
+    "prefix_tokens": 816,
+    "full_kv_tokens": 867,
+    "layers": 18,
+    "denoise_steps": 10
+  },
+  "hardware": {
+    "frequency_mhz": 250.0,
+    "cores": 8,
+    "array_m": 8,
+    "array_n": 64,
+    "k_tile": 256,
+    "stream_width_bits": 256,
+    "reduction_lane_bits": 32,
+    "chip_dsp_total": 5952,
+    "base5_dsp_available": 4920,
+    "chip_uram_blocks": 640,
+    "base5_uram_available": 544,
+    "uram_block_bits": 294912,
+    "uram_native_width_bits": 72,
+    "uram_native_depth": 4096,
+    "softmax_query_lanes_per_core": 8,
+    "vector_bf16_lanes": 16
+  },
+  "result": {
+    "architecture": {
+      "cores": 8,
+      "array_per_core": "8x64",
+      "k_tile": 256,
+      "q_output_channels_per_core": 256,
+      "kv_output_channels_per_core": 32,
+      "ffn_channels_per_core": 512,
+      "dedicated_kv_array": false
+    },
+    "dsp": {
+      "main_array_dsps": 4096,
+      "chip_total": 5952,
+      "chip_margin": 1856,
+      "chip_margin_percent": 31.182795698924732,
+      "base5_available": 4920,
+      "base5_margin": 824,
+      "base5_margin_percent": 16.747967479674795,
+      "v2_main_array_dsps": 4608,
+      "v3_saved_dsps": 512
+    },
+    "cycles": {
+      "q": 36512,
+      "distributed_k_one": 9128,
+      "distributed_v_one": 9128,
+      "distributed_k_one_active_n": 8232,
+      "distributed_v_one_active_n": 8232,
+      "q_then_kv": 54768,
+      "q_then_kv_active_n": 52976,
+      "v2_parallel_q_shared_kv_phase": 73024,
+      "phase_saved_vs_v2": 18256,
+      "kv_broadcast": 13872,
+      "qk": 31948,
+      "softmax_three_pass": 18207,
+      "sv": 32116,
+      "o": 36512,
+      "gate": 73024,
+      "up": 73024,
+      "down": 73024,
+      "one_pipelined_sum_reduction": 6531,
+      "two_pipelined_sum_reductions": 13062,
+      "max_scale_control": 315,
+      "two_rmsnorm": 13056,
+      "rope": 918,
+      "geglu": 1632,
+      "two_residual": 6528,
+      "array_interconnect_lower_bound": 401350,
+      "explicit_vector_first_order": 40656,
+      "first_order_layer": 442006
+    },
+    "latency_ms": {
+      "q": 0.146048,
+      "distributed_kv": 0.073024,
+      "distributed_kv_active_n": 0.065856,
+      "q_then_kv": 0.219072,
+      "q_then_kv_active_n": 0.211904,
+      "phase_saved_vs_v2": 0.073024,
+      "kv_broadcast": 0.055488,
+      "qk": 0.127792,
+      "softmax_three_pass": 0.072828,
+      "sv": 0.128464,
+      "o": 0.146048,
+      "gate": 0.292096,
+      "up": 0.292096,
+      "down": 0.292096,
+      "two_pipelined_sum_reductions": 0.052248,
+      "array_interconnect_lower_bound": 1.6054,
+      "explicit_vector_first_order": 0.162624,
+      "first_order_layer": 1.768024,
+      "first_order_18_layer_step": 31.824432,
+      "first_order_10_step": 318.24432
+    },
+    "hbm": {
+      "stream_width_bits": 256,
+      "bytes_per_cycle": 32,
+      "design_side_gbps_at_250mhz": 8.0,
+      "allocation": [
+        {
+          "pc": "PC0",
+          "content": "Core 0 private weights",
+          "mc": "MC0"
+        },
+        {
+          "pc": "PC2",
+          "content": "Core 1 private weights",
+          "mc": "MC1"
+        },
+        {
+          "pc": "PC4",
+          "content": "Core 2 private weights",
+          "mc": "MC2"
+        },
+        {
+          "pc": "PC6",
+          "content": "Core 3 private weights",
+          "mc": "MC3"
+        },
+        {
+          "pc": "PC8",
+          "content": "Shared K/V weights",
+          "mc": "MC4"
+        },
+        {
+          "pc": "PC12",
+          "content": "Input / initial activations",
+          "mc": "MC6"
+        },
+        {
+          "pc": "PC16",
+          "content": "Core 4 private weights",
+          "mc": "MC8"
+        },
+        {
+          "pc": "PC18",
+          "content": "Core 5 private weights",
+          "mc": "MC9"
+        },
+        {
+          "pc": "PC20",
+          "content": "Core 6 private weights",
+          "mc": "MC10"
+        },
+        {
+          "pc": "PC22",
+          "content": "Core 7 private weights",
+          "mc": "MC11"
+        },
+        {
+          "pc": "PC24",
+          "content": "Prefix KV HBM backing",
+          "mc": "MC12"
+        },
+        {
+          "pc": "PC28",
+          "content": "Final output / debug",
+          "mc": "MC14"
+        }
+      ],
+      "private_weight_bytes_per_core_layer": 2097152,
+      "private_weight_load_ms_per_core_layer": 0.26214400000000004,
+      "kv_weight_bytes_per_layer": 524288,
+      "kv_weight_scale_bytes_per_layer": 1024,
+      "kv_weight_load_ms_per_layer": 0.06553600000000001,
+      "kv_layer_prefetch_bytes": 525312,
+      "kv_layer_prefetch_cycles": 16416,
+      "kv_layer_prefetch_margin_cycles": 20096,
+      "kv_layer_prefetch_occupancy_percent": 44.96056091148116,
+      "kv_layer_prefetch_hidden_in_q": true,
+      "private_weight_tile_bytes": 16384,
+      "kv_global_weight_tile_bytes": 65536,
+      "kv_slice_weight_tile_bytes_per_core": 8192,
+      "private_tile_load_cycles": 512,
+      "kv_global_tile_load_cycles": 2048,
+      "tile_compute_reuse_cycles": 2282,
+      "kv_active_n_tile_compute_cycles": 2058,
+      "kv_tile_required_efficiency_percent": 99.51409135082605,
+      "kv_tile_margin_cycles_active_n": 10,
+      "private_tile_hidden": true,
+      "kv_tile_robust": false,
+      "kv_tile_risk_note": "A 64 KiB tile has only 10 ideal cycles of margin when the 32 active columns drain in 294 cycles. The frozen design therefore prefetches the full K/V layer during Q."
+    },
+    "buffers": {
+      "shared_activation_bytes": 104448,
+      "private_weight_ping_pong_bytes_per_core": 32768,
+      "kv_layer_weight_buffer_bytes_per_core": 65536,
+      "activation_tile_bytes_per_core": 2048,
+      "int32_psum_slice_bytes_per_core": 13056,
+      "q_buffer_bytes_per_core": 26112,
+      "gate_buffer_bytes_per_core": 52224,
+      "geglu_buffer_bytes_per_core": 52224,
+      "score_tile_bytes_per_core": 27744,
+      "probability_tile_bytes_per_core": 13872,
+      "bram_like_bytes_per_core": 285584,
+      "bram_like_bytes_all_cores": 2284672,
+      "prefix_kv_bytes_all_layers": 7520256,
+      "local_kv_bytes_per_core": 443904,
+      "local_kv_bytes_all_cores": 3551232,
+      "prefix_plus_local_kv_bytes": 11071488
+    },
+    "uram": {
+      "prefix_kv_blocks_256bit": 232,
+      "local_kv_blocks_512bit_all_cores": 128,
+      "planned_blocks": 360,
+      "base5_available_blocks": 544,
+      "base5_margin_blocks": 184,
+      "note": "Banking estimate uses URAM288 72-bit x 4096 primitives; synthesis may add padding and FIFO blocks."
+    }
+  },
+  "provenance": {
+    "model_dimensions": "Mentor report and OpenPI code",
+    "chip_resources": "Mentor report / AMD U50 documentation",
+    "base5_resources": "AMD Vitis U50 base_5 platform documentation",
+    "cycle_model": "Analytic output-stationary and streaming model",
+    "frequency": "250 MHz target; pending timing closure",
+    "dsp_packing": "One signed INT8 MAC per DSP conservative baseline"
+  }
+}

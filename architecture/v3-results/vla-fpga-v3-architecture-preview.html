@@ -1,0 +1,1390 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; style-src 'unsafe-inline' blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; img-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; font-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; media-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; worker-src blob:; connect-src blob: data:; frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Vla Fpga V3 Architecture</title>
+<style>:root{color-scheme:light dark;background:light-dark(rgb(255 255 255), rgb(24 24 24))}html,body{margin:0}body{box-sizing:border-box;padding:1rem;background:inherit}iframe{display:block;width:100%;max-width:736px;height:calc(100vh - 2rem);margin:0 auto;border:0}</style>
+</head>
+<body>
+<iframe sandbox="allow-scripts" referrerpolicy="no-referrer" title="Vla Fpga V3 Architecture" srcdoc="&lt;!doctype html&gt;
+&lt;html lang=&quot;en&quot;&gt;
+&lt;head&gt;
+&lt;meta charset=&quot;utf-8&quot;&gt;
+&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;
+&lt;meta name=&quot;referrer&quot; content=&quot;no-referrer&quot;&gt;
+&lt;meta http-equiv=&quot;Content-Security-Policy&quot; content=&quot;default-src &#x27;none&#x27;; script-src &#x27;unsafe-inline&#x27; &#x27;unsafe-eval&#x27; &#x27;wasm-unsafe-eval&#x27; blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; style-src &#x27;unsafe-inline&#x27; blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; img-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; font-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; media-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; worker-src blob:; connect-src blob: data:; frame-src &#x27;none&#x27;; object-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;&quot;&gt;
+&lt;title&gt;Vla Fpga V3 Architecture&lt;/title&gt;
+&lt;style&gt;:root {
+  color-scheme: light dark;
+  background-color: var(--background) !important;
+
+  /* Agent-facing contract; keep in sync with SKILL.md. */
+  --background: light-dark(rgb(255 255 255), rgb(24 24 24));
+  --foreground: light-dark(rgb(26 28 31), rgb(255 255 255));
+  --card: color-mix(in oklab, var(--foreground) 5%, transparent);
+  --card-foreground: var(--foreground);
+  --popover: light-dark(rgb(255 255 255), rgb(45 45 45));
+  --popover-foreground: var(--foreground);
+  --primary: light-dark(rgb(51 156 255), rgb(131 195 255));
+  --primary-foreground: light-dark(rgb(255 255 255), rgb(13 13 13));
+  --secondary: light-dark(rgb(255 255 255 / 96%), rgb(54 54 54 / 96%));
+  --secondary-foreground: var(--foreground);
+  --muted: color-mix(in srgb, var(--foreground) 10%, transparent);
+  --muted-foreground: light-dark(
+    rgb(26 28 31 / 49.4%),
+    rgb(255 255 255 / 49.8%)
+  );
+  --accent: light-dark(rgb(229 242 255), rgb(13 39 63));
+  --accent-foreground: var(--primary);
+  --destructive: light-dark(rgb(226 85 7), rgb(255 133 73));
+  --border: light-dark(rgb(26 28 31 / 8%), rgb(255 255 255 / 8.2%));
+  --input: light-dark(
+    rgb(26 28 31 / 11.8%),
+    color-mix(in oklab, rgb(0 0 0) 10%, transparent)
+  );
+  --ring: light-dark(rgb(51 156 255), rgb(131 195 255 / 76%));
+  --font-size-base: 14px;
+  --viz-series-1: var(--primary);
+  --viz-series-2: light-dark(rgb(243 136 59), rgb(245 154 86));
+  --viz-series-3: light-dark(rgb(93 201 119), rgb(116 213 139));
+  --viz-series-4: light-dark(rgb(235 119 177), rgb(240 143 192));
+  --viz-series-5: light-dark(rgb(155 121 236), rgb(170 145 239));
+  --viz-series-6: light-dark(rgb(58 185 177), rgb(90 203 194));
+
+  /* Internal implementation variables; not part of the agent contract. */
+  --font-sans: -apple-system, system-ui, &quot;Segoe UI&quot;, sans-serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, &quot;Liberation Mono&quot;,
+    monospace;
+  --font-size-normal: max(11px, var(--font-size-base));
+  --font-size-tooltip: calc(var(--font-size-base) - 1px);
+  --font-size-small: max(11px, calc(var(--font-size-base) - 2px));
+  --font-size-h1: calc(var(--font-size-normal) * 1.7142857143);
+  --font-size-h2: calc(var(--font-size-normal) * 1.4285714286);
+  --font-size-h3: calc(var(--font-size-normal) * 1.2857142857);
+  --font-weight-normal: 430;
+  --font-weight-medium: 500;
+  --line-height-normal: calc(var(--font-size-normal) * 1.5);
+  --line-height-tooltip: calc(var(--font-size-tooltip) * 1.4285714286);
+  --line-height-small: calc(var(--font-size-small) + 4px);
+  --radius: 12.5px;
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-2xl: calc(var(--radius) * 1.6);
+  --radius-full: 9999px;
+  --shadow-sm: 0 1px 2px -1px rgb(0 0 0 / 8%);
+  --checkmark-image: url(&quot;data:image/svg+xml,%3Csvg xmlns=&#x27;http://www.w3.org/2000/svg&#x27; viewBox=&#x27;0 0 17 17&#x27;%3E%3Cpath d=&#x27;M12.8961 3.64101C13.1297 3.41418 13.4984 3.37523 13.7779 3.56581C14.0571 3.75635 14.1554 4.11331 14.0299 4.41347L13.9615 4.53847L7.71151 13.7045C7.59411 13.8767 7.4063 13.9877 7.19881 14.0072C6.99136 14.0267 6.78564 13.9533 6.63826 13.806L2.88826 10.056L2.79842 9.9457C2.6192 9.67407 2.64927 9.30496 2.88826 9.06581C3.12738 8.82669 3.49647 8.79676 3.76815 8.97597L3.8785 9.06581L7.03084 12.2182L12.8053 3.74941L12.8961 3.64101Z&#x27;/%3E%3C/svg%3E&quot;);
+
+  /* Legacy aliases; not part of the current agent contract. */
+  --viz-bg: transparent;
+  --viz-panel: var(--card);
+  --viz-border: var(--border);
+  --viz-text: var(--foreground);
+  --viz-muted: var(--muted-foreground);
+  --viz-accent: var(--primary);
+  --viz-accent-text: var(--primary-foreground);
+  --viz-accent-bg: var(--accent);
+  --viz-font-size: var(--font-size-base);
+  --viz-warning: var(--destructive);
+  --color-background-primary: var(--background);
+  --color-text-primary: var(--foreground);
+  --color-border-secondary: var(--border);
+}
+
+:root[data-theme=&quot;light&quot;] {
+  color-scheme: light;
+}
+
+:root[data-theme=&quot;dark&quot;] {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html &gt; body {
+  margin: 0;
+  padding: 5px;
+  color: var(--foreground);
+  background: transparent !important;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-normal);
+  font-weight: var(--font-weight-normal);
+  line-height: var(--line-height-normal);
+}
+
+a {
+  color: color-mix(in srgb, var(--viz-accent) 80%, var(--viz-text) 20%);
+  cursor: pointer;
+  font-weight: var(--viz-font-weight-medium);
+  text-decoration: none;
+  text-underline-offset: 2px;
+}
+
+a:is(:hover, :focus-visible) {
+  text-decoration-line: underline;
+  text-decoration-style: dashed;
+  text-decoration-thickness: 0.5px;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p {
+  margin-block: 0;
+}
+
+h1 {
+  font-size: var(--font-size-h1);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+h2 {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+h3,
+h4,
+h5,
+h6 {
+  font-size: var(--font-size-h3);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.3;
+}
+
+b,
+strong,
+th {
+  font-weight: var(--font-weight-medium);
+}
+
+code:not(pre code) {
+  display: inline;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  corner-shape: superellipse(1.5);
+  background: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  overflow-wrap: anywhere;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  word-break: break-word;
+}
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--foreground);
+  font: inherit;
+  text-align: start;
+}
+
+.table :is(th, td) {
+  padding-block: 10px;
+  padding-inline: 0 24px;
+  overflow-wrap: anywhere;
+  border-bottom: 1px solid var(--border);
+  text-align: start;
+  vertical-align: top;
+}
+
+.table-responsive &gt; .table :is(th, td) {
+  overflow-wrap: break-word;
+}
+
+.table :is(th, td):last-child {
+  padding-inline-end: 0;
+}
+
+.table :is(caption, thead th) {
+  font-weight: 600;
+}
+
+.table thead th {
+  padding-block: 8px;
+  border-bottom-color: color-mix(in srgb, var(--foreground) 16%, transparent);
+}
+
+.table tbody tr:last-child :is(th, td) {
+  border-bottom: 0;
+}
+
+.table.table-sm :is(th, td) {
+  padding-block: 6px;
+}
+
+.table.table-sm :is(th, td):not(:last-child) {
+  padding-inline-end: 16px;
+}
+
+.table :is(.text-end, [align=&quot;right&quot;]) {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.table :is(.text-center, [align=&quot;center&quot;]) {
+  text-align: center;
+}
+
+.table .text-nowrap {
+  white-space: nowrap;
+}
+
+#widget {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  padding: 0;
+  background: transparent !important;
+}
+
+.card {
+  min-width: 0;
+  padding: 12px;
+  overflow: hidden;
+  overflow-wrap: break-word;
+  border-radius: var(--radius-2xl);
+  corner-shape: superellipse(1.5);
+  color: var(--card-foreground);
+  background: var(--card);
+}
+
+#widget &gt; :not(.card) {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.tooltip {
+  position: fixed;
+  z-index: 50;
+  top: 0;
+  left: 0;
+  width: max-content;
+  max-width: min(
+    20rem,
+    var(--tooltip-available-width, calc(100vw - 10px)),
+    calc(100vw - 10px)
+  );
+  max-height: min(
+    var(--tooltip-available-height, calc(100vh - 10px)),
+    calc(100vh - 10px)
+  );
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  corner-shape: superellipse(1.5);
+  color: var(--popover-foreground);
+  background: var(--popover);
+  box-shadow: none;
+  font-size: var(--font-size-tooltip);
+  line-height: var(--line-height-tooltip);
+  overflow-wrap: break-word;
+  white-space: normal;
+  pointer-events: none;
+  user-select: none;
+}
+
+.viz-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(max(180px, 24%), 1fr));
+  gap: 10px;
+}
+
+.viz-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.viz-stat-value {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+.viz-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.viz-badge {
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  color: var(--accent-foreground);
+  background: var(--accent);
+  font-weight: var(--font-weight-medium);
+}
+
+small,
+.text-small,
+.viz-badge {
+  font-size: var(--font-size-small);
+  line-height: var(--line-height-small);
+}
+
+.text-muted {
+  color: var(--muted-foreground);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.viz-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.viz-controls &gt; .form-label {
+  display: grid;
+  min-width: min(100%, 260px);
+  flex: 1 1 280px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 2px 12px;
+  margin-bottom: 0;
+}
+
+.viz-controls &gt; .form-label &gt; :is(.form-control, .form-range, .form-select) {
+  grid-column: 1 / -1;
+}
+
+.btn,
+.form-check-input,
+.form-control,
+.form-range,
+.form-select {
+  font: inherit;
+}
+
+.btn {
+  appearance: button;
+  display: inline-flex;
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0 8px;
+  -webkit-app-region: no-drag;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: superellipse(1.5);
+  color: var(--secondary-foreground);
+  background: var(--secondary);
+  cursor: var(--cursor-interaction, pointer);
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+.btn:is(.btn-block, .viz-tile) {
+  inline-size: 100%;
+}
+
+.btn.viz-tile {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+a.btn {
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.btn:not(:disabled):hover {
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.btn-primary {
+  border-color: transparent;
+  color: var(--primary-foreground);
+  background: var(--foreground);
+  background-clip: padding-box;
+}
+
+.btn-primary .text-muted {
+  color: color-mix(in srgb, var(--primary-foreground) 50%, transparent);
+}
+
+.btn-primary:not(:disabled):hover {
+  background: color-mix(in srgb, var(--foreground) 80%, transparent);
+  background-clip: padding-box;
+}
+
+.btn-ghost {
+  border-color: transparent;
+  color: var(--muted-foreground);
+  background: transparent;
+}
+
+.btn-ghost:not(:disabled):hover {
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+[data-lucide] {
+  stroke-width: 1.6;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--foreground);
+}
+
+.form-control {
+  display: block;
+  width: 100%;
+  min-height: 28px;
+  padding: 0 8px;
+  outline: none;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: superellipse(1.5);
+  color: var(--foreground);
+  background: var(--secondary);
+}
+
+.form-control::placeholder {
+  color: var(--muted-foreground);
+}
+
+.form-control[type=&quot;file&quot;] {
+  padding: 0;
+  overflow: hidden;
+  cursor: var(--cursor-interaction, pointer);
+}
+
+.form-control[type=&quot;file&quot;]::file-selector-button {
+  min-height: 26px;
+  margin-right: 8px;
+  padding: 0 8px;
+  border: 0;
+  border-right: 1px solid var(--input);
+  color: var(--secondary-foreground);
+  background: var(--secondary);
+  cursor: inherit;
+  font: inherit;
+}
+
+.form-control[type=&quot;file&quot;]:not(:disabled):hover::file-selector-button {
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.form-control-color[type=&quot;color&quot;] {
+  width: 40px;
+  height: 28px;
+  padding: 3px;
+  cursor: var(--cursor-interaction, pointer);
+}
+
+.form-control-color[type=&quot;color&quot;]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.form-control-color[type=&quot;color&quot;]::-webkit-color-swatch {
+  border: 0;
+  border-radius: calc(var(--radius-lg) - 4px);
+  corner-shape: superellipse(1.5);
+}
+
+textarea.form-control {
+  height: auto;
+  min-height: 72px;
+  padding: 8px 10px;
+  resize: vertical;
+}
+
+.form-control:focus-visible {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-control:disabled,
+.form-select:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.form-select {
+  appearance: none;
+  display: block;
+  width: 100%;
+  min-height: 28px;
+  margin: 0;
+  padding: 0 32px 0 8px;
+  outline: none;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: superellipse(1.5);
+  color: var(--foreground);
+  background-color: var(--secondary);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted-foreground) 50%),
+    linear-gradient(135deg, var(--muted-foreground) 50%, transparent 50%);
+  background-position:
+    calc(100% - 14px) 50%,
+    calc(100% - 10px) 50%;
+  background-repeat: no-repeat;
+  background-size: 4px 4px;
+  cursor: var(--cursor-interaction, default);
+}
+
+.form-select:not(:disabled):hover {
+  background-color: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.form-select:focus-visible {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-check {
+  display: flex;
+  min-height: 20px;
+  align-items: center;
+  gap: 6px;
+}
+
+.form-check-input {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  margin: 0;
+  border: 1px solid var(--input);
+  color: var(--primary-foreground);
+  background-color: transparent;
+  cursor: var(--cursor-interaction, default);
+  transition:
+    background-color 150ms,
+    border-color 150ms,
+    box-shadow 150ms;
+}
+
+.form-check:not(.form-switch) .form-check-input[type=&quot;checkbox&quot;] {
+  border-color: var(--input);
+  border-radius: var(--radius-sm);
+  corner-shape: superellipse(1.5);
+  background-color: var(--secondary);
+  box-shadow: var(--shadow-sm);
+}
+
+.form-check:not(.form-switch)
+  .form-check-input:not(:disabled):not(:checked):hover {
+  background-color: var(--card);
+}
+
+.form-check:not(.form-switch) .form-check-input[type=&quot;checkbox&quot;]:checked {
+  border-color: var(--primary);
+  background-color: var(--primary);
+}
+
+.form-check:not(.form-switch)
+  .form-check-input[type=&quot;checkbox&quot;]:checked::before {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--primary-foreground);
+  content: &quot;&quot;;
+  mask: var(--checkmark-image) center / 12px 12px no-repeat;
+}
+
+.form-check-input[type=&quot;radio&quot;] {
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-full);
+}
+
+.form-check-input[type=&quot;radio&quot;]:checked {
+  border: 2px solid var(--primary);
+  background:
+    radial-gradient(circle, var(--primary-foreground) 0 2.5px, transparent 3px),
+    var(--primary);
+}
+
+.form-check:not(.form-switch) .form-check-input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.form-check:not(.form-switch) .form-check-input:disabled {
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.form-check:not(.form-switch) .form-check-input:disabled + .form-check-label {
+  cursor: not-allowed;
+}
+
+.form-switch .form-check-input:disabled,
+.form-switch .form-check-input:disabled + .form-check-label {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.form-check-label {
+  color: var(--foreground);
+  cursor: var(--cursor-interaction, default);
+}
+
+.form-switch .form-check-input {
+  position: relative;
+  width: 32px;
+  height: 20px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--muted);
+  box-shadow: none;
+  transition: background-color 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.form-switch .form-check-input::before {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  border: 1px solid light-dark(var(--primary-foreground), var(--foreground));
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+  box-shadow: var(--shadow-sm);
+  content: &quot;&quot;;
+  transform: translate(2px, -50%);
+  transition: transform 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.form-switch .form-check-input:checked {
+  background: var(--primary);
+}
+
+.form-switch .form-check-input:checked::before {
+  transform: translate(14px, -50%);
+}
+
+.form-switch .form-check-input:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.form-range {
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 28px;
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  outline: none;
+  border: 0;
+  accent-color: var(--primary);
+  background: linear-gradient(
+      color-mix(in srgb, var(--foreground) 7%, transparent),
+      color-mix(in srgb, var(--foreground) 7%, transparent)
+    )
+    center / 100% 2px no-repeat;
+}
+
+.form-range::-webkit-slider-runnable-track {
+  height: 28px;
+  background: transparent;
+}
+
+.form-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+}
+
+.form-range:focus-visible::-webkit-slider-thumb {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-range::-moz-range-track {
+  height: 28px;
+  background: transparent;
+}
+
+.form-range::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+}
+
+.form-range:focus-visible::-moz-range-thumb {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-range:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.btn:not(.btn-primary, .viz-tile):is(
+    [aria-pressed=&quot;true&quot;],
+    [aria-selected=&quot;true&quot;],
+    .is-selected
+  ) {
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+  background: var(--primary);
+}
+
+.btn.viz-tile:is([aria-pressed=&quot;true&quot;], [aria-selected=&quot;true&quot;], .is-selected) {
+  border-color: var(--primary);
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+#widget &gt; svg {
+  width: 100%;
+}
+
+.text-warning,
+.text-destructive {
+  color: var(--destructive);
+}
+
+html&gt;body{padding:0}&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;div id=&quot;vla-v3-architecture&quot;&gt;
+  &lt;div class=&quot;viz-controls&quot; aria-label=&quot;架构阶段&quot;&gt;
+    &lt;button type=&quot;button&quot; class=&quot;btn btn-primary&quot; data-stage=&quot;all&quot; aria-pressed=&quot;true&quot;&gt;总览&lt;/button&gt;
+    &lt;button type=&quot;button&quot; class=&quot;btn&quot; data-stage=&quot;qkv&quot; aria-pressed=&quot;false&quot;&gt;Q/K/V&lt;/button&gt;
+    &lt;button type=&quot;button&quot; class=&quot;btn&quot; data-stage=&quot;attention&quot; aria-pressed=&quot;false&quot;&gt;Attention&lt;/button&gt;
+    &lt;button type=&quot;button&quot; class=&quot;btn&quot; data-stage=&quot;ffn&quot; aria-pressed=&quot;false&quot;&gt;FFN&lt;/button&gt;
+  &lt;/div&gt;
+  &lt;svg class=&quot;vla-v3-map&quot; viewBox=&quot;0 0 1200 760&quot; role=&quot;img&quot; aria-labelledby=&quot;vla-v3-svg-title vla-v3-svg-desc&quot;&gt;
+    &lt;title id=&quot;vla-v3-svg-title&quot;&gt;π0 Action Expert FPGA V3 数据路径&lt;/title&gt;
+    &lt;desc id=&quot;vla-v3-svg-desc&quot;&gt;HBM pseudo-channel 分配、Q 阶段 K/V 整层预取、八个同构计算核、K/V 缓存、Attention、跨核 MAX/SUM 归约与层输出之间的数据流。&lt;/desc&gt;
+    &lt;defs&gt;
+      &lt;marker id=&quot;vla-blue-arrow&quot; markerWidth=&quot;9&quot; markerHeight=&quot;9&quot; refX=&quot;8&quot; refY=&quot;3&quot; orient=&quot;auto&quot;&gt;
+        &lt;path d=&quot;M0,0 L0,6 L8,3 z&quot; fill=&quot;var(--viz-series-1)&quot;/&gt;
+      &lt;/marker&gt;
+      &lt;marker id=&quot;vla-orange-arrow&quot; markerWidth=&quot;9&quot; markerHeight=&quot;9&quot; refX=&quot;8&quot; refY=&quot;3&quot; orient=&quot;auto&quot;&gt;
+        &lt;path d=&quot;M0,0 L0,6 L8,3 z&quot; fill=&quot;var(--viz-series-3)&quot;/&gt;
+      &lt;/marker&gt;
+    &lt;/defs&gt;
+
+    &lt;g class=&quot;vla-stage vla-stage-qkv vla-stage-attention vla-stage-ffn&quot;&gt;
+      &lt;rect x=&quot;18&quot; y=&quot;18&quot; width=&quot;1164&quot; height=&quot;106&quot; class=&quot;vla-storage&quot;/&gt;
+      &lt;text x=&quot;36&quot; y=&quot;42&quot; class=&quot;vla-head&quot;&gt;HBM PC / MC&lt;/text&gt;
+      &lt;rect x=&quot;36&quot; y=&quot;54&quot; width=&quot;104&quot; height=&quot;48&quot; class=&quot;vla-storage-cell&quot;/&gt;
+      &lt;text x=&quot;88&quot; y=&quot;73&quot; text-anchor=&quot;middle&quot; class=&quot;vla-label&quot;&gt;PC0/2/4/6&lt;/text&gt;
+      &lt;text x=&quot;88&quot; y=&quot;91&quot; text-anchor=&quot;middle&quot; class=&quot;vla-micro&quot;&gt;Core0-3 权重&lt;/text&gt;
+      &lt;rect x=&quot;152&quot; y=&quot;54&quot; width=&quot;104&quot; height=&quot;48&quot; class=&quot;vla-storage-cell&quot;/&gt;
+      &lt;text x=&quot;204&quot; y=&quot;73&quot; text-anchor=&quot;middle&quot; class=&quot;vla-label&quot;&gt;PC16/18/20/22&lt;/text&gt;
+      &lt;text x=&quot;204&quot; y=&quot;91&quot; text-anchor=&quot;middle&quot; class=&quot;vla-micro&quot;&gt;Core4-7 权重&lt;/text&gt;
+      &lt;rect x=&quot;268&quot; y=&quot;54&quot; width=&quot;104&quot; height=&quot;48&quot; class=&quot;vla-storage-cell&quot;/&gt;
+      &lt;text x=&quot;320&quot; y=&quot;73&quot; text-anchor=&quot;middle&quot; class=&quot;vla-label&quot;&gt;PC8&lt;/text&gt;
+      &lt;text x=&quot;320&quot; y=&quot;91&quot; text-anchor=&quot;middle&quot; class=&quot;vla-micro&quot;&gt;K/V 权重 9 MiB&lt;/text&gt;
+      &lt;rect x=&quot;384&quot; y=&quot;54&quot; width=&quot;104&quot; height=&quot;48&quot; class=&quot;vla-storage-cell&quot;/&gt;
+      &lt;text x=&quot;436&quot; y=&quot;73&quot; text-anchor=&quot;middle&quot; class=&quot;vla-label&quot;&gt;PC12&lt;/text&gt;
+      &lt;text x=&quot;436&quot; y=&quot;91&quot; text-anchor=&quot;middle&quot; class=&quot;vla-micro&quot;&gt;输入&lt;/text&gt;
+      &lt;rect x=&quot;500&quot; y=&quot;54&quot; width=&quot;104&quot; height=&quot;48&quot; class=&quot;vla-storage-cell&quot;/&gt;
+      &lt;text x=&quot;552&quot; y=&quot;73&quot; text-anchor=&quot;middle&quot; class=&quot;vla-label&quot;&gt;PC24&lt;/text&gt;
+      &lt;text x=&quot;552&quot; y=&quot;91&quot; text-anchor=&quot;middle&quot; class=&quot;vla-micro&quot;&gt;Prefix KV&lt;/text&gt;
+      &lt;rect x=&quot;616&quot; y=&quot;54&quot; width=&quot;104&quot; height=&quot;48&quot; class=&quot;vla-storage-cell&quot;/&gt;
+      &lt;text x=&quot;668&quot; y=&quot;73&quot; text-anchor=&quot;middle&quot; class=&quot;vla-label&quot;&gt;PC28&lt;/text&gt;
+      &lt;text x=&quot;668&quot; y=&quot;91&quot; text-anchor=&quot;middle&quot; class=&quot;vla-micro&quot;&gt;输出/Trace&lt;/text&gt;
+      &lt;rect x=&quot;748&quot; y=&quot;54&quot; width=&quot;416&quot; height=&quot;48&quot; class=&quot;vla-note&quot;/&gt;
+      &lt;text x=&quot;956&quot; y=&quot;73&quot; text-anchor=&quot;middle&quot; class=&quot;vla-label&quot;&gt;全部主干 256 bit，250 MHz&lt;/text&gt;
+      &lt;text x=&quot;956&quot; y=&quot;91&quot; text-anchor=&quot;middle&quot; class=&quot;vla-micro&quot;&gt;32 Byte/cycle = 8 GB/s/设计端口；高带宽流跨 MC/Stack 分散&lt;/text&gt;
+    &lt;/g&gt;
+
+    &lt;g class=&quot;vla-stage vla-stage-qkv vla-stage-attention vla-stage-ffn&quot;&gt;
+      &lt;rect x=&quot;18&quot; y=&quot;142&quot; width=&quot;178&quot; height=&quot;222&quot; class=&quot;vla-control&quot;/&gt;
+      &lt;text x=&quot;107&quot; y=&quot;168&quot; text-anchor=&quot;middle&quot; class=&quot;vla-head&quot;&gt;Host / Scheduler&lt;/text&gt;
+      &lt;text x=&quot;36&quot; y=&quot;198&quot; class=&quot;vla-small&quot;&gt;AXI-Lite Control&lt;/text&gt;
+      &lt;text x=&quot;36&quot; y=&quot;222&quot; class=&quot;vla-small&quot;&gt;Layer / Step FSM&lt;/text&gt;
+      &lt;text x=&quot;36&quot; y=&quot;246&quot; class=&quot;vla-small&quot;&gt;DMA Descriptor&lt;/text&gt;
+      &lt;text x=&quot;36&quot; y=&quot;270&quot; class=&quot;vla-small&quot;&gt;Tile Loop / Barrier&lt;/text&gt;
+      &lt;text x=&quot;36&quot; y=&quot;294&quot; class=&quot;vla-small&quot;&gt;Scale Metadata&lt;/text&gt;
+      &lt;text x=&quot;36&quot; y=&quot;318&quot; class=&quot;vla-small&quot;&gt;Ping/Pong Ownership&lt;/text&gt;
+      &lt;text x=&quot;36&quot; y=&quot;342&quot; class=&quot;vla-small&quot;&gt;Counter / Debug&lt;/text&gt;
+    &lt;/g&gt;
+
+    &lt;g class=&quot;vla-stage vla-stage-qkv vla-stage-attention vla-stage-ffn&quot;&gt;
+      &lt;rect x=&quot;216&quot; y=&quot;142&quot; width=&quot;966&quot; height=&quot;102&quot; class=&quot;vla-buffer&quot;/&gt;
+      &lt;text x=&quot;234&quot; y=&quot;168&quot; class=&quot;vla-head&quot;&gt;DMA + Shared BF16 Front End&lt;/text&gt;
+      &lt;rect x=&quot;234&quot; y=&quot;182&quot; width=&quot;152&quot; height=&quot;42&quot; class=&quot;vla-note&quot;/&gt;
+      &lt;text x=&quot;310&quot; y=&quot;200&quot; text-anchor=&quot;middle&quot; class=&quot;vla-label&quot;&gt;8×Weight DMA&lt;/text&gt;
+      &lt;text x=&quot;310&quot; y=&quot;216&quot; text-anchor=&quot;middle&quot; class=&quot;vla-micro&quot;&gt;8×256-bit AXI&lt;/text&gt;
+      &lt;rect x=&quot;398&quot; y=&quot;182&quot; width=&quot;132&quot; height=&quot;42&quot; class=&quot;vla-note&quot;/&gt;
+      &lt;text x=&quot;464&quot; y=&quot;200&quot; text-anchor=&quot;middle&quot; class=&quot;vla-label&quot;&gt;K/V DMA+Demux&lt;/text&gt;
+      &lt;text x=&quot;464&quot; y=&quot;216&quot; text-anchor=&quot;middle&quot; class=&quot;vla-micro&quot;&gt;D8-D10：513 KiB/layer&lt;/text&gt;
+      &lt;rect x=&quot;542&quot; y=&quot;182&quot; width=&quot;144&quot; height=&quot;42&quot; class=&quot;vla-buffer&quot;/&gt;
+      &lt;text x=&quot;614&quot; y=&quot;200&quot; text-anchor=&quot;middle&quot; class=&quot;vla-label&quot;&gt;Activation Buffer&lt;/text&gt;
+      &lt;text x=&quot;614&quot; y=&quot;216&quot; text-anchor=&quot;middle&quot; class=&quot;vla-micro&quot;&gt;[51,1024] BF16&lt;/text&gt;
+      &lt;rect x=&quot;698&quot; y=&quot;182&quot; width=&quot;124&quot; height=&quot;42&quot; class=&quot;vla-vector&quot;/&gt;
+      &lt;text x=&quot;760&quot; y=&quot;200&quot; text-anchor=&quot;middle&quot; class=&quot;vla-label&quot;&gt;RMSNorm&lt;/text&gt;
+      &lt;text x=&quot;760&quot; y=&quot;216&quot; text-anchor=&quot;middle&quot; class=&quot;vla-micro&quot;&gt;FP32 statistics&lt;/text&gt;
+      &lt;rect x=&quot;834&quot; y=&quot;182&quot; width=&quot;132&quot; height=&quot;42&quot; class=&quot;vla-vector&quot;/&gt;
+      &lt;text x=&quot;900&quot; y=&quot;200&quot; text-anchor=&quot;middle&quot; class=&quot;vla-label&quot;&gt;INT8 Quantizer&lt;/text&gt;
+      &lt;text x=&quot;900&quot; y=&quot;216&quot; text-anchor=&quot;middle&quot; class=&quot;vla-micro&quot;&gt;per-token scale&lt;/text&gt;
+      &lt;rect x=&quot;978&quot; y=&quot;182&quot; width=&quot;186&quot; height=&quot;42&quot; class=&quot;vla-compute&quot;/&gt;
+      &lt;text x=&quot;1071&quot; y=&quot;200&quot; text-anchor=&quot;middle&quot; class=&quot;vla-label&quot;&gt;Activation Multicast&lt;/text&gt;
+      &lt;text x=&quot;1071&quot; y=&quot;216&quot; text-anchor=&quot;middle&quot; class=&quot;vla-micro&quot;&gt;INT8 + scale -&gt; 8 cores&lt;/text&gt;
+    &lt;/g&gt;
+
+    &lt;g class=&quot;vla-stage vla-stage-qkv vla-stage-attention vla-stage-ffn&quot;&gt;
+      &lt;path d=&quot;M436 102 L436 134 L614 134 L614 174&quot; class=&quot;vla-data&quot;/&gt;
+      &lt;path d=&quot;M320 102 L320 174&quot; class=&quot;vla-data&quot;/&gt;
+      &lt;path d=&quot;M614 224 L698 224&quot; class=&quot;vla-data&quot;/&gt;
+      &lt;path d=&quot;M822 203 L826 203&quot; class=&quot;vla-data&quot;/&gt;
+      &lt;path d=&quot;M966 203 L970 203&quot; class=&quot;vla-data&quot;/&gt;
+    &lt;/g&gt;
+
+    &lt;g class=&quot;vla-stage vla-stage-qkv vla-stage-attention vla-stage-ffn&quot;&gt;
+      &lt;rect x=&quot;216&quot; y=&quot;264&quot; width=&quot;966&quot; height=&quot;284&quot; class=&quot;vla-core&quot;/&gt;
+      &lt;text x=&quot;234&quot; y=&quot;290&quot; class=&quot;vla-head&quot;&gt;8× Homogeneous Core：8×64 INT8 MAC / core，K_t=256，512 DSP / core&lt;/text&gt;
+      &lt;rect x=&quot;238&quot; y=&quot;308&quot; width=&quot;170&quot; height=&quot;60&quot; class=&quot;vla-buffer&quot;/&gt;
+      &lt;text x=&quot;323&quot; y=&quot;330&quot; text-anchor=&quot;middle&quot; class=&quot;vla-label&quot;&gt;Private Weight P/P&lt;/text&gt;
+      &lt;text x=&quot;323&quot; y=&quot;349&quot; text-anchor=&quot;middle&quot; class=&quot;vla-micro&quot;&gt;2×16 KiB，512-bit B&lt;/text&gt;
+      &lt;rect x=&quot;238&quot; y=&quot;384&quot; width=&quot;170&quot; height=&quot;60&quot; class=&quot;vla-buffer&quot;/&gt;
+      &lt;text x=&quot;323&quot; y=&quot;406&quot; text-anchor=&quot;middle&quot; class=&quot;vla-label&quot;&gt;K/V Layer Buffer&lt;/text&gt;
+      &lt;text x=&quot;323&quot; y=&quot;425&quot; text-anchor=&quot;middle&quot; class=&quot;vla-micro&quot;&gt;64 KiB/core，D17 256-bit B&lt;/text&gt;
+      &lt;rect x=&quot;238&quot; y=&quot;460&quot; width=&quot;170&quot; height=&quot;60&quot; class=&quot;vla-buffer&quot;/&gt;
+      &lt;text x=&quot;323&quot; y=&quot;482&quot; text-anchor=&quot;middle&quot; class=&quot;vla-label&quot;&gt;Activation / Prob&lt;/text&gt;
+      &lt;text x=&quot;323&quot; y=&quot;501&quot; text-anchor=&quot;middle&quot; class=&quot;vla-micro&quot;&gt;64-bit A / 128-bit A&lt;/text&gt;
+
+      &lt;rect x=&quot;450&quot; y=&quot;326&quot; width=&quot;210&quot; height=&quot;150&quot; class=&quot;vla-compute&quot;/&gt;
+      &lt;text x=&quot;555&quot; y=&quot;354&quot; text-anchor=&quot;middle&quot; class=&quot;vla-head&quot;&gt;8×64 MAC Array&lt;/text&gt;
+      &lt;text x=&quot;555&quot; y=&quot;382&quot; text-anchor=&quot;middle&quot; class=&quot;vla-small&quot;&gt;INT8×INT8 -&gt; INT32&lt;/text&gt;
+      &lt;text x=&quot;555&quot; y=&quot;410&quot; text-anchor=&quot;middle&quot; class=&quot;vla-small&quot;&gt;Q/K/V/QK/S×V/O&lt;/text&gt;
+      &lt;text x=&quot;555&quot; y=&quot;434&quot; text-anchor=&quot;middle&quot; class=&quot;vla-small&quot;&gt;Gate/Up/Down&lt;/text&gt;
+      &lt;text x=&quot;555&quot; y=&quot;458&quot; text-anchor=&quot;middle&quot; class=&quot;vla-micro&quot;&gt;Ctile=Kextent+8+64-2&lt;/text&gt;
+      &lt;rect x=&quot;450&quot; y=&quot;488&quot; width=&quot;210&quot; height=&quot;38&quot; class=&quot;vla-buffer&quot;/&gt;
+      &lt;text x=&quot;555&quot; y=&quot;512&quot; text-anchor=&quot;middle&quot; class=&quot;vla-label&quot;&gt;INT32 Psum / Router&lt;/text&gt;
+
+      &lt;rect x=&quot;702&quot; y=&quot;308&quot; width=&quot;202&quot; height=&quot;60&quot; class=&quot;vla-vector&quot;/&gt;
+      &lt;text x=&quot;803&quot; y=&quot;330&quot; text-anchor=&quot;middle&quot; class=&quot;vla-label&quot;&gt;Q/K RoPE + Requant&lt;/text&gt;
+      &lt;text x=&quot;803&quot; y=&quot;349&quot; text-anchor=&quot;middle&quot; class=&quot;vla-micro&quot;&gt;K：跨核 MAX 后统一 scale&lt;/text&gt;
+      &lt;rect x=&quot;702&quot; y=&quot;384&quot; width=&quot;202&quot; height=&quot;60&quot; class=&quot;vla-buffer&quot;/&gt;
+      &lt;text x=&quot;803&quot; y=&quot;406&quot; text-anchor=&quot;middle&quot; class=&quot;vla-label&quot;&gt;Local K/V URAM&lt;/text&gt;
+      &lt;text x=&quot;803&quot; y=&quot;425&quot; text-anchor=&quot;middle&quot; class=&quot;vla-micro&quot;&gt;867×256×K/V，512-bit&lt;/text&gt;
+      &lt;rect x=&quot;702&quot; y=&quot;460&quot; width=&quot;202&quot; height=&quot;60&quot; class=&quot;vla-vector&quot;/&gt;
+      &lt;text x=&quot;803&quot; y=&quot;482&quot; text-anchor=&quot;middle&quot; class=&quot;vla-label&quot;&gt;Score / Softmax / Prob&lt;/text&gt;
+      &lt;text x=&quot;803&quot; y=&quot;501&quot; text-anchor=&quot;middle&quot; class=&quot;vla-micro&quot;&gt;FP32 -&gt; U16 scale 2^-15&lt;/text&gt;
+
+      &lt;rect x=&quot;944&quot; y=&quot;308&quot; width=&quot;216&quot; height=&quot;60&quot; class=&quot;vla-note&quot;/&gt;
+      &lt;text x=&quot;1052&quot; y=&quot;330&quot; text-anchor=&quot;middle&quot; class=&quot;vla-label&quot;&gt;Core0-7 Mapping&lt;/text&gt;
+      &lt;text x=&quot;1052&quot; y=&quot;349&quot; text-anchor=&quot;middle&quot; class=&quot;vla-micro&quot;&gt;1 complete Q head/core&lt;/text&gt;
+      &lt;rect x=&quot;944&quot; y=&quot;384&quot; width=&quot;216&quot; height=&quot;60&quot; class=&quot;vla-note&quot;/&gt;
+      &lt;text x=&quot;1052&quot; y=&quot;406&quot; text-anchor=&quot;middle&quot; class=&quot;vla-label&quot;&gt;Distributed K/V&lt;/text&gt;
+      &lt;text x=&quot;1052&quot; y=&quot;425&quot; text-anchor=&quot;middle&quot; class=&quot;vla-micro&quot;&gt;D25：8×32-d -&gt; concat 256-d&lt;/text&gt;
+      &lt;rect x=&quot;944&quot; y=&quot;460&quot; width=&quot;216&quot; height=&quot;60&quot; class=&quot;vla-note&quot;/&gt;
+      &lt;text x=&quot;1052&quot; y=&quot;482&quot; text-anchor=&quot;middle&quot; class=&quot;vla-label&quot;&gt;O / Down K-split&lt;/text&gt;
+      &lt;text x=&quot;1052&quot; y=&quot;501&quot; text-anchor=&quot;middle&quot; class=&quot;vla-micro&quot;&gt;8×INT32 partial -&gt; SUM&lt;/text&gt;
+
+      &lt;path d=&quot;M408 338 L442 338&quot; class=&quot;vla-data&quot;/&gt;
+      &lt;path d=&quot;M408 414 L430 414 L430 382 L442 382&quot; class=&quot;vla-data&quot;/&gt;
+      &lt;path d=&quot;M408 490 L430 490 L430 430 L442 430&quot; class=&quot;vla-data&quot;/&gt;
+      &lt;path d=&quot;M555 476 L555 480&quot; class=&quot;vla-data&quot;/&gt;
+      &lt;path d=&quot;M660 507 L684 507 L684 338 L694 338&quot; class=&quot;vla-data&quot;/&gt;
+      &lt;path d=&quot;M904 414 L922 414 L922 382 L668 382&quot; class=&quot;vla-data&quot;/&gt;
+      &lt;path d=&quot;M803 444 L803 452&quot; class=&quot;vla-data&quot;/&gt;
+      &lt;path d=&quot;M904 338 L926 338 L926 556 L877 556 L877 606&quot; class=&quot;vla-reduce&quot;/&gt;
+      &lt;text x=&quot;930&quot; y=&quot;548&quot; class=&quot;vla-path-label&quot;&gt;D23&lt;/text&gt;
+      &lt;path d=&quot;M992 614 L992 558 L934 558 L934 322 L912 322&quot; class=&quot;vla-reduce&quot;/&gt;
+      &lt;text x=&quot;944&quot; y=&quot;576&quot; class=&quot;vla-path-label&quot;&gt;D24&lt;/text&gt;
+      &lt;path d=&quot;M1052 520 L1052 566 L895 566 L895 606&quot; class=&quot;vla-reduce&quot;/&gt;
+      &lt;text x=&quot;1010&quot; y=&quot;560&quot; class=&quot;vla-path-label&quot;&gt;D31/D36&lt;/text&gt;
+      &lt;path d=&quot;M1052 520 L1110 606&quot; class=&quot;vla-reduce&quot;/&gt;
+      &lt;text x=&quot;1088&quot; y=&quot;557&quot; class=&quot;vla-path-label&quot;&gt;D33/D38&lt;/text&gt;
+    &lt;/g&gt;
+
+    &lt;g class=&quot;vla-stage vla-stage-qkv vla-stage-attention&quot;&gt;
+      &lt;rect x=&quot;18&quot; y=&quot;570&quot; width=&quot;772&quot; height=&quot;172&quot; class=&quot;vla-buffer&quot;/&gt;
+      &lt;text x=&quot;36&quot; y=&quot;596&quot; class=&quot;vla-head&quot;&gt;K/V Shared Path&lt;/text&gt;
+      &lt;rect x=&quot;36&quot; y=&quot;614&quot; width=&quot;128&quot; height=&quot;54&quot; class=&quot;vla-compute&quot;/&gt;
+      &lt;text x=&quot;100&quot; y=&quot;635&quot; text-anchor=&quot;middle&quot; class=&quot;vla-label&quot;&gt;K/V Assemble&lt;/text&gt;
+      &lt;text x=&quot;100&quot; y=&quot;653&quot; text-anchor=&quot;middle&quot; class=&quot;vla-micro&quot;&gt;8×32-d concat&lt;/text&gt;
+      &lt;rect x=&quot;178&quot; y=&quot;614&quot; width=&quot;128&quot; height=&quot;54&quot; class=&quot;vla-buffer&quot;/&gt;
+      &lt;text x=&quot;242&quot; y=&quot;635&quot; text-anchor=&quot;middle&quot; class=&quot;vla-label&quot;&gt;Suffix K/V&lt;/text&gt;
+      &lt;text x=&quot;242&quot; y=&quot;653&quot; text-anchor=&quot;middle&quot; class=&quot;vla-micro&quot;&gt;51 tokens&lt;/text&gt;
+      &lt;rect x=&quot;320&quot; y=&quot;614&quot; width=&quot;128&quot; height=&quot;54&quot; class=&quot;vla-buffer&quot;/&gt;
+      &lt;text x=&quot;384&quot; y=&quot;635&quot; text-anchor=&quot;middle&quot; class=&quot;vla-label&quot;&gt;Prefix URAM&lt;/text&gt;
+      &lt;text x=&quot;384&quot; y=&quot;653&quot; text-anchor=&quot;middle&quot; class=&quot;vla-micro&quot;&gt;816 tokens×18&lt;/text&gt;
+      &lt;rect x=&quot;462&quot; y=&quot;614&quot; width=&quot;128&quot; height=&quot;54&quot; class=&quot;vla-compute&quot;/&gt;
+      &lt;text x=&quot;526&quot; y=&quot;635&quot; text-anchor=&quot;middle&quot; class=&quot;vla-label&quot;&gt;KV Streamer&lt;/text&gt;
+      &lt;text x=&quot;526&quot; y=&quot;653&quot; text-anchor=&quot;middle&quot; class=&quot;vla-micro&quot;&gt;D26：Prefix then Suffix&lt;/text&gt;
+      &lt;rect x=&quot;604&quot; y=&quot;614&quot; width=&quot;166&quot; height=&quot;54&quot; class=&quot;vla-compute&quot;/&gt;
+      &lt;text x=&quot;687&quot; y=&quot;635&quot; text-anchor=&quot;middle&quot; class=&quot;vla-label&quot;&gt;256-bit Multicast&lt;/text&gt;
+      &lt;text x=&quot;687&quot; y=&quot;653&quot; text-anchor=&quot;middle&quot; class=&quot;vla-micro&quot;&gt;D27：write 8×Local K/V&lt;/text&gt;
+      &lt;rect x=&quot;36&quot; y=&quot;686&quot; width=&quot;734&quot; height=&quot;38&quot; class=&quot;vla-note&quot;/&gt;
+      &lt;text x=&quot;403&quot; y=&quot;710&quot; text-anchor=&quot;middle&quot; class=&quot;vla-micro&quot;&gt;K scale：8×local MAX -&gt; global MAX -&gt; BF16 scale broadcast；V 使用 per-layer static scale&lt;/text&gt;
+      &lt;path d=&quot;M164 641 L170 641&quot; class=&quot;vla-data&quot;/&gt;
+      &lt;path d=&quot;M306 641 L454 641&quot; class=&quot;vla-data&quot;/&gt;
+      &lt;path d=&quot;M448 641 L454 641&quot; class=&quot;vla-data&quot;/&gt;
+      &lt;path d=&quot;M590 641 L596 641&quot; class=&quot;vla-data&quot;/&gt;
+      &lt;path d=&quot;M687 614 L687 558 L803 558 L803 452&quot; class=&quot;vla-data&quot;/&gt;
+    &lt;/g&gt;
+
+    &lt;g class=&quot;vla-stage vla-stage-attention vla-stage-ffn&quot;&gt;
+      &lt;rect x=&quot;810&quot; y=&quot;570&quot; width=&quot;372&quot; height=&quot;172&quot; class=&quot;vla-vector&quot;/&gt;
+      &lt;text x=&quot;828&quot; y=&quot;596&quot; class=&quot;vla-head&quot;&gt;Cross-core Reduction / Layer Output&lt;/text&gt;
+      &lt;rect x=&quot;828&quot; y=&quot;614&quot; width=&quot;98&quot; height=&quot;54&quot; class=&quot;vla-vector&quot;/&gt;
+      &lt;text x=&quot;877&quot; y=&quot;635&quot; text-anchor=&quot;middle&quot; class=&quot;vla-label&quot;&gt;MAX Tree&lt;/text&gt;
+      &lt;text x=&quot;877&quot; y=&quot;653&quot; text-anchor=&quot;middle&quot; class=&quot;vla-micro&quot;&gt;D23/D31/D36&lt;/text&gt;
+      &lt;rect x=&quot;940&quot; y=&quot;614&quot; width=&quot;104&quot; height=&quot;54&quot; class=&quot;vla-vector&quot;/&gt;
+      &lt;text x=&quot;992&quot; y=&quot;635&quot; text-anchor=&quot;middle&quot; class=&quot;vla-label&quot;&gt;Scale Bcast&lt;/text&gt;
+      &lt;text x=&quot;992&quot; y=&quot;653&quot; text-anchor=&quot;middle&quot; class=&quot;vla-micro&quot;&gt;D24/D32/D37&lt;/text&gt;
+      &lt;rect x=&quot;1058&quot; y=&quot;614&quot; width=&quot;104&quot; height=&quot;54&quot; class=&quot;vla-vector&quot;/&gt;
+      &lt;text x=&quot;1110&quot; y=&quot;635&quot; text-anchor=&quot;middle&quot; class=&quot;vla-label&quot;&gt;SUM Tree&lt;/text&gt;
+      &lt;text x=&quot;1110&quot; y=&quot;653&quot; text-anchor=&quot;middle&quot; class=&quot;vla-micro&quot;&gt;D33/D38 8×256-bit&lt;/text&gt;
+      &lt;rect x=&quot;828&quot; y=&quot;686&quot; width=&quot;334&quot; height=&quot;38&quot; class=&quot;vla-buffer&quot;/&gt;
+      &lt;text x=&quot;995&quot; y=&quot;710&quot; text-anchor=&quot;middle&quot; class=&quot;vla-micro&quot;&gt;D34 Dequant/Residual -&gt; D39 Layer Output / feedback / PC28&lt;/text&gt;
+      &lt;path d=&quot;M926 641 L932 641&quot; class=&quot;vla-reduce&quot;/&gt;
+      &lt;path d=&quot;M1044 641 L1050 641&quot; class=&quot;vla-reduce&quot;/&gt;
+    &lt;/g&gt;
+  &lt;/svg&gt;
+&lt;/div&gt;
+
+&lt;style&gt;
+  #vla-v3-architecture {
+    width: 100%;
+    color: var(--foreground);
+  }
+  #vla-v3-architecture .viz-controls {
+    margin-bottom: 0.75rem;
+  }
+  #vla-v3-architecture .vla-v3-map {
+    display: block;
+    width: 100%;
+    height: auto;
+    color: var(--foreground);
+  }
+  #vla-v3-architecture .vla-storage {
+    fill: color-mix(in srgb, var(--muted) 82%, transparent);
+    stroke: var(--muted-foreground);
+    stroke-width: 1.5;
+    rx: 5;
+  }
+  #vla-v3-architecture .vla-storage-cell {
+    fill: color-mix(in srgb, var(--muted) 68%, transparent);
+    stroke: var(--muted-foreground);
+    stroke-width: 1;
+    rx: 3;
+  }
+  #vla-v3-architecture .vla-buffer {
+    fill: color-mix(in srgb, var(--viz-series-2) 17%, var(--card));
+    stroke: var(--viz-series-2);
+    stroke-width: 1.5;
+    rx: 4;
+  }
+  #vla-v3-architecture .vla-compute {
+    fill: color-mix(in srgb, var(--viz-series-1) 17%, var(--card));
+    stroke: var(--viz-series-1);
+    stroke-width: 1.5;
+    rx: 4;
+  }
+  #vla-v3-architecture .vla-vector {
+    fill: color-mix(in srgb, var(--viz-series-3) 17%, var(--card));
+    stroke: var(--viz-series-3);
+    stroke-width: 1.5;
+    rx: 4;
+  }
+  #vla-v3-architecture .vla-control {
+    fill: color-mix(in srgb, var(--viz-series-4) 15%, var(--card));
+    stroke: var(--viz-series-4);
+    stroke-width: 1.5;
+    rx: 4;
+  }
+  #vla-v3-architecture .vla-core {
+    fill: transparent;
+    stroke: var(--viz-series-1);
+    stroke-width: 1.8;
+    rx: 5;
+  }
+  #vla-v3-architecture .vla-note {
+    fill: color-mix(in srgb, var(--muted) 48%, transparent);
+    stroke: var(--border);
+    stroke-width: 1;
+    rx: 3;
+  }
+  #vla-v3-architecture text {
+    fill: var(--foreground);
+    font-family: &quot;Microsoft YaHei&quot;, &quot;Noto Sans CJK SC&quot;, Arial, sans-serif;
+    letter-spacing: 0;
+  }
+  #vla-v3-architecture .vla-head {
+    font-size: 15px;
+    font-weight: 500;
+  }
+  #vla-v3-architecture .vla-label {
+    font-size: 12px;
+    font-weight: 500;
+  }
+  #vla-v3-architecture .vla-small {
+    font-size: 12px;
+    font-weight: 400;
+  }
+  #vla-v3-architecture .vla-micro {
+    font-size: 11px;
+    font-weight: 400;
+    fill: var(--muted-foreground);
+  }
+  #vla-v3-architecture .vla-path-label {
+    font-size: 11px;
+    font-weight: 500;
+    fill: var(--foreground);
+  }
+  #vla-v3-architecture .vla-data {
+    fill: none;
+    stroke: var(--viz-series-1);
+    stroke-width: 2.2;
+    marker-end: url(#vla-blue-arrow);
+  }
+  #vla-v3-architecture .vla-reduce {
+    fill: none;
+    stroke: var(--viz-series-3);
+    stroke-width: 2.4;
+    marker-end: url(#vla-orange-arrow);
+  }
+  #vla-v3-architecture .vla-stage {
+    transition: opacity 180ms ease;
+  }
+  #vla-v3-architecture .vla-stage.is-dimmed {
+    opacity: 0.14;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #vla-v3-architecture .vla-stage {
+      transition: none;
+    }
+  }
+&lt;/style&gt;
+
+&lt;script&gt;
+  (() =&gt; {
+    const root = document.getElementById(&quot;vla-v3-architecture&quot;);
+    const buttons = [...root.querySelectorAll(&quot;[data-stage]&quot;)];
+    const groups = [...root.querySelectorAll(&quot;.vla-stage&quot;)];
+
+    buttons.forEach((button) =&gt; {
+      button.addEventListener(&quot;click&quot;, () =&gt; {
+        const stage = button.dataset.stage;
+        buttons.forEach((candidate) =&gt; {
+          const active = candidate === button;
+          candidate.setAttribute(&quot;aria-pressed&quot;, String(active));
+          candidate.classList.toggle(&quot;btn-primary&quot;, active);
+        });
+        groups.forEach((group) =&gt; {
+          const visible = stage === &quot;all&quot; || group.classList.contains(`vla-stage-${stage}`);
+          group.classList.toggle(&quot;is-dimmed&quot;, !visible);
+        });
+      });
+    });
+  })();
+&lt;/script&gt;
+
+&lt;script src=&quot;https://unpkg.com/@floating-ui/core@1.7.3/dist/floating-ui.core.umd.min.js&quot;&gt;&lt;/script&gt;
+&lt;script src=&quot;https://unpkg.com/@floating-ui/dom@1.7.4/dist/floating-ui.dom.umd.min.js&quot;&gt;&lt;/script&gt;
+&lt;script&gt;
+(() =&gt; {
+  if (window.FloatingUIDOM == null) {
+    return;
+  }
+  const { autoUpdate, computePosition, flip, offset, shift, size } =
+    window.FloatingUIDOM;
+  const tooltipPlacements = new Set([&quot;top&quot;, &quot;right&quot;, &quot;bottom&quot;, &quot;left&quot;]);
+  const tooltipId = `codex-visualization-tooltip-${
+    window.crypto?.randomUUID?.() ?? Date.now().toString(36)
+  }`;
+  const tooltipGap = 5;
+  const hoverDelay = 700;
+  const skipDelay = 300;
+  let activeTrigger = null;
+  let pendingTrigger = null;
+  let tooltip = null;
+  let openTimeout = null;
+  let autoUpdateCleanup = null;
+  let positionRequest = 0;
+  let skipDelayUntil = 0;
+
+  const getTrigger = (target) =&gt;
+    target?.nodeType === Node.ELEMENT_NODE
+      ? target.closest(&quot;[data-tooltip]&quot;)
+      : null;
+  const containsTarget = (trigger, target) =&gt;
+    target?.nodeType != null &amp;&amp; trigger.contains(target);
+  const getContent = (trigger) =&gt;
+    trigger.getAttribute(&quot;data-tooltip&quot;)?.trim() ?? &quot;&quot;;
+  const getPlacement = (trigger) =&gt; {
+    const placement = trigger.getAttribute(&quot;data-tooltip-placement&quot;);
+    return tooltipPlacements.has(placement) ? placement : &quot;top&quot;;
+  };
+  const getTooltip = () =&gt; {
+    if (tooltip == null) {
+      tooltip = document.createElement(&quot;div&quot;);
+      tooltip.id = tooltipId;
+      tooltip.className = &quot;tooltip&quot;;
+      tooltip.setAttribute(&quot;role&quot;, &quot;tooltip&quot;);
+    }
+    return tooltip;
+  };
+  const setDescribedBy = (trigger, described) =&gt; {
+    const ids = new Set(
+      (trigger.getAttribute(&quot;aria-describedby&quot;) ?? &quot;&quot;)
+        .split(/\s+/)
+        .filter(Boolean),
+    );
+    if (described) {
+      ids.add(tooltipId);
+    } else {
+      ids.delete(tooltipId);
+    }
+    if (ids.size === 0) {
+      trigger.removeAttribute(&quot;aria-describedby&quot;);
+    } else {
+      trigger.setAttribute(&quot;aria-describedby&quot;, [...ids].join(&quot; &quot;));
+    }
+  };
+  const clearOpenTimeout = () =&gt; {
+    if (openTimeout != null) {
+      window.clearTimeout(openTimeout);
+      openTimeout = null;
+    }
+    pendingTrigger = null;
+  };
+  const closeTooltip = (activateSkipDelay = true) =&gt; {
+    clearOpenTimeout();
+    positionRequest += 1;
+    autoUpdateCleanup?.();
+    autoUpdateCleanup = null;
+    if (activeTrigger == null) {
+      return;
+    }
+    setDescribedBy(activeTrigger, false);
+    activeTrigger = null;
+    tooltip?.remove();
+    if (activateSkipDelay) {
+      skipDelayUntil = Date.now() + skipDelay;
+    }
+  };
+  const updatePosition = (trigger, floating) =&gt; {
+    const request = ++positionRequest;
+    void computePosition(trigger, floating, {
+      middleware: [
+        offset(tooltipGap),
+        flip({ padding: tooltipGap }),
+        shift({ padding: tooltipGap }),
+        size({
+          padding: tooltipGap,
+          apply({ availableHeight, availableWidth, elements }) {
+            elements.floating.style.setProperty(
+              &quot;--tooltip-available-width&quot;,
+              `${Math.max(0, availableWidth)}px`,
+            );
+            elements.floating.style.setProperty(
+              &quot;--tooltip-available-height&quot;,
+              `${Math.max(0, availableHeight)}px`,
+            );
+          },
+        }),
+      ],
+      placement: getPlacement(trigger),
+      strategy: &quot;fixed&quot;,
+    })
+      .then(({ x, y }) =&gt; {
+        if (activeTrigger !== trigger || request !== positionRequest) {
+          return;
+        }
+        const scale = window.devicePixelRatio || 1;
+        floating.style.transform = `translate(${Math.round(x * scale) / scale}px, ${Math.round(y * scale) / scale}px)`;
+        floating.style.visibility = &quot;visible&quot;;
+      })
+      .catch(() =&gt; {
+        if (activeTrigger === trigger &amp;&amp; request === positionRequest) {
+          closeTooltip(false);
+        }
+      });
+  };
+  const openTooltip = (trigger) =&gt; {
+    const content = getContent(trigger);
+    if (!trigger.isConnected || content.length === 0) {
+      return;
+    }
+    clearOpenTimeout();
+    if (activeTrigger === trigger) {
+      return;
+    }
+    closeTooltip();
+    const floating = getTooltip();
+    floating.textContent = content;
+    floating.style.visibility = &quot;hidden&quot;;
+    floating.style.transform = &quot;translate(0, 0)&quot;;
+    document.body.appendChild(floating);
+    activeTrigger = trigger;
+    setDescribedBy(trigger, true);
+    autoUpdateCleanup = autoUpdate(trigger, floating, () =&gt; {
+      updatePosition(trigger, floating);
+    });
+  };
+  const requestOpen = (trigger, immediate = false) =&gt; {
+    if (
+      getContent(trigger).length === 0 ||
+      activeTrigger === trigger ||
+      pendingTrigger === trigger
+    ) {
+      return;
+    }
+    clearOpenTimeout();
+    pendingTrigger = trigger;
+    const delay =
+      immediate || activeTrigger != null || Date.now() &lt; skipDelayUntil
+        ? 0
+        : hoverDelay;
+    if (delay === 0) {
+      openTooltip(trigger);
+      return;
+    }
+    openTimeout = window.setTimeout(() =&gt; {
+      openTimeout = null;
+      pendingTrigger = null;
+      openTooltip(trigger);
+    }, delay);
+  };
+  const handlePointerOpen = (event) =&gt; {
+    if (event.pointerType === &quot;touch&quot;) {
+      return;
+    }
+    const trigger = getTrigger(event.target);
+    if (trigger == null || containsTarget(trigger, event.relatedTarget)) {
+      return;
+    }
+    requestOpen(trigger);
+  };
+  const handleLeave = (event) =&gt; {
+    const trigger = getTrigger(event.target);
+    if (trigger == null || containsTarget(trigger, event.relatedTarget)) {
+      return;
+    }
+    if (activeTrigger === trigger || pendingTrigger === trigger) {
+      closeTooltip();
+    }
+  };
+  const handleFocusIn = (event) =&gt; {
+    const trigger = getTrigger(event.target);
+    if (trigger?.matches(&quot;:focus-visible&quot;)) {
+      requestOpen(trigger, true);
+    }
+  };
+  const handleKeyDown = (event) =&gt; {
+    if (event.key === &quot;Escape&quot;) {
+      closeTooltip();
+    }
+  };
+  const handleContextMenu = (event) =&gt; {
+    const trigger = getTrigger(event.target);
+    if (activeTrigger === trigger || pendingTrigger === trigger) {
+      closeTooltip();
+    }
+  };
+  const destroy = () =&gt; {
+    closeTooltip(false);
+    document.removeEventListener(&quot;pointerover&quot;, handlePointerOpen);
+    document.removeEventListener(&quot;pointerout&quot;, handleLeave);
+    document.removeEventListener(&quot;focusin&quot;, handleFocusIn);
+    document.removeEventListener(&quot;focusout&quot;, handleLeave);
+    document.removeEventListener(&quot;keydown&quot;, handleKeyDown);
+    document.removeEventListener(&quot;contextmenu&quot;, handleContextMenu);
+    tooltip = null;
+  };
+
+  document.addEventListener(&quot;pointerover&quot;, handlePointerOpen);
+  document.addEventListener(&quot;pointerout&quot;, handleLeave);
+  document.addEventListener(&quot;focusin&quot;, handleFocusIn);
+  document.addEventListener(&quot;focusout&quot;, handleLeave);
+  document.addEventListener(&quot;keydown&quot;, handleKeyDown);
+  document.addEventListener(&quot;contextmenu&quot;, handleContextMenu);
+  window.addEventListener(&quot;pagehide&quot;, destroy, { once: true });
+})();
+&lt;/script&gt;
+&lt;script id=&quot;codex-visualization-lucide&quot; async src=&quot;https://unpkg.com/lucide@1.17.0/dist/umd/lucide.js&quot;&gt;&lt;/script&gt;
+&lt;script&gt;
+(() =&gt; {
+  const initialize = () =&gt; {
+    globalThis.lucide?.createIcons({ attrs: { width: 16, height: 16 } });
+  };
+  if (globalThis.lucide != null) {
+    initialize();
+    return;
+  }
+  document
+    .getElementById(&quot;codex-visualization-lucide&quot;)
+    ?.addEventListener(&quot;load&quot;, initialize, { once: true });
+})();
+&lt;/script&gt;
+
+&lt;/body&gt;
+&lt;/html&gt;
+"></iframe>
+</body>
+</html>
