@@ -18,9 +18,14 @@ module dea8_qoz_manager_v3(
   assign req_match=(req.owner==QOZ_Q&&req.tiles==QOZ_Q_TILES&&req.header.op==OP_Q_PROJ)||
     (req.owner==QOZ_Z&&req.tiles==QOZ_Z_TILES&&req.header.op==OP_GU)||
     (req.owner==QOZ_O&&req.tiles==QOZ_O_TILES&&req.header.op==OP_O_PROJ);
-  assign write_match=wr.header==active_req.header&&wr.n==wr.pair_data.tile_idx&&
+  // A released generation must not remain addressable through the wrapper
+  // header.  Keep the active-region check here as well as in the physical
+  // store so stale producers are rejected at the public manager boundary.
+  assign write_match=region_active&& !region_complete&&
+    wr.header==active_req.header&&wr.n==wr.pair_data.tile_idx&&
     wr.last==(wr.pair_data.pair_idx==PAIRS-1);
-  assign release_match=consumer.epoch==active_req.header.epoch&&consumer.head==active_req.header.head&&
+  assign release_match=region_active&&
+    consumer.epoch==active_req.header.epoch&&consumer.head==active_req.header.head&&
     ((active_req.owner==QOZ_Q&&consumer.op==OP_ATTENTION)||(active_req.owner==QOZ_Z&&consumer.op==OP_DOWN_PROJ));
   assign req_ready=store_begin_ready&&req_match&&!protocol_error;
   assign wr_ready=store_wr_ready&&write_match&&!protocol_error;
@@ -38,6 +43,7 @@ module dea8_qoz_manager_v3(
     if(reset||clear)begin active_req<='0;protocol_error<=0;end
     else begin
       if(req_valid&&req_ready)active_req<=req;
+      if(release_valid&&release_ready)active_req<='0;
       if(store_error||(req_valid&&!req_match)||(wr_valid&&!write_match)||(release_valid&&!release_match))protocol_error<=1;
     end
   end

@@ -58,5 +58,7 @@ tb/tb_v3_pcore_three_job_chain.sv
 tb/tb_v3_pcore_job_dispatch.sv
 tb/tb_v3_qoz_manager.sv
 tb/tb_v3_qoz_shared.sv
+tb/tb_v3_qoz_stale_write_after_release.sv
+tb/tb_v3_qoz_double_release.sv
 tb/tb_v3_gu_scheduler_stress.sv
 tb/tb_v3_attention_gu_chain.sv

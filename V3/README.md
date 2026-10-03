@@ -49,7 +49,7 @@ producer 和 consumer 的 job_id 可以不同；release 校验 epoch/head 与 ow
 ### 最终验收与 legacy 隔离
 
 - `v3_all.f` 仅含正式接口与其 TB；旧 controller、旧 Job typedef、`tb_v3_pcore_ctrl` 和 `tb_v3_gu_32_system` 移到 `legacy/`，由 `legacy/regression.f` 单独编译。有效历史检查继续运行。
-- `run_v3_xsim.ps1` 完成 **25 个正式 TB + 2 个 legacy 兼容 TB**，以及 GU slow-post、Attention port-stress、2 个 fabric FAULT/clear 场景、3 类预期 context assertion。
+- `run_v3_xsim.ps1` 完成 **27 个正式 TB + 2 个 legacy 兼容 TB**，以及 GU slow-post、Attention port-stress、2 个 fabric FAULT/clear 场景、3 类预期 context assertion；另有 QOZ stale-write-after-release 和 double-release 两个生命周期边界 TB。
 - 分发专项覆盖 active error、inactive error 隔离及 fabric FAULT；Top 用非法 QOZ write 和内部 release 注入验证保留 region、无 JOB_OK、clear 恢复。
 - QOZ 专项增加 O16、Z32→Down release、错误 consumer、乱序写、三类错误 tiles 检查；三任务 TB 检查两类 post 的 index/mask/last 与数据背压保持。
 - GU 保持每 N 3328 连续 issue、稳态 3346 拍、A/B stall=0、fast slot stall=0；slow post 仅 G63 slot 停顿 276 拍。Attention 保持 416 / 434 / 867 / 439；Projection golden、Z 832 次回读均通过。
@@ -59,7 +59,7 @@ producer 和 consumer 的 job_id 可以不同；release 校验 epoch/head 与 ow
 
 ## 历史阶段：2026-10-02 三 Operation 共享执行结构
 
-当前 `dea8_pcore_exec_v3` 已串行跑通 `OP_Q_PROJ → OP_ATTENTION → OP_GU`，共用一个 Matrix 和一个物理 QOZ。最新完整回归于 **2026-10-02 17:53:51 +08:00** 结束：27 个 TB、额外 GU slow-post、Attention55 port-stress、3 类预期 completion 拒绝检查全部通过。证据：`reports/v3_simulation_summary.txt`、各 TB 日志及 `reports/v3_sources_sha256.csv`。
+当前 `dea8_pcore_exec_v3` 已串行跑通 `OP_Q_PROJ → OP_ATTENTION → OP_GU`，共用一个 Matrix 和一个物理 QOZ。最新完整回归于 **2026-10-03 14:44:53 +08:00** 结束：29 个 TB、额外 GU slow-post、Attention55 port-stress、3 类预期 completion 拒绝检查以及 QOZ 释放边界检查全部通过。证据：`reports/v3_simulation_summary.txt`、各 TB 日志及 `reports/v3_sources_sha256.csv`。
 
 ### 控制与资源契约
 

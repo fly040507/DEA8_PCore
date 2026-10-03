@@ -7,6 +7,7 @@ $tops=@("tb_fp32_acc_lane_v5","tb_deqacc32_v5_stream")+$tops
 $tops=@("tb_v3_gu_scheduler","tb_v3_gu_scheduler_stress","tb_v3_gu_matrix","tb_v3_gu_32_system","tb_v3_qoz_shared","tb_v3_attention_gu_chain")+$tops
 $tops=@("tb_v3_pcore_ctrl")+$tops
 $tops=@("tb_v3_pcore_job_dispatch","tb_v3_qoz_manager","tb_v3_pcore_three_job_chain")+$tops
+$tops=@("tb_v3_qoz_stale_write_after_release","tb_v3_qoz_double_release")+$tops
 New-Item -ItemType Directory -Force -Path $report | Out-Null
 "RUNNING at $(Get-Date -Format o)" | Set-Content (Join-Path $report "v3_simulation_summary.txt") -Encoding UTF8
 Push-Location $here
