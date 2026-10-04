@@ -296,3 +296,36 @@ Scheduling模式断言body=416、普通interval=434、尾部867及439，SFU P-ex
 - 逻辑10-bit source ID与FIFO transport ID分离。实际HBM AXI/KVB寻址控制器、真实Mask/Softmax/EXP/reciprocal未在本目录完成。
 - VPU/SFU算术仍为TB模型，Matrix 只依赖 `valid/ready/done`、epoch/head/block 上下文和 PBUF/scale 就绪信号；本轮 TB 按后续双 lane 方案将 SFU P-exp 建模为204拍、OACC scale为208拍、A_FIN为408拍，恒等 OACC scale 用于保持矩阵数值对拍。该模型验证的是调度与接口，不是 VPU/SFU 的 RTL 算术签核。
 - Projection与Attention仍是独立wrapper；Top、G-U、VPU/SFU行级调度不属于本轮范围。
+
+## 七 Job 统一矩阵链路（进行中）
+
+当前冻结的单核 Job 映射为：
+
+| PCore Job | Matrix mode | A 外部来源 | Matrix A | B 来源 | Tile 几何 |
+| --- | --- | --- | --- | --- | --- |
+| Q/K/V Projection | `MAT_PROJECTION` | XBC | XBC | HBM | 64 K × 16 N |
+| Attention | `MAT_ATTENTION` | QOZ/PBUF | local A | KVB | 由 55-block scheduler 管理 |
+| O Projection | `MAT_PROJECTION` | QOZ_O | local A | HBM | 16 K × 64 N |
+| G-U | `MAT_GU` | XBC | Replay local A | HBM | 64 K × 32 N |
+| Down Projection | `MAT_PROJECTION` | QOZ_Z | local A | HBM | 32 K × 64 N |
+
+QOZ 生命周期固定为 `Q Projection -> QOZ_Q -> Attention`、
+`Attention -> QOZ_O -> O Projection`、`G-U -> QOZ_Z -> Down Projection`。
+O/Down 的 Projection local-A reader 按每个输出 N Tile 从 `tile=0,pair=0`
+重新向 committed QOZ 发起读取，响应经 shared Matrix 的 `local_valid/local_entry`
+进入 AFIFO；Job 完成后由对应 consumer release region。
+
+G-U 的正式输入边界为 `XBC -> dea8_gu_xbc_frontend_v3 -> A2 -> GU Replay`，
+保留 `gu_a_*` 仅用于过渡兼容，正式链路不依赖它。`dea8_pcore_exec_v3`
+另外提供显式 `fixture_region_* / fixture_wr_*` 端口，供 TB 在独立 Job
+启动前准备 Q/O/Z fixture，不引入 RTL 隐藏测试状态。
+
+`tb_v3_pcore_three_job_chain.sv` 已增加 `SEVEN_JOBS` 模式，按一次 reset
+串行发出 Q/K/V/Attention/O/G-U/Down 七个 Job，并由 TB 独立提供 XBC、HBM、
+KVB、QOZ fixture、VPU/SFU/Post 响应。GU 这一步已经改为真实的
+`XBC4 -> dea8_gu_xbc_frontend_v3 -> A2` 输入，旧 `gu_a_*` 只保留给历史
+兼容用例。新增 `tb_v3_pcore_seven_jobs` wrapper，回归脚本会记录
+`reports/tb_v3_pcore_seven_jobs.txt`。
+
+本节代码已完成静态 `xvlog` 检查；七 Job 完整数值 TB 仍受 Vivado XSIM
+快照错误 `43-3409` 阻塞，当前不能把该模式表述为仿真 PASS。

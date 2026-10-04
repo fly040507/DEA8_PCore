@@ -50,7 +50,7 @@ package pcore3_pkg;
   typedef struct packed {job_header_t header;pcore_post_op_e op;logic [5:0] n;} pcore_post_job_t;
   typedef enum logic [1:0] {QOZ_NONE=0,QOZ_Q=1,QOZ_O=2,QOZ_Z=3} qoz_owner_e;
   // One 32-tile physical region: acquire -> ordered writes -> complete ->
-  // consumer reads -> release. O consumer is not defined in this phase.
+  // consumer reads -> release. O is produced by Attention and consumed by O_PROJ.
   parameter int QOZ_Q_TILES=16,QOZ_O_TILES=16,QOZ_Z_TILES=32;
   typedef struct packed {
     job_header_t header;
@@ -58,6 +58,36 @@ package pcore3_pkg;
     logic [5:0] tiles;
   } qoz_region_req_t;
   typedef enum logic {MATRIX_QK=0,MATRIX_PV=1} matrix_op_e;
+
+  // Static operation contract: seven PCore jobs map to three physical
+  // Matrix implementations and share one execution core.
+  typedef struct packed {
+    matrix_mode_e mode;
+    a_source_e external_a;
+    a_source_e matrix_a;
+    b_source_e b_source;
+    logic [7:0] k_tiles;
+    logic [7:0] n_tiles;
+    qoz_owner_e input_owner;
+    logic output_qoz;
+  } operation_profile_t;
+
+  function automatic operation_profile_t operation_profile(input pcore_op_e op);
+    operation_profile_t p;
+    p='0; p.mode=MAT_PROJECTION; p.external_a=A_XBC; p.matrix_a=A_XBC;
+    p.b_source=B_HBM; p.k_tiles=8'd64; p.n_tiles=8'd16;
+    p.input_owner=QOZ_NONE; p.output_qoz=1'b0;
+    case(op)
+      OP_Q_PROJ: p.output_qoz=1'b1;
+      OP_K_PROJ,OP_V_PROJ: begin p.output_qoz=1'b0; end
+      OP_O_PROJ: begin p.external_a=A_LOCAL;p.matrix_a=A_LOCAL;p.k_tiles=8'd16;p.n_tiles=8'd64;p.input_owner=QOZ_O; end
+      OP_DOWN_PROJ: begin p.external_a=A_LOCAL;p.matrix_a=A_LOCAL;p.k_tiles=8'd32;p.n_tiles=8'd64;p.input_owner=QOZ_Z; end
+      OP_ATTENTION: begin p.mode=MAT_ATTENTION;p.external_a=A_LOCAL;p.matrix_a=A_LOCAL;p.b_source=B_KVB;p.input_owner=QOZ_Q; end
+      OP_GU: begin p.mode=MAT_GU;p.external_a=A_XBC;p.matrix_a=A_LOCAL;p.k_tiles=8'd64;p.n_tiles=8'd32;p.b_source=B_HBM;p.output_qoz=1'b1; end
+      default: ;
+    endcase
+    return p;
+  endfunction
 
   typedef struct packed {
     logic [DATA_BITS-1:0] data;
@@ -119,7 +149,7 @@ package pcore3_pkg;
     logic [2:0] head;
     logic [TILE_BITS-1:0] tile_idx;
     logic [PAIR_BITS-1:0] pair_idx;
-    logic [3:0] nt;
+    logic [TILE_BITS-1:0] nt;
     logic final_k;
     logic last;
     logic signed [EXP_FOLD_BITS-1:0] exp_fold;
@@ -153,7 +183,7 @@ package pcore3_pkg;
     logic [5:0] rows;
     logic [EPOCH_BITS-1:0] epoch;
     logic [2:0] head;
-    logic [3:0] nt;
+    logic [TILE_BITS-1:0] nt;
     logic nt_per_tile,clear_each_tile,final_k,add_old,slot_ready;
     logic signed [EXP_FOLD_BITS-1:0] exp_fold;
     acc_sel_e acc_sel;
@@ -184,7 +214,7 @@ package pcore3_pkg;
     logic [LOGICAL_ID_BITS-1:0] a_id;
     logic [LOGICAL_ID_BITS-1:0] b_id;
     logic [5:0] m_rows;
-    logic [3:0] out_tile;
+    logic [TILE_BITS-1:0] out_tile;
     acc_sel_e acc_sel;
     logic add_old;
     logic result_last;

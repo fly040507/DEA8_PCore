@@ -7,14 +7,18 @@ import fp32_legacy_ref_pkg::*;
 // (global_column mod 15)+1, so every output Tile and every lane is checked.
 module tb_v3_projection;
   localparam int K_TILES=64,N_TILES=16;
+  localparam bit LOCAL_A=0;
   logic clk=0; always #2 clk=~clk;
   logic reset=1,clear=0,start=0;
   logic [EPOCH_BITS-1:0] epoch=1; logic [2:0] head=0;
   logic signed [EXP_FOLD_BITS-1:0] exp_fold=0;
   logic busy,done;
+  logic [MATRIX_TILE_COUNT_BITS-1:0] job_k_tiles=K_TILES;
+  logic [MATRIX_TILE_COUNT_BITS-1:0] job_n_tiles=N_TILES;
+  logic local_a_valid=0,local_a_ready; a2_t local_a_entry='0;
   logic xbc_valid,xbc_ready; xbc4_t xbc_entry;
   logic hbm_valid,hbm_ready; b2_t hbm_entry;
-  logic qoz_wr_valid; logic [3:0] qoz_wr_tile; logic [PAIR_BITS-1:0] qoz_wr_pair;
+  logic qoz_wr_valid; logic [TILE_BITS-1:0] qoz_wr_tile; logic [PAIR_BITS-1:0] qoz_wr_pair;
   logic [1:0] qoz_wr_row_valid; logic [15:0][31:0] qoz_even,qoz_odd;
   logic a_error,b_error; int outputs;
   logic qoz_wr_ready=0,stalled=0;
@@ -27,6 +31,8 @@ module tb_v3_projection;
 
   dea8_projection_v3 dut(
     .clk,.reset,.clear,.start,.job_epoch(epoch),.job_head(head),.job_exp_fold(exp_fold),
+    .job_k_tiles,.job_n_tiles,.job_a_source(LOCAL_A?A_LOCAL:A_XBC),.job_b_source(B_HBM),
+    .local_a_valid,.local_a_entry,
     .busy,.done,.xbc_valid,.xbc_ready,.xbc_entry,.hbm_valid,.hbm_ready,.hbm_entry,
     .qoz_wr_valid,.qoz_wr_ready,.qoz_wr_tile,.qoz_wr_pair,.qoz_wr_row_valid,
     .qoz_wr_even_fp32(qoz_even),.qoz_wr_odd_fp32(qoz_odd),
@@ -69,6 +75,17 @@ module tb_v3_projection;
     @(negedge clk);hbm_valid=0;
   endtask
 
+  task automatic send_local(input int tile,input int pair_id);
+    @(negedge clk);
+    local_a_entry='0;local_a_entry.tile_idx=TILE_BITS'(tile);
+    local_a_entry.pair_idx=PAIR_BITS'(pair_id);local_a_entry.row_valid=row_mask(pair_id);
+    local_a_entry.row[0]=qv(1,128);
+    local_a_entry.row[1]=qv(pair_id%2==0?2:1,128);
+    local_a_valid=1;
+    do @(posedge clk);while(!local_a_ready);
+    @(negedge clk);local_a_valid=0;
+  endtask
+
   always @(posedge clk) begin
     if(stalled && (!qoz_wr_valid||{qoz_wr_tile,qoz_wr_pair,qoz_wr_row_valid,qoz_even,qoz_odd}!==held))
       $fatal(1,"Projection output changed under backpressure");
@@ -81,12 +98,12 @@ module tb_v3_projection;
       global_col=qoz_wr_tile*16;
       for(int n=0;n<16;n++) begin
         bval=((global_col+n)%15)+1;
-        if(qoz_even[n]!==expected_float(1024*bval))
+        if(qoz_even[n]!==expected_float(K_TILES*TILE*bval))
           $fatal(1,"Q Projection even mismatch tile=%0d pair=%0d lane=%0d got=%h",
             qoz_wr_tile,qoz_wr_pair,n,qoz_even[n]);
         // The stimulus repeats the XBC4 pattern on every group: its first
         // pair is 1/2 and its second pair is 1/1.  Pair 25 has one row.
-        if(qoz_wr_row_valid[1]&&qoz_odd[n]!==expected_float((qoz_wr_pair[0]==0)?2048*bval:1024*bval))
+        if(qoz_wr_row_valid[1]&&qoz_odd[n]!==expected_float(K_TILES*TILE*(qoz_wr_pair[0]==0?2:1)*bval))
           $fatal(1,"Q Projection odd mismatch tile=%0d pair=%0d lane=%0d got=%h",
             qoz_wr_tile,qoz_wr_pair,n,qoz_odd[n]);
       end
@@ -102,7 +119,10 @@ module tb_v3_projection;
     fork
       begin
         for(int nt=0;nt<N_TILES;nt++)
-          for(int t=0;t<K_TILES;t++) for(int g=0;g<XBC_GROUPS;g++) send_a4(t,g);
+          for(int t=0;t<K_TILES;t++) begin
+            if(LOCAL_A)for(int p=0;p<PAIRS;p++)send_local(t,p);
+            else for(int g=0;g<XBC_GROUPS;g++)send_a4(t,g);
+          end
       end
       begin
         for(int nt=0;nt<N_TILES;nt++)
@@ -112,7 +132,7 @@ module tb_v3_projection;
     wait(done);#2;
     if(a_error||b_error) $fatal(1,"Projection ingress protocol error");
     if(outputs!=N_TILES) $fatal(1,"QOZ output Tile count=%0d expected=%0d",outputs,N_TILES);
-    $display("tb_v3_projection PASS shape=[51,1024]x[1024,256] qoz_tiles=%0d outputs=%0d",N_TILES,outputs);
+    $display("tb_v3_projection PASS shape=[%0d,%0d]x[%0d,%0d] local_a=%0d output_tiles=%0d",ROWS,K_TILES*TILE,K_TILES*TILE,N_TILES*TILE,LOCAL_A,outputs);
     $finish;
   end
   initial begin #5000000;$fatal(1,"v3 Projection watchdog"); end

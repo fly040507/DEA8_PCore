@@ -4,6 +4,8 @@ import fp32_legacy_ref_pkg::*;
 module tb_v3_pcore_three_job_chain;
   logic clk=0;always #2 clk=~clk;
   logic reset=1,clear=0,job_valid=0,job_ready,job_done_valid,job_done_ready=0;
+  logic fixture_region_valid=0,fixture_region_ready,fixture_wr_valid=0,fixture_wr_ready;
+  qoz_region_req_t fixture_region;post_result_t fixture_wr;
   pcore_job_t job;pcore_completion_t job_done;
   logic busy,protocol_error;logic [1:0] active_adapter;
   logic xbc_valid=0,xbc_ready;xbc4_t xbc_entry;
@@ -84,6 +86,35 @@ module tb_v3_pcore_three_job_chain;
       begin for(int n=0;n<16;n++)for(int k=0;k<64;k++)for(int g=0;g<8;g++)send_b(k,g,n,0,0);end
     join
   endtask
+  task automatic feed_projection_xbc(input int n_count,k_count);
+    fork
+      begin
+        for(int n=0;n<n_count;n++)for(int k=0;k<k_count;k++)for(int g=0;g<XBC_GROUPS;g++)begin
+          xbc_entry='0;xbc_entry.tile_idx=TILE_BITS'(k);xbc_entry.group_idx=4'(g);
+          xbc_entry.row_valid=g==XBC_GROUPS-1?4'b0111:4'b1111;
+          for(int r=0;r<4;r++)xbc_entry.row[r]=qv(1,128);
+          xbc_valid=1;do @(posedge clk);while(!xbc_ready);@(negedge clk);xbc_valid=0;
+        end
+      end
+      begin for(int n=0;n<n_count;n++)for(int k=0;k<k_count;k++)for(int g=0;g<8;g++)send_b(k,g,n,0,0);end
+    join
+  endtask
+  task automatic feed_projection_hbm(input int n_count,k_count);
+    for(int n=0;n<n_count;n++)for(int k=0;k<k_count;k++)for(int g=0;g<8;g++)send_b(k,g,n,0,0);
+  endtask
+  task automatic prepare_fixture(input qoz_owner_e owner,input pcore_op_e producer,input int tiles,input int id);
+    fixture_region='0;fixture_region.header='{job_id:16'(id),epoch:4'd3,head:3'd1,op:producer};
+    fixture_region.owner=owner;fixture_region.tiles=6'(tiles);fixture_region_valid=1;
+    do @(posedge clk);while(!fixture_region_ready);@(negedge clk);fixture_region_valid=0;
+    for(int t=0;t<tiles;t++)for(int p=0;p<PAIRS;p++)begin
+      fixture_wr='0;fixture_wr.header=fixture_region.header;fixture_wr.n=6'(t);
+      fixture_wr.pair_data.tile_idx=TILE_BITS'(t);fixture_wr.pair_data.pair_idx=PAIR_BITS'(p);
+      fixture_wr.pair_data.row_valid=row_mask(p);fixture_wr.pair_data.row[0]=qv(1,128);
+      fixture_wr.pair_data.row[1]=qv(1,128);fixture_wr.last=p==PAIRS-1;fixture_wr_valid=1;
+      do @(posedge clk);while(!fixture_wr_ready);@(negedge clk);fixture_wr_valid=0;
+    end
+    wait(qoz_complete);
+  endtask
   task automatic feed_gu;
     fork
       begin
@@ -96,6 +127,41 @@ module tb_v3_pcore_three_job_chain;
               for(int i=0;i<16;i++)gu_a_entry.row[r].data[8*i+:8]=8'(aval(2*p+r,k,i));
             end
             gu_a_valid=1;do @(posedge clk);while(!gu_a_ready);@(negedge clk);gu_a_valid=0;
+          end
+        end
+      end
+      begin
+        for(int n=0;n<32;n++)begin
+          wait(allowed_n>=n);@(negedge clk);
+          for(int k=0;k<128;k++)for(int g=0;g<8;g++)send_b(k,g,n,1,0);
+        end
+      end
+    join
+  endtask
+  // Seven-job regression uses the frozen GU ingress: one XBC beat contains
+  // four consecutive rows and the GU front end serializes it into two A2
+  // pairs.  The payload is intentionally the same as feed_gu(), so the
+  // existing FP32/GELU reference remains the oracle.
+  task automatic feed_gu_xbc;
+    fork
+      begin
+        for(int n=0;n<32;n++)begin
+          wait(allowed_n>=n);@(negedge clk);
+          for(int k=0;k<64;k++)for(int g=0;g<XBC_GROUPS;g++)begin
+            xbc_entry='0;
+            xbc_entry.tile_idx=TILE_BITS'(k);
+            xbc_entry.group_idx=4'(g);
+            xbc_entry.row_valid=g==XBC_GROUPS-1?4'b0111:4'b1111;
+            xbc_entry.slot=1'b0;
+            for(int r=0;r<4;r++)begin
+              xbc_entry.row[r]='0;
+              xbc_entry.row[r].scale=8'(128+(4*g+r)%3);
+              for(int i=0;i<16;i++)
+                xbc_entry.row[r].data[8*i+:8]=8'(aval(4*g+r,k,i));
+            end
+            xbc_valid=1;
+            do @(posedge clk);while(!xbc_ready);
+            @(negedge clk);xbc_valid=0;
           end
         end
       end
@@ -245,10 +311,30 @@ module tb_v3_pcore_three_job_chain;
   initial begin
     slow_post=$test$plusargs("SLOW_POST");gu_only=$test$plusargs("GU_ONLY");
     $readmemh("tb/data/gu_fp32.mem",gu_golden);$readmemh("tb/data/gu_z_mxint8.mem",z_golden);
-    job='0;post_result='0;acc_wr='0;xbc_entry='0;gu_a_entry='0;hbm_entry='0;kv_entry='0;p_entry='0;
+    job='0;post_result='0;fixture_region='0;fixture_wr='0;acc_wr='0;xbc_entry='0;gu_a_entry='0;hbm_entry='0;kv_entry='0;p_entry='0;
     for(int n=0;n<32;n++)begin count_gu[n]=0;first_gu[n]=0;last_gu[n]=0;commit_gu[n]=0;stall_a_n[n]=0;stall_b_n[n]=0;stall_slot_n[n]=0;handoff_n[n]=0;end
     for(int n=0;n<110;n++)begin count_attn[n]=0;first_attn[n]=0;last_attn[n]=0;commit_attn[n]=0;end
     repeat(35)@(negedge clk);reset=0;
+    if($test$plusargs("SEVEN_JOBS"))begin
+      send_operation(OP_Q_PROJ,10);fork feed_projection_xbc(16,64);finish_operation();join
+      if(!qoz_complete||qoz_region.owner!=QOZ_Q||q_pairs!=416)$fatal(1,"seven Q projection not committed");
+      send_operation(OP_K_PROJ,11);fork feed_projection_xbc(16,64);finish_operation();join
+      send_operation(OP_V_PROJ,12);fork feed_projection_xbc(16,64);finish_operation();join
+      send_operation(OP_ATTENTION,13);
+      fork
+        begin for(int j=0;j<110;j++)for(int t=0;t<16;t++)for(int g=0;g<8;g++)send_b(j*16+t,g,0,0,1);end
+        finish_operation();
+      join
+      if(qoz_complete||dut.qactive)$fatal(1,"seven Attention did not release Q");
+      prepare_fixture(QOZ_O,OP_ATTENTION,16,20);
+      send_operation(OP_O_PROJ,14);fork feed_projection_hbm(64,16);finish_operation();join
+      if(qoz_complete||dut.qactive)$fatal(1,"seven O Projection did not release O");
+      send_operation(OP_GU,15);fork feed_gu_xbc();finish_operation();join
+      if(!qoz_complete||qoz_region.owner!=QOZ_Z)$fatal(1,"seven GU did not commit Z");
+      send_operation(OP_DOWN_PROJ,16);fork feed_projection_hbm(64,32);finish_operation();join
+      if(qoz_complete||dut.qactive)$fatal(1,"seven Down Projection did not release Z");
+      $display("tb_v3_pcore_three_job_chain PASS seven_jobs=7 shared_matrix=1 qoz_q=1 qoz_o=1 qoz_z=1");$finish;
+    end
     if($test$plusargs("FAULT_WRITE")||$test$plusargs("FAULT_RELEASE"))begin
       fault_test=1;
       send_operation(OP_GU,90);wait(dut.qactive);@(negedge clk);
@@ -312,4 +398,11 @@ module tb_v3_pcore_three_job_chain;
     $display("tb_v3_pcore_three_job_chain PASS operations=%0d shared_matrix=1 shared_qoz=1 posts=%0d z_readbacks=%0d gu_interval=%0d stall_slot=%0d slow=%0d",ops,posts,readbacks,first_gu[2]-first_gu[1],stall_slot,slow_post);$finish;
   end
   initial begin #1600000;$fatal(1,"three job watchdog owner=%0d post=%0d q=%0d z=%0d GU_n=%0d",active_adapter,posts,q_pairs,z_pairs,dut.gu.n_q);end
+endmodule
+
+// Named acceptance entry for the frozen seven-operation milestone.  The
+// child retains the established external VPU/SFU/QOZ models; plusargs are
+// global, so SEVEN_JOBS selects the seven-job branch inside the same DUT.
+module tb_v3_pcore_seven_jobs;
+  tb_v3_pcore_three_job_chain chain();
 endmodule

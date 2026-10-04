@@ -30,7 +30,7 @@ module dea8_pcore_ctrl_v3(
       if(job_valid&&job_ready)begin
         job_q<=job;job_done.header<=job.header;job_done.status<=JOB_OK;sent_q<=0;
         case(job.header.op)
-          OP_Q_PROJ:begin owner<=0;state_q<=ACTIVE;end
+          OP_Q_PROJ,OP_K_PROJ,OP_V_PROJ,OP_O_PROJ,OP_DOWN_PROJ:begin owner<=0;state_q<=ACTIVE;end
           OP_ATTENTION:begin owner<=1;state_q<=ACTIVE;end
           OP_GU:begin owner<=2;state_q<=ACTIVE;end
           default:begin job_done.status<=JOB_UNSUPPORTED;state_q<=COMPLETE;end

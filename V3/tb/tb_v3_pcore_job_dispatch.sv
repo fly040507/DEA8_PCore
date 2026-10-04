@@ -21,9 +21,11 @@ module tb_v3_pcore_job_dispatch;
   initial begin
     job='0;for(int i=0;i<3;i++)adapter_done[i]='0;
     repeat(5)@(negedge clk);reset=0;
-    for(int i=0;i<3;i++)begin
+    for(int op=0;op<7;op++)begin
+      int i;
       pcore_job_t held;
-      send(i==0?OP_Q_PROJ:i==1?OP_ATTENTION:OP_GU,100+i);held=job;
+      i=op==int'(OP_ATTENTION)?1:op==int'(OP_GU)?2:0;
+      send(pcore_op_e'(op),100+op);held=job;
       repeat(8)begin
         @(negedge clk);
         if(adapter_valid!==(3'b001<<i)||adapter_job!==held||owner!=i||job_ready||!busy)$fatal(1,"adapter dispatch/hold");
@@ -39,8 +41,8 @@ module tb_v3_pcore_job_dispatch;
       repeat(7)begin @(negedge clk);if(!job_done_valid||job_done!==adapter_done[i]||job_ready)$fatal(1,"completion hold/context");end
       job_done_ready=1;@(negedge clk);job_done_ready=0;
     end
-    if(accepts!=3)$fatal(1,"accepted duplicate job");
-    send(OP_DOWN_PROJ,104);wait(job_done_valid);
+    if(accepts!=7)$fatal(1,"accepted duplicate job");
+    send(pcore_op_e'(7),104);wait(job_done_valid);
     if(job_done.status!=JOB_UNSUPPORTED||adapter_valid)$fatal(1,"unsupported operation dispatch");
     job_done_ready=1;@(negedge clk);job_done_ready=0;
     for(int bad=0;bad<2;bad++)begin
@@ -59,7 +61,7 @@ module tb_v3_pcore_job_dispatch;
       repeat(3)begin @(negedge clk);if(!protocol_error||job_ready||job_done_valid||adapter_valid||adapter_done_ready)$fatal(1,"error escaped FAULT");end
       recover();
     end
-    $display("tb_v3_pcore_job_dispatch PASS serial_ops=3 single_owner=1 stalled_commands=1 done_hold=1 wrong_context=1 wrong_adapter=1 unsupported=1 active_error=1 inactive_error_isolated=1 fabric_fault_clear=1");$finish;
+    $display("tb_v3_pcore_job_dispatch PASS serial_ops=7 single_owner=1 stalled_commands=1 done_hold=1 wrong_context=1 wrong_adapter=1 unsupported=1 active_error=1 inactive_error_isolated=1 fabric_fault_clear=1");$finish;
   end
   initial begin #10000;$fatal(1,"dispatch watchdog");end
 endmodule

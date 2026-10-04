@@ -17,6 +17,7 @@ rtl/dea8_pe_2row_v3.sv
 rtl/dea8_mxu_2row_v3.sv
 rtl/dea8_afifo_v3.sv
 rtl/dea8_xbc4_adapter_v3.sv
+rtl/dea8_gu_xbc_frontend_v3.sv
 rtl/dea8_bfifo_v3.sv
 rtl/dea8_b_serializer_v3.sv
 rtl/dea8_b_loader_v3.sv

@@ -23,7 +23,7 @@ module dea8_matrix_v3 #(parameter bit LOCAL_A=0, parameter bit A_STREAMING=LOCAL
   input logic [PAIR_BITS:0] job_m_rows,
   input logic [EPOCH_BITS-1:0] job_epoch,
   input logic [2:0] job_head,
-  input logic [3:0] job_nt,
+  input logic [TILE_BITS-1:0] job_nt,
   input logic job_nt_per_tile,
   input logic job_clear_each_tile,
   input logic job_final_k,
@@ -135,7 +135,7 @@ module dea8_matrix_v3 #(parameter bit LOCAL_A=0, parameter bit A_STREAMING=LOCAL
   matrix_mode_e job_mode_q; logic [5:0] job_gu_n_q;
   logic tile_started_q;
   logic [EPOCH_BITS-1:0] epoch_q; logic [2:0] head_q;
-  logic final_k_q; logic [3:0] nt_q;
+  logic final_k_q; logic [TILE_BITS-1:0] nt_q;
   logic nt_per_tile_q,clear_each_tile_q;
   logic signed [EXP_FOLD_BITS-1:0] exp_fold_q;
   acc_sel_e acc_sel_q; logic add_old_q;

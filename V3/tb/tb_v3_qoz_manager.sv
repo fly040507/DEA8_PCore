@@ -44,11 +44,11 @@ module tb_v3_qoz_manager;
     consumer='{job_id:16'd5,epoch:4'd3,head:3'd1,op:OP_ATTENTION};
     @(negedge clk);release_valid=1;@(negedge clk);release_valid=0;
     if(!protocol_error)$fatal(1,"wrong release generation accepted");
-    clean();acquire(QOZ_O,OP_O_PROJ,6,16);
+    clean();acquire(QOZ_O,OP_ATTENTION,6,16);
     if(active_req.owner!=QOZ_O||active_req.tiles!=QOZ_O_TILES)$fatal(1,"O region contract");
     consumer=req.header;consumer.op=OP_ATTENTION;
     @(negedge clk);release_valid=1;@(negedge clk);release_valid=0;
-    if(!protocol_error)$fatal(1,"undefined O consumer accepted");
+    if(!protocol_error)$fatal(1,"wrong O consumer accepted");
     clean();acquire(QOZ_Z,OP_GU,7,32);
     for(int t=0;t<32;t++)for(int p=0;p<PAIRS;p++)begin
       @(negedge clk);wr='0;wr.header=req.header;wr.n=6'(t);wr.pair_data.tile_idx=TILE_BITS'(t);
@@ -62,7 +62,7 @@ module tb_v3_qoz_manager;
     @(negedge clk);wr='0;wr.header=req.header;wr.pair_data.row_valid=3;wr.pair_data.pair_idx=1;wr_valid=1;
     repeat(3)@(negedge clk);wr_valid=0;if(!protocol_error)$fatal(1,"unordered write accepted");
     for(int own=1;own<=3;own++)begin
-      clean();req='{header:'{job_id:16'd10,epoch:4'd2,head:3'd1,op:own==1?OP_Q_PROJ:own==2?OP_O_PROJ:OP_GU},owner:qoz_owner_e'(own),tiles:6'd15};
+      clean();req='{header:'{job_id:16'd10,epoch:4'd2,head:3'd1,op:own==1?OP_Q_PROJ:own==2?OP_ATTENTION:OP_GU},owner:qoz_owner_e'(own),tiles:6'd15};
       @(negedge clk);req_valid=1;#1;if(req_ready)$fatal(1,"wrong tiles accepted");
       @(negedge clk);req_valid=0;if(!protocol_error)$fatal(1,"wrong tiles not detected");
     end

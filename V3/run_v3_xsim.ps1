@@ -6,7 +6,7 @@ $tops=@("tb_v3_fp32_equiv")+$tops
 $tops=@("tb_fp32_acc_lane_v5","tb_deqacc32_v5_stream")+$tops
 $tops=@("tb_v3_gu_scheduler","tb_v3_gu_scheduler_stress","tb_v3_gu_matrix","tb_v3_gu_32_system","tb_v3_qoz_shared","tb_v3_attention_gu_chain")+$tops
 $tops=@("tb_v3_pcore_ctrl")+$tops
-$tops=@("tb_v3_pcore_job_dispatch","tb_v3_qoz_manager","tb_v3_pcore_three_job_chain")+$tops
+$tops=@("tb_v3_pcore_job_dispatch","tb_v3_qoz_manager","tb_v3_pcore_three_job_chain","tb_v3_pcore_seven_jobs")+$tops
 $tops=@("tb_v3_qoz_stale_write_after_release","tb_v3_qoz_double_release")+$tops
 New-Item -ItemType Directory -Force -Path $report | Out-Null
 "RUNNING at $(Get-Date -Format o)" | Set-Content (Join-Path $report "v3_simulation_summary.txt") -Encoding UTF8
@@ -57,6 +57,13 @@ try {
     $text=$out -join "`n"
     if($code -ne 0 -or $text -match '(?im)^\s*(Fatal|Error):' -or $text -notmatch 'PASS fabric_fault=1 clear_recovery=1'){throw "Fabric FAULT failed: $fault"}
   }
+  # Same shared execution top, but all seven PCore operations are issued in
+  # one reset.  The non-matrix QOZ/VPU/SFU traffic is supplied by the TB.
+  $out=& $xsim tb_v3_pcore_seven_jobs_sim -runall -testplusarg SEVEN_JOBS 2>&1
+  $code=$LASTEXITCODE;$out|Write-Output
+  $out|Set-Content (Join-Path $report "tb_v3_pcore_seven_jobs.txt") -Encoding UTF8
+  $text=$out -join "`n"
+  if($code -ne 0 -or $text -match '(?im)^\s*(Fatal|Error):' -or $text -notmatch 'seven_jobs=7'){throw "Seven-job matrix chain failed"}
   Get-ChildItem (Join-Path $here "rtl"),(Join-Path $here "tb"),(Join-Path $here "legacy") -File -Filter *.sv |
     Sort-Object FullName |
     Get-FileHash -Algorithm SHA256 |
