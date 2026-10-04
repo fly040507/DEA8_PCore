@@ -13,7 +13,7 @@ module tb_v3_matrix;
   logic [TILE_BITS-1:0] job_tile_idx;
   logic [MATRIX_TILE_COUNT_BITS-1:0] job_tiles;
   logic [EPOCH_BITS-1:0] job_epoch;
-  logic [2:0] job_head; logic [3:0] job_nt; logic job_final_k;
+  logic [2:0] job_head; logic [TILE_BITS-1:0] job_nt; logic job_final_k;
   logic signed [EXP_FOLD_BITS-1:0] job_exp_fold;
   acc_sel_e job_acc_sel; logic job_add_old;
   logic commit_valid,done; pair_meta_t commit_meta;

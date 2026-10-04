@@ -1,5 +1,35 @@
 # V3 PCore 数据面
 
+## Seven PCore Matrix Jobs functional PASS（2026-10-05）
+
+最终完整 XSim 回归于 **00:54:15 +08:00** 通过：32 个 TB（含 legacy 兼容）、同 reset 七 Job、GU slow-post、Attention port-stress、2 个 fabric FAULT/clear 场景、3 类预期 context 拒绝。当前 Matrix 部分功能冻结；最新依据为 `reports/v3_simulation_summary.txt` 和 `reports/v3_sources_sha256.csv`，下文旧阶段记录仅供历史对照。
+
+| Operation | A 路径 / B 来源 | K × N | 实测 issue | 输出 tile |
+| --- | --- | --- | ---: | ---: |
+| Q / K / V Projection | XBC / HBM | 64 × 16 | 各 26624 | 各 16 |
+| Attention | QOZ/PBUF / KVB | 55-block | 45760 | 110 Matrix Job |
+| O Projection | QOZ_O local / HBM | 16 × 64 | 26624 | 64 |
+| G-U | XBC → Replay → local / HBM | 64 × 32 | 106496 | 32 Z tile |
+| Down Projection | QOZ_Z local / HBM | 32 × 64 | 53248 | 64 |
+
+- 同一 `dea8_pcore_exec_v3`、同一次 reset：Q → K → V → Attention → O → GU → Down；唯一 shared Matrix，三种 Matrix mode。逐 Operation 检查 source routing、issue 数和数值，mismatch=0。
+- O/Down physical tile 每 N 重读 0..K−1；A/B transport 为 `(n*K+k) mod64`。local reader 在请求接受时推进地址，由 QOZ 响应背压控制，可逐拍 consume/refill，支持 `S_OVERLAP` 连续供数。FACC 仍只有 A/B 两个 bank，按 logical N parity 切换。
+- QOZ_Q：Q Projection → Attention；QOZ_O：Attention → O Projection；QOZ_Z：GU → Down Projection。O 使用公开 fixture；七 Job Down 使用实际 GU Z，golden 根据各行 quantized Z、HBM B 和冻结分段 FP32 累加独立计算。
+- Q/GU 的 post completion 等待最后 QOZ pair 提交；K/V/O/Down 仅返回 post_done，本轮无需无消费者的 post_result。
+- GU XBC A2 payload 改为整包原子赋值，restart 拒绝输入握手专项通过；legacy gu_a payload 选择修复，旧三任务回归仍保留 832 次 Z 回读。
+- 扩宽 logical N 后修复 OACC 固定 16 列的地址布局：`pair*16+nt[3:0]`。未修改 DEQACC 数值规则和 11 级延迟。Attention descriptor out_tile 和旧 TB 改用 TILE_BITS；调度算法未改。
+- `operation_profile()` 使用同宽 packed-vector 返回，规避 Vivado 2022.2 结构体返回异常；最终使用默认 xelab 优化通过，无需 `--O0`。
+
+### 保持的性能与边界
+
+- Attention scheduling：body=416、steady=434、PV53→PV54=867、final tail=439；55 QK + 55 PV，13056 最终值通过。
+- Attention port-stress：同一 numerical golden 通过，允许端口冲突增加等待；实测 steady=434..501、尾间隔=928、tail=449。
+- GU：3328 issues/N，last−first=3327，steady=3346，稳态 A/B/slot stall=0，31 次 handoff；冷启动 A/B 等待仍存在。
+- Slow post：受影响 GU 间隔=3623，slot stall=276；G63 之前不因慢 post 停顿，其他稳态间隔=3346。
+- 日志：`reports/tb_v3_pcore_seven_jobs.txt`、`tb_v3_projection_local_o.txt`、`tb_v3_projection_local_down.txt`、`tb_v3_gu_xbc_restart.txt`、`tb_v3_gu_prefetch_slow.txt`、`tb_v3_attention_55_port_stress.txt`。
+- 本轮只有功能仿真；未运行综合/P&R。旧 DEQACC 物理报告对应旧源码，不是本轮寻址修复后的物理签核。VPU/SFU/GCore/CNET 具体实现仍由外部 subsystem 负责。
+- 下一阶段可接 Layer Sequencer 与真实 Job 间的数据依赖；不再扩展本轮公共矩阵执行框架。
+
 本目录从 `PCore_2.0/v3` 独立提升为 `VLA/V3`；`VLA/pcore` 是保留的旧单 INT8 版本。命令均从本目录执行。旧版 `PCore_2.0` 的非 v3 实现已由本版替代。
 
 `reports/` 只保留 2026-10-02 功能冻结回归的日志、SHA256 清单和冻结 DEQACC 的必要 OOC 证据。历史日志中旧的绝对路径指向迁移前位置，不能据此判断现在的文件位置；迁移后需重新运行 `run_v3_xsim.ps1` 生成当前路径的验证记录。
@@ -324,7 +354,8 @@ G-U 的正式输入边界为 `XBC -> dea8_gu_xbc_frontend_v3 -> A2 -> GU Replay`
 串行发出 Q/K/V/Attention/O/G-U/Down 七个 Job，并由 TB 独立提供 XBC、HBM、
 KVB、QOZ fixture、VPU/SFU/Post 响应。GU 这一步已经改为真实的
 `XBC4 -> dea8_gu_xbc_frontend_v3 -> A2` 输入，旧 `gu_a_*` 只保留给历史
-兼容用例。新增 `tb_v3_pcore_seven_jobs` wrapper，回归脚本会记录
+兼容用例。七 Job 专项直接复用稳定的
+`tb_v3_pcore_three_job_chain_sim -testplusarg SEVEN_JOBS`，回归脚本会记录
 `reports/tb_v3_pcore_seven_jobs.txt`。
 
 本节代码已完成静态 `xvlog` 检查；七 Job 完整数值 TB 仍受 Vivado XSIM

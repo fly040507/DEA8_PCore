@@ -72,21 +72,15 @@ package pcore3_pkg;
     logic output_qoz;
   } operation_profile_t;
 
-  function automatic operation_profile_t operation_profile(input pcore_op_e op);
-    operation_profile_t p;
-    p='0; p.mode=MAT_PROJECTION; p.external_a=A_XBC; p.matrix_a=A_XBC;
-    p.b_source=B_HBM; p.k_tiles=8'd64; p.n_tiles=8'd16;
-    p.input_owner=QOZ_NONE; p.output_qoz=1'b0;
+  function automatic logic [$bits(operation_profile_t)-1:0] operation_profile(input pcore_op_e op);
     case(op)
-      OP_Q_PROJ: p.output_qoz=1'b1;
-      OP_K_PROJ,OP_V_PROJ: begin p.output_qoz=1'b0; end
-      OP_O_PROJ: begin p.external_a=A_LOCAL;p.matrix_a=A_LOCAL;p.k_tiles=8'd16;p.n_tiles=8'd64;p.input_owner=QOZ_O; end
-      OP_DOWN_PROJ: begin p.external_a=A_LOCAL;p.matrix_a=A_LOCAL;p.k_tiles=8'd32;p.n_tiles=8'd64;p.input_owner=QOZ_Z; end
-      OP_ATTENTION: begin p.mode=MAT_ATTENTION;p.external_a=A_LOCAL;p.matrix_a=A_LOCAL;p.b_source=B_KVB;p.input_owner=QOZ_Q; end
-      OP_GU: begin p.mode=MAT_GU;p.external_a=A_XBC;p.matrix_a=A_LOCAL;p.k_tiles=8'd64;p.n_tiles=8'd32;p.b_source=B_HBM;p.output_qoz=1'b1; end
-      default: ;
+      OP_Q_PROJ: return {MAT_PROJECTION,A_XBC,A_XBC,B_HBM,8'd64,8'd16,QOZ_NONE,1'b1};
+      OP_O_PROJ: return {MAT_PROJECTION,A_LOCAL,A_LOCAL,B_HBM,8'd16,8'd64,QOZ_O,1'b0};
+      OP_DOWN_PROJ: return {MAT_PROJECTION,A_LOCAL,A_LOCAL,B_HBM,8'd32,8'd64,QOZ_Z,1'b0};
+      OP_ATTENTION: return {MAT_ATTENTION,A_LOCAL,A_LOCAL,B_KVB,8'd64,8'd16,QOZ_Q,1'b0};
+      OP_GU: return {MAT_GU,A_XBC,A_LOCAL,B_HBM,8'd64,8'd32,QOZ_NONE,1'b1};
+      default: return {MAT_PROJECTION,A_XBC,A_XBC,B_HBM,8'd64,8'd16,QOZ_NONE,1'b0};
     endcase
-    return p;
   endfunction
 
   typedef struct packed {

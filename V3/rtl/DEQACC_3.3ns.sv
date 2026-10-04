@@ -68,9 +68,9 @@ module DEQACC_3_3ns(
   endfunction
   assign rd_valid=context_q[1].valid&&context_q[1].meta.add_old;
   assign rd_addr=context_q[1].meta.acc_sel==ACC_OACC?
-    {1'b0,context_q[1].meta.pair_idx,context_q[1].meta.nt}:10'(context_q[1].meta.pair_idx);
+    {1'b0,context_q[1].meta.pair_idx,context_q[1].meta.nt[3:0]}:10'(context_q[1].meta.pair_idx);
   assign wr_addr=context_q[9].meta.acc_sel==ACC_OACC?
-    {1'b0,context_q[9].meta.pair_idx,context_q[9].meta.nt}:10'(context_q[9].meta.pair_idx);
+    {1'b0,context_q[9].meta.pair_idx,context_q[9].meta.nt[3:0]}:10'(context_q[9].meta.pair_idx);
   dea8_acc_store_v3 acc_store(
     .clk,.reset,.clear,.rd_valid,.rd_sel(context_q[1].meta.acc_sel),.rd_addr,
     .rd_data_valid,.rd_even_data(),.rd_odd_data(),

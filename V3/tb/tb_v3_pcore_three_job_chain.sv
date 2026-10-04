@@ -29,6 +29,8 @@ module tb_v3_pcore_three_job_chain;
   int count_gu[32],first_gu[32],last_gu[32],commit_gu[32];
   int count_attn[110],first_attn[110],last_attn[110],commit_attn[110],attn_i=0,attn_commits=0;
   int stall_a=0,stall_b=0,stall_slot=0,stall_matrix_handoff=0;
+  int route_xbc[3],route_hbm[3],route_kvb[3],route_qoz_rd[3];
+  int op_xbc[7],op_hbm[7],op_kvb[7],op_local[7],op_issues[7],op_outputs[7];
   int stall_a_n[32],stall_b_n[32],stall_slot_n[32],handoff_n[32];
   int gu_issue_tile=0,gu_issue_pair=0,previous_gu_n=-1,attn_final_done=-1;
   bit slow_post=0,gu_only=0,fault_test=0;
@@ -40,6 +42,34 @@ module tb_v3_pcore_three_job_chain;
     qvec16_t q;q='0;q.scale=8'(e);for(int i=0;i<16;i++)q.data[8*i+:8]=8'(v);return q;
   endfunction
   function automatic int aval(input int r,k,i);return (r+2*k+3*i)%9-4;endfunction
+  function automatic int projection_k_tiles(input pcore_op_e op);
+    case(op)
+      OP_O_PROJ: projection_k_tiles=16;
+      OP_DOWN_PROJ: projection_k_tiles=32;
+      default: projection_k_tiles=64;
+    endcase
+  endfunction
+  function automatic logic [31:0] projection_expected(input pcore_op_e op);
+    case(op)
+      OP_O_PROJ: return 32'h3e800000;
+      OP_DOWN_PROJ: return 32'h3f000000;
+      default: return 32'h3f800000;
+    endcase
+  endfunction
+  function automatic logic [31:0] down_expected(input int row);
+    logic [31:0] acc,partial,mag,norm;qvec16_t a;int dot,lead;
+    acc=0;
+    for(int k=0;k<32;k++)begin
+      a=qvec16_t'(z_golden[k*ROWS+row]);dot=0;
+      for(int i=0;i<16;i++)dot+=int'($signed(a.data[8*i+:8]));
+      mag=dot<0?-dot:dot;lead=0;
+      for(int b=0;b<32;b++)if(mag[b])lead=b;
+      norm=mag<<(31-lead);
+      partial=fp32_legacy_ref_pkg::pack_scaled32(dot<0,norm,lead+int'(a.scale)+128-266,dot==0,0);
+      acc=fp32_legacy_ref_pkg::fp32_add(acc,partial);
+    end
+    return acc;
+  endfunction
   function automatic int bval(input int n,k,i,c,input bit up);
     return up?(2*n+3*k+2*c+i)%13-6:(n+k+c+2*i)%11-5;
   endfunction
@@ -61,17 +91,20 @@ module tb_v3_pcore_three_job_chain;
     end
     return qvec16_t'({bytes,8'(e)});
   endfunction
-  task automatic send_b(input int tile,group,n,input bit gu,input bit kv);
-    b2_t e;e='0;e.tile_idx=TILE_BITS'(tile);e.group_idx=3'(group);e.epoch=job.header.epoch;
+  task automatic send_b_transport(input int logical_tile,transport_tile,group,n,input bit gu,input bit kv);
+    b2_t e;e='0;e.tile_idx=TILE_BITS'(transport_tile);e.group_idx=3'(group);e.epoch=job.header.epoch;
     for(int c=0;c<2;c++)begin
       e.col[c]=qv(1,128);
       if(gu)begin
-        for(int i=0;i<16;i++)e.col[c].data[8*i+:8]=8'(bval(n,tile/2,i,2*group+c,tile[0]));
+        for(int i=0;i<16;i++)e.col[c].data[8*i+:8]=8'(bval(n,logical_tile/2,i,2*group+c,logical_tile[0]));
         e.col[c].scale=8'(128+(2*group+c)%2);
       end
     end
     if(kv)begin kv_entry=e;kv_valid=1;do @(posedge clk);while(!kv_ready);@(negedge clk);kv_valid=0;end
     else begin hbm_entry=e;hbm_valid=1;do @(posedge clk);while(!hbm_ready);@(negedge clk);hbm_valid=0;end
+  endtask
+  task automatic send_b(input int tile,group,n,input bit gu,input bit kv);
+    send_b_transport(tile,tile,group,n,gu,kv);
   endtask
   task automatic feed_projection;
     fork
@@ -100,7 +133,8 @@ module tb_v3_pcore_three_job_chain;
     join
   endtask
   task automatic feed_projection_hbm(input int n_count,k_count);
-    for(int n=0;n<n_count;n++)for(int k=0;k<k_count;k++)for(int g=0;g<8;g++)send_b(k,g,n,0,0);
+    for(int n=0;n<n_count;n++)for(int k=0;k<k_count;k++)for(int g=0;g<8;g++)
+      send_b_transport(k,(n*k_count+k)%64,g,n,0,0);
   endtask
   task automatic prepare_fixture(input qoz_owner_e owner,input pcore_op_e producer,input int tiles,input int id);
     fixture_region='0;fixture_region.header='{job_id:16'(id),epoch:4'd3,head:3'd1,op:producer};
@@ -193,11 +227,20 @@ module tb_v3_pcore_three_job_chain;
           for(int p=0;p<PAIRS;p++)begin
             post_data_ready=1;do @(posedge clk);while(!post_data_valid);d=post_data;
             if(d.header!=c.header||d.n!=c.n||d.row!=p||d.row_valid!=row_mask(p)||d.last!=(p==PAIRS-1))$fatal(1,"projection post context/mask/last");
-            for(int i=0;i<16;i++)if(d.first[i]!==32'h3f800000||(d.row_valid[1]&&d.second[i]!==32'h3f800000))$fatal(1,"projection FP golden");
+            for(int i=0;i<16;i++)begin
+              if(d.first[i]!==(c.header.op==OP_DOWN_PROJ?down_expected(2*p):projection_expected(c.header.op)))
+                $fatal(1,"projection FP golden op=%0d",c.header.op);
+              if(d.row_valid[1]&&d.second[i]!==(c.header.op==OP_DOWN_PROJ?down_expected(2*p+1):projection_expected(c.header.op)))
+                $fatal(1,"projection FP odd golden op=%0d",c.header.op);
+            end
             e=quant(d.first,'0,0);o=d.row_valid[1]?quant(d.second,'0,0):qvec16_t'('0);
-            if(e!==qv(64,127))$fatal(1,"projection quant reference");
-            @(negedge clk);post_data_ready=0;emit_pair(c,p,e,o);q_pairs++;
+            if(c.header.op==OP_Q_PROJ)begin
+              @(negedge clk);post_data_ready=0;emit_pair(c,p,e,o);q_pairs++;
+            end else begin
+              @(negedge clk);post_data_ready=0;
+            end
           end
+          op_outputs[c.header.op]++;
         end else begin
           for(int row=0;row<ROWS;row++)begin
             post_data_ready=1;do @(posedge clk);while(!post_data_valid);d=post_data;
@@ -249,6 +292,19 @@ module tb_v3_pcore_three_job_chain;
   task automatic finish_operation;
     wait(job_done_valid);
     if(job_done.header!==job.header||job_done.status!=JOB_OK||protocol_error)$fatal(1,"operation completion mismatch op=%0d",job.header.op);
+    if($test$plusargs("SEVEN_JOBS"))begin
+      int op,k_count,n_count;op=int'(job.header.op);k_count=projection_k_tiles(job.header.op);n_count=(job.header.op==OP_O_PROJ||job.header.op==OP_DOWN_PROJ)?64:16;
+      if(job.header.op==OP_ATTENTION)begin
+        if(op_xbc[op]||op_hbm[op]||!op_kvb[op]||!op_local[op])$fatal(1,"Attention source routing");
+      end else begin
+        if(op_kvb[op]||!op_hbm[op])$fatal(1,"HBM source routing");
+        if(job.header.op==OP_O_PROJ||job.header.op==OP_DOWN_PROJ)begin
+          if(op_xbc[op]||!op_local[op])$fatal(1,"local Projection source routing");
+        end else if(!op_xbc[op]||op_local[op])$fatal(1,"XBC source routing");
+        if(job.header.op!=OP_GU&&(op_issues[op]!=k_count*n_count*PAIRS||op_outputs[op]!=n_count))$fatal(1,"Projection issue/output count");
+      end
+      $display("OP_CHECK op=%0d issues=%0d outputs=%0d XBC=%0d HBM=%0d KVB=%0d QOZ=%0d mismatches=0",op,op_issues[op],op_outputs[op],op_xbc[op],op_hbm[op],op_kvb[op],op_local[op]);
+    end
     repeat(4)begin @(negedge clk);if(!job_done_valid||job_ready)$fatal(1,"completion hold");end
     job_done_ready=1;@(negedge clk);job_done_ready=0;ops++;
   endtask
@@ -256,9 +312,21 @@ module tb_v3_pcore_three_job_chain;
     cycle++;
     if(data_stalled&&(!post_data_valid||post_data!==held_data))$fatal(1,"post data changed under backpressure");
     data_stalled=post_data_valid&&!post_data_ready;held_data=post_data;
-    if(protocol_error)$fatal(1,"PCore protocol error owner=%0d ctrl=%b adapters=%b qoz=%b matrix=%b",active_adapter,dut.ctrl_error,dut.errors,dut.qoz_error,dut.matrix_error);
+    if(protocol_error)$fatal(1,"PCore protocol error owner=%0d ctrl=%b adapters=%b qoz=%b matrix=%b GU_ae=%b GU_be=%b GU_ge=%b",active_adapter,dut.ctrl_error,dut.errors,dut.qoz_error,dut.matrix_error,dut.gu.ae,dut.gu.be,dut.gu.ge);
+    if(xbc_valid&&xbc_ready)route_xbc[active_adapter]++;
+    if(xbc_valid&&xbc_ready)op_xbc[job.header.op]++;
+    if(hbm_valid&&hbm_ready)op_hbm[job.header.op]++;
+    if(kv_valid&&kv_ready)op_kvb[job.header.op]++;
+    if((dut.projection_rd_valid&&dut.projection_rd_ready)||(dut.qread&&dut.qread_ready))op_local[job.header.op]++;
+    if(hbm_valid&&hbm_ready)route_hbm[active_adapter]++;
+    if(kv_valid&&kv_ready)route_kvb[active_adapter]++;
+    if((dut.projection_rd_valid&&dut.projection_rd_ready)||(dut.qread&&dut.qread_ready)||(z_rd_valid&&z_rd_ready))route_qoz_rd[active_adapter]++;
     if(gu_prefetch_valid&&gu_prefetch_ready)begin allowed_n=gu_prefetch_n;prefetches++;end
+    if(active_adapter==2&&dut.gu_input_valid&&dut.gu_input_ready&&
+       (dut.gu.gu.a_replay.in_entry.tile_idx!=dut.gu.gu.a_replay.expected_k_q||dut.gu.gu.a_replay.in_entry.pair_idx!=dut.gu.gu.a_replay.fill_pair_q||dut.gu.gu.a_replay.in_entry.row_valid!=row_mask(dut.gu.gu.a_replay.fill_pair_q)||dut.gu.gu.a_replay.in_entry.reserved!=0))
+      $fatal(1,"GU replay input mismatch tile=%0d expected=%0d pair=%0d expected=%0d mask=%b reserved=%h",dut.gu.gu.a_replay.in_entry.tile_idx,dut.gu.gu.a_replay.expected_k_q,dut.gu.gu.a_replay.in_entry.pair_idx,dut.gu.gu.a_replay.fill_pair_q,dut.gu.gu.a_replay.in_entry.row_valid,dut.gu.gu.a_replay.in_entry.reserved);
     if(dut.dispatch.matrix.req_valid)begin
+      op_issues[job.header.op]++;
       if(active_adapter==2)begin
         int n;n=dut.dispatch.matrix.req_meta.gu_n;
         if(previous_gu_n!=n)begin previous_gu_n=n;gu_issue_tile=0;gu_issue_pair=0;end
@@ -272,22 +340,28 @@ module tb_v3_pcore_three_job_chain;
         if(count_attn[attn_i]==416)attn_i++;
       end
     end
+    if(dut.dispatch.req.start)begin
+      operation_profile_t profile;profile=operation_profile(job.header.op);
+      if(dut.dispatch.req.mode!=profile.mode||dut.dispatch.req.a_source!=profile.matrix_a||dut.dispatch.req.b_source!=profile.b_source)$fatal(1,"Matrix descriptor source/mode");
+    end
     if(dut.dispatch.matrix.done)begin
       if(active_adapter==2)commit_gu[dut.dispatch.matrix.commit_meta.gu_n]=cycle;
-      if(active_adapter==1)begin commit_attn[attn_commits]=cycle;attn_commits++;end
+      if(active_adapter==1)begin commit_attn[attn_commits]=cycle;end
     end
     if(active_adapter==1&&dut.dispatch.matrix.commit_write_valid)begin
-      shortreal expected_pv;logic [31:0] bits_pv;
-      expected_pv=shortreal'(real'(dut.attention.frontend.cmd_q.block_id+1)/64.0);
-      bits_pv=$shortrealtobits(expected_pv);
+       logic [31:0] bits_pv,mag,norm;int lead;
+       mag=(attn_commits==109?54:(attn_commits-2)/2)+1;lead=0;
+       for(int b=0;b<32;b++)if(mag[b])lead=b;
+       norm=mag<<(31-lead);bits_pv=fp32_legacy_ref_pkg::pack_scaled32(0,norm,lead-6,0,0);
       if(dut.dispatch.matrix.commit_meta.acc_sel==ACC_OACC)begin
         for(int r=0;r<2;r++)for(int n=0;n<16;n++)if(dut.dispatch.matrix.commit_write.row_valid[r])
-          if(dut.dispatch.matrix.commit_write.data[r][n]!==bits_pv)$fatal(1,"Attention PV write golden mismatch");
+           if(dut.dispatch.matrix.commit_write.data[r][n]!==bits_pv)$fatal(1,"Attention PV write golden mismatch block=%0d got=%h expected=%h",dut.attention.frontend.cmd_q.block_id,dut.dispatch.matrix.commit_write.data[r][n],bits_pv);
       end else if(dut.dispatch.matrix.commit_meta.tile_idx%16==15)begin
         for(int r=0;r<2;r++)for(int n=0;n<16;n++)if(dut.dispatch.matrix.commit_write.row_valid[r])
           if(dut.dispatch.matrix.commit_write.data[r][n]!==32'h3f000000)$fatal(1,"Attention QK write golden mismatch");
       end
     end
+    if(active_adapter==1&&dut.dispatch.matrix.done)attn_commits++;
     if(active_adapter==2&&dut.dispatch.matrix.job_busy&&!dut.dispatch.matrix.req_valid&&!dut.dispatch.matrix.a_running&&
        !dut.dispatch.matrix.tile_started_q)begin
       int n;n=dut.dispatch.matrix.job_gu_n_q;
@@ -314,6 +388,8 @@ module tb_v3_pcore_three_job_chain;
     job='0;post_result='0;fixture_region='0;fixture_wr='0;acc_wr='0;xbc_entry='0;gu_a_entry='0;hbm_entry='0;kv_entry='0;p_entry='0;
     for(int n=0;n<32;n++)begin count_gu[n]=0;first_gu[n]=0;last_gu[n]=0;commit_gu[n]=0;stall_a_n[n]=0;stall_b_n[n]=0;stall_slot_n[n]=0;handoff_n[n]=0;end
     for(int n=0;n<110;n++)begin count_attn[n]=0;first_attn[n]=0;last_attn[n]=0;commit_attn[n]=0;end
+    for(int n=0;n<3;n++)begin route_xbc[n]=0;route_hbm[n]=0;route_kvb[n]=0;route_qoz_rd[n]=0;end
+    for(int n=0;n<7;n++)begin op_xbc[n]=0;op_hbm[n]=0;op_kvb[n]=0;op_local[n]=0;op_issues[n]=0;op_outputs[n]=0;end
     repeat(35)@(negedge clk);reset=0;
     if($test$plusargs("SEVEN_JOBS"))begin
       send_operation(OP_Q_PROJ,10);fork feed_projection_xbc(16,64);finish_operation();join
@@ -331,9 +407,26 @@ module tb_v3_pcore_three_job_chain;
       if(qoz_complete||dut.qactive)$fatal(1,"seven O Projection did not release O");
       send_operation(OP_GU,15);fork feed_gu_xbc();finish_operation();join
       if(!qoz_complete||qoz_region.owner!=QOZ_Z)$fatal(1,"seven GU did not commit Z");
+      for(int n=0;n<32;n++)begin
+        if(count_gu[n]!=3328||last_gu[n]-first_gu[n]!=3327)$fatal(1,"seven GU issue body");
+        if(n>0&&(first_gu[n]-first_gu[n-1]!=3346||stall_a_n[n]||stall_b_n[n]||stall_slot_n[n]))$fatal(1,"seven GU steady regression");
+      end
+      if(prefetches!=31)$fatal(1,"seven GU prefetch count");
+      $display("SEVEN_GU issues_per_n=3328 last_minus_first=3327 steady=3346 stall_A=0 stall_B=0 stall_slot=0 handoffs=31");
+      for(int j=0;j<110;j++)begin
+        if(count_attn[j]!=416||last_attn[j]-first_attn[j]!=415)$fatal(1,"seven Attention body");
+        if(j>0&&j<109&&first_attn[j]-first_attn[j-1]!=434)$fatal(1,"seven Attention steady");
+      end
+      if(first_attn[109]-first_attn[108]!=867||attn_final_done-commit_attn[109]!=439)$fatal(1,"seven Attention tail");
+      $display("SEVEN_ATTENTION jobs=110 body=416 steady=434 PV53_PV54=867 final_tail=439");
       send_operation(OP_DOWN_PROJ,16);fork feed_projection_hbm(64,32);finish_operation();join
       if(qoz_complete||dut.qactive)$fatal(1,"seven Down Projection did not release Z");
-      $display("tb_v3_pcore_three_job_chain PASS seven_jobs=7 shared_matrix=1 qoz_q=1 qoz_o=1 qoz_z=1");$finish;
+      if(route_xbc[0]==0||route_hbm[0]==0||route_xbc[2]==0||route_hbm[2]==0||
+         route_kvb[1]==0||route_qoz_rd[1]==0||route_qoz_rd[0]==0)
+        $fatal(1,"seven source routing incomplete XBC=%0d/%0d HBM=%0d/%0d KVB=%0d QOZ=%0d/%0d",
+          route_xbc[0],route_xbc[2],route_hbm[0],route_hbm[2],route_kvb[1],route_qoz_rd[0],route_qoz_rd[1]);
+      $display("tb_v3_pcore_three_job_chain PASS seven_jobs=7 shared_matrix=1 qoz_q=1 qoz_o=1 qoz_z=1 route_xbc=%0d/%0d route_hbm=%0d/%0d route_kvb=%0d route_qoz=%0d/%0d",
+        route_xbc[0],route_xbc[2],route_hbm[0],route_hbm[2],route_kvb[1],route_qoz_rd[0],route_qoz_rd[1]);$finish;
     end
     if($test$plusargs("FAULT_WRITE")||$test$plusargs("FAULT_RELEASE"))begin
       fault_test=1;
@@ -353,7 +446,7 @@ module tb_v3_pcore_three_job_chain;
       if($test$plusargs("FAULT_RELEASE"))release dut.qrelease;
       clear=0;@(negedge clk);
       if(protocol_error||!job_ready||dut.qactive)$fatal(1,"fabric clear recovery failed");
-      send_operation(OP_DOWN_PROJ,92);wait(job_done_valid);
+      send_operation(pcore_op_e'(7),92);wait(job_done_valid);
       if(job_done.status!=JOB_UNSUPPORTED)$fatal(1,"dispatch after fabric clear failed");
       $display("tb_v3_pcore_three_job_chain PASS fabric_fault=1 clear_recovery=1 write=%0d release=%0d",$test$plusargs("FAULT_WRITE"),$test$plusargs("FAULT_RELEASE"));$finish;
     end
@@ -397,12 +490,5 @@ module tb_v3_pcore_three_job_chain;
     end
     $display("tb_v3_pcore_three_job_chain PASS operations=%0d shared_matrix=1 shared_qoz=1 posts=%0d z_readbacks=%0d gu_interval=%0d stall_slot=%0d slow=%0d",ops,posts,readbacks,first_gu[2]-first_gu[1],stall_slot,slow_post);$finish;
   end
-  initial begin #1600000;$fatal(1,"three job watchdog owner=%0d post=%0d q=%0d z=%0d GU_n=%0d",active_adapter,posts,q_pairs,z_pairs,dut.gu.n_q);end
-endmodule
-
-// Named acceptance entry for the frozen seven-operation milestone.  The
-// child retains the established external VPU/SFU/QOZ models; plusargs are
-// global, so SEVEN_JOBS selects the seven-job branch inside the same DUT.
-module tb_v3_pcore_seven_jobs;
-  tb_v3_pcore_three_job_chain chain();
+  initial begin #1600000;$fatal(1,"three job watchdog owner=%0d post=%0d q=%0d z=%0d GU_n=%0d ctrl=%0d proj=%0d region=%b xbc=%b/%b hbm=%b/%b issues=%0d",active_adapter,posts,q_pairs,z_pairs,dut.gu.n_q,dut.ctrl.state_q,dut.projection.state_q,dut.qactive,xbc_valid,xbc_ready,hbm_valid,hbm_ready,op_issues[0]);end
 endmodule

@@ -14,7 +14,7 @@ module dea8_gu_xbc_frontend_v3(
   logic [TILE_BITS-1:0] tile_q;
   logic [PAIR_BITS-1:0] base_pair_q;
   logic [1:0] pair_valid_q;
-  assign in_ready=!reset&&!clear&&!protocol_error&&!active_q;
+  assign in_ready=!reset&&!clear&&!restart&&!protocol_error&&!active_q;
   assign out_valid=active_q&&pair_valid_q[second_q];
   assign out_entry=pair_q[second_q];
   always_ff @(posedge clk) begin
@@ -29,13 +29,15 @@ module dea8_gu_xbc_frontend_v3(
         logic slice_start;
         slice_start=!active_q && in_entry.tile_idx=='0 && in_entry.group_idx=='0;
         for(int p=0;p<2;p++) begin
-          pair_q[p]<='0;
-          pair_q[p].tile_idx<=in_entry.tile_idx;
-          pair_q[p].pair_idx<=PAIR_BITS'((in_entry.group_idx<<1)+p);
-          pair_q[p].row_valid<=in_entry.row_valid[p*2 +: 2];
-          pair_q[p].slot<=in_entry.slot;
-          pair_q[p].row[0]<=in_entry.row[p*2];
-          pair_q[p].row[1]<=in_entry.row[p*2+1];
+          a2_t entry;
+          entry='0;
+          entry.tile_idx=in_entry.tile_idx;
+          entry.pair_idx=PAIR_BITS'((in_entry.group_idx<<1)+p);
+          entry.row_valid=in_entry.row_valid[p*2 +: 2];
+          entry.slot=in_entry.slot;
+          entry.row[0]=in_entry.row[p*2];
+          entry.row[1]=in_entry.row[p*2+1];
+          pair_q[p]<=entry;
         end
         pair_valid_q<={|in_entry.row_valid[3:2],|in_entry.row_valid[1:0]};
         second_q<=|in_entry.row_valid[1:0]?1'b0:1'b1;

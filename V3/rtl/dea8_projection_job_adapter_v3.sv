@@ -71,7 +71,7 @@ module dea8_projection_job_adapter_v3(
       if(post_valid&&post_ready)begin post_sent_q<=1;z_seen_q<=0;end
       if(z_commit)begin if(z_n!=post_n_q||!post_sent_q)error<=1;else z_seen_q<=1;end
       if(post_done_valid&&post_done_ready)begin
-        if(post_done!=post_job||!(z_seen_q||(z_commit&&z_n==post_n_q)))error<=1;
+        if(post_done!=post_job||(profile_q.output_qoz&&!(z_seen_q||(z_commit&&z_n==post_n_q))))error<=1;
         else begin post_sent_q<=0;post_n_q<=post_n_q+1'b1;end
       end
       if(post_done_valid&&!post_done_ready)error<=1;

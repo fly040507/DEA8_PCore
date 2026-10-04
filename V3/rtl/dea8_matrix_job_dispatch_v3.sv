@@ -10,7 +10,14 @@ module dea8_matrix_job_dispatch_v3(
   output logic protocol_error
 );
   matrix_service_req_t req;matrix_service_rsp_t rsp;
-  assign req=requests[owner];
+  always_comb begin
+    case(owner)
+      0:req=requests[0];
+      1:req=requests[1];
+      2:req=requests[2];
+      default:req='0;
+    endcase
+  end
   for(genvar i=0;i<3;i++)assign responses[i]=(owner==i)?rsp:matrix_service_rsp_t'('0);
   assign protocol_error=rsp.a_error||rsp.b_error;
   dea8_matrix_v3 #(.SHARED_MODE(1)) matrix(

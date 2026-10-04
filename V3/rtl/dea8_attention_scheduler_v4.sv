@@ -82,7 +82,7 @@ module dea8_attention_scheduler_v4 #(
     c.block_id=6'(block);
     c.a_id=(c.op==MATRIX_PV)?LOGICAL_ID_BITS'(block):'0;
     c.b_id=LOGICAL_ID_BITS'(block*ATTN_K_TILES);
-    c.out_tile=(c.op==MATRIX_PV)?4'(block):0;
+    c.out_tile=(c.op==MATRIX_PV)?TILE_BITS'(block):TILE_BITS'(0);
     c.acc_sel=(c.op==MATRIX_PV)?ACC_OACC:(block[0]?ACC_FACC_B:ACC_FACC_A);
     c.add_old=(c.op==MATRIX_PV)&&(block!=0);
     c.exp_fold=(c.op==MATRIX_QK)?-4:0;

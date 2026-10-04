@@ -1,0 +1,11 @@
+2026-10-04
+
+检查结果：
+- Vivado 2022.2 自带 gcc.exe 无法启动，Windows 返回“无法执行指定程序/系统 DLL 重定位”。
+- 原 gcc.exe 已在每次测试后恢复，未永久替换 Vivado 安装文件。
+- LLVM clang.exe 可以单独启动，但不能直接兼容 xelab 传入的 GCC 参数 -fPIC 和 -Wa,-W。
+- 通过临时替换、LLVM DLL PATH 和 MinGW include PATH 仍未形成可用的 XSIM 编译器。
+
+结论：
+当前 XSIM 仍被主机 Vivado GCC 工具链阻塞，V3 RTL 未被该工具链修复过程改动。
+需要修复/重装 Vivado 2022.2 的 MinGW 组件，或提供可用的同版本 GCC；之后重新运行 run_v3_xsim.ps1。

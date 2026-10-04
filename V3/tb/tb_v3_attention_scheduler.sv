@@ -32,7 +32,7 @@ module tb_v3_attention_scheduler;
     else if(index%2)begin b=(index+1)/2;c.op=MATRIX_QK;end
     else begin b=index/2-1;c.op=MATRIX_PV;end
     c.block_id=6'(b);c.a_id=c.op==MATRIX_PV?LOGICAL_ID_BITS'(b):0;
-    c.b_id=LOGICAL_ID_BITS'(b*ATTN_K_TILES);c.out_tile=c.op==MATRIX_PV?4'(b):0;
+    c.b_id=LOGICAL_ID_BITS'(b*ATTN_K_TILES);c.out_tile=c.op==MATRIX_PV?TILE_BITS'(b):TILE_BITS'(0);
     c.acc_sel=c.op==MATRIX_PV?ACC_OACC:(b%2?ACC_FACC_B:ACC_FACC_A);
     c.add_old=c.op==MATRIX_PV&&b!=0;c.exp_fold=c.op==MATRIX_QK?-4:0;return c;
   endfunction

@@ -34,7 +34,7 @@ module tb_deqacc32_v5_stream;
       if(dut.context_q[9].valid) begin
         for(int r=0;r<2;r++)for(int n=0;n<16;n++)if(queue_rows[9][r])
           if(dut.lane_value[r][n]!==queue_data[9][r][n])
-            $fatal(1,"stream numeric mismatch transaction=%0d r=%0d lane=%0d got=%h want=%h",checked,r,n,dut.lane_value[r][n],queue_data[9][r][n]);
+            $fatal(1,"stream numeric mismatch transaction=%0d r=%0d lane=%0d got=%h want=%h nt=%0d pair=%0d bank=%0d",checked,r,n,dut.lane_value[r][n],queue_data[9][r][n],queue_meta[9].nt,queue_meta[9].pair_idx,queue_meta[9].acc_sel);
       end
       for(int i=10;i>0;i--)begin
         valids[i]=valids[i-1];queue_data[i]=queue_data[i-1];queue_meta[i]=queue_meta[i-1];queue_rows[i]=queue_rows[i-1];
@@ -63,7 +63,7 @@ module tb_deqacc32_v5_stream;
     repeat(5)@(negedge clk);reset=0;
     for(int i=0;i<5000;i++)begin
       rsp='0;rsp_valid=1;rsp.meta.acc_sel=acc_sel_e'(i%3);
-      rsp.meta.pair_idx=PAIR_BITS'((i/3)%PAIRS);rsp.meta.nt=4'((i/(3*PAIRS))%16);
+      rsp.meta.pair_idx=PAIR_BITS'((i/3)%PAIRS);rsp.meta.nt=TILE_BITS'((i/(3*PAIRS))%16);
       rng=rand_next(rng);rsp.meta.add_old=rng[0];rsp.meta.exp_fold=EXP_FOLD_BITS'(rng[6:1]);
       rsp.meta.epoch=EPOCH_BITS'(i);rsp.meta.head=3'(i/17);rsp.meta.tile_idx=TILE_BITS'(i/7);rsp.meta.last=i==4999;
       rsp.row_valid=(rng[8:7]|2'b01)&row_mask(rsp.meta.pair_idx);

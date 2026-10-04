@@ -56,6 +56,7 @@ tb/tb_v3_local_a_protocol.sv
 tb/tb_v3_gu_matrix.sv
 tb/tb_v3_gu_scheduler.sv
 tb/tb_v3_pcore_three_job_chain.sv
+tb/tb_v3_gu_xbc_restart.sv
 tb/tb_v3_pcore_job_dispatch.sv
 tb/tb_v3_qoz_manager.sv
 tb/tb_v3_qoz_shared.sv

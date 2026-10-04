@@ -15,6 +15,7 @@ module dea8_projection_v3 #(
   input logic [MATRIX_TILE_COUNT_BITS-1:0] job_n_tiles,
   input a_source_e job_a_source,input b_source_e job_b_source,
   input logic local_a_valid,input a2_t local_a_entry,
+  output logic local_a_ready,
   output logic local_rd_valid,input logic local_rd_ready,
   output logic [TILE_BITS-1:0] local_rd_tile,
   output logic [PAIR_BITS-1:0] local_rd_pair,
@@ -65,25 +66,30 @@ module dea8_projection_v3 #(
   logic [MATRIX_TILE_COUNT_BITS-1:0] n_tiles_q;
   logic [TILE_BITS-1:0] local_tile_q;
   logic [PAIR_BITS-1:0] local_pair_q;
-  logic local_pending_q;
+  logic local_active_q;
+  logic [TILE_BITS-1:0] stream_base_q;
 
   always_comb begin
     service_req='0;service_req.start=matrix_job_start;service_req.mode=MAT_PROJECTION;
     service_req.a_source=job_a_source;service_req.a_streaming=job_a_source==A_LOCAL;service_req.b_source=job_b_source;
     service_req.local_valid=local_a_valid;service_req.local_entry=local_a_entry;
+    service_req.a_stream=stream_base_q;service_req.b_stream=stream_base_q;
     service_req.tiles=k_tiles_q;service_req.rows=ROWS;
     service_req.epoch=job_epoch;service_req.head=job_head;service_req.nt=matrix_launch_tile;
     service_req.final_k=1;service_req.exp_fold=job_exp_fold;service_req.slot_ready=1;
     service_req.acc_sel=matrix_launch_tile[0]?ACC_FACC_B:ACC_FACC_A;
     service_req.rd_valid=result_rd_valid;service_req.rd_sel=result_rd_sel;service_req.rd_addr=result_rd_addr;
   end
-  assign local_rd_valid=(state_q==S_RUN||state_q==S_LAUNCH)&&job_a_source==A_LOCAL&&
-    !local_pending_q&&!local_a_valid&&k_tiles_q!=0;
+  // The QOZ response register supplies backpressure through local_rd_ready.
+  // Advance the request address on acceptance, allowing consume/refill each
+  // cycle instead of serializing request, response and consumption.
+  assign local_rd_valid=local_active_q&&job_a_source==A_LOCAL&&k_tiles_q!=0;
   assign local_rd_tile=local_tile_q;
   assign local_rd_pair=local_pair_q;
-  assign local_rd_transport=local_tile_q;
+  assign local_rd_transport=stream_base_q+local_tile_q;
   if(EXTERNAL_MATRIX) begin: external_matrix
     assign matrix_ready=service_rsp.ready;assign matrix_busy=service_rsp.busy;
+    assign local_a_ready=service_rsp.local_ready;
     assign matrix_done=service_rsp.done;assign matrix_commit_valid=service_rsp.commit_valid;
     assign matrix_commit_meta=service_rsp.meta;
     assign result_rd_ready=service_rsp.rd_ready;assign result_rd_data_valid=service_rsp.rd_valid;
@@ -91,15 +97,16 @@ module dea8_projection_v3 #(
     assign matrix_a_protocol_error=service_rsp.a_error;assign matrix_b_protocol_error=service_rsp.b_error;
     assign xbc_ready=0;assign hbm_ready=0;assign unused_dbg_data=0;
   end else begin: private_matrix
-  dea8_matrix_v3 matrix(
+  dea8_matrix_v3 #(.SHARED_MODE(1)) matrix(
     .clk,.reset,.clear,
+    .runtime_local_a(job_a_source==A_LOCAL),.runtime_streaming(job_a_source==A_LOCAL),
     .xbc_valid,.xbc_ready,.xbc_entry,
-    .local_a_valid(1'b0),.local_a_entry('0),.local_a_ready(),
+    .local_a_valid,.local_a_entry,.local_a_ready,
     .vpu_wr_valid(1'b0),.vpu_wr('0),.vpu_wr_ready(),
     .hbm_valid,.hbm_ready,.hbm_entry,
-    .kv_valid(1'b0),.kv_ready(),.kv_entry('0),.b_source(B_HBM),
+    .kv_valid(1'b0),.kv_ready(),.kv_entry('0),.b_source(job_b_source),
     .job_start(matrix_job_start),.job_a_tile_idx('0),.job_b_tile_idx('0),
-    .job_a_stream_idx('0),.job_b_stream_idx('0),
+    .job_a_stream_idx(stream_base_q),.job_b_stream_idx(stream_base_q),
     .job_tiles(k_tiles_q),.job_m_rows((PAIR_BITS+1)'(ROWS)),
     .job_epoch,.job_head,.job_nt(matrix_launch_tile),
     .job_nt_per_tile(1'b0),.job_clear_each_tile(1'b0),
@@ -144,7 +151,8 @@ module dea8_projection_v3 #(
       matrix_inflight_q<=0;
       read_pending_q<=0;completion_pending_q<=0;
       k_tiles_q<=MATRIX_TILE_COUNT_BITS'(K_TILES);n_tiles_q<=MATRIX_TILE_COUNT_BITS'(N_TILES);
-      local_tile_q<=0;local_pair_q<=0;local_pending_q<=0;
+      local_tile_q<=0;local_pair_q<=0;
+      local_active_q<=0;stream_base_q<=0;
       qoz_wr_valid_q<=0;qoz_wr_tile_q<='0;qoz_wr_pair_q<='0;qoz_wr_row_valid_q<='0;
       qoz_wr_even_q<='0;qoz_wr_odd_q<='0;
     end else begin
@@ -169,16 +177,23 @@ module dea8_projection_v3 #(
         qoz_wr_even_q<=result_even_data;
         qoz_wr_odd_q<=result_odd_data;
       end
-      if(local_rd_valid&&local_rd_ready) local_pending_q<=1;
-      if(local_a_valid&&service_rsp.local_ready) begin
-        local_pending_q<=0;
-        if(local_pair_q==PAIRS-1) begin local_pair_q<=0;local_tile_q<=local_tile_q+1'b1;end
+      if(local_rd_valid&&local_rd_ready) begin
+        if(local_pair_q==PAIRS-1) begin
+          local_pair_q<=0;local_tile_q<=local_tile_q+1'b1;
+          if({1'b0,local_tile_q}+1'b1==k_tiles_q) local_active_q<=0;
+        end
         else local_pair_q<=local_pair_q+1'b1;
+      end
+      if(matrix_done_pulse) begin
+        stream_base_q<=stream_base_q+TILE_BITS'(k_tiles_q);
+        local_tile_q<=0;local_pair_q<=0;
+        local_active_q<=matrix_tile_q<n_tiles_q-1;
       end
       case(state_q)
         S_IDLE: if(start) begin
           k_tiles_q<=job_k_tiles;n_tiles_q<=job_n_tiles;
-          local_tile_q<=0;local_pair_q<=0;local_pending_q<=0;
+          local_tile_q<=0;local_pair_q<=0;
+          local_active_q<=1;stream_base_q<=0;
           matrix_tile_q<=0;next_pending_q<=1;state_q<=S_LAUNCH;
         end
         S_LAUNCH: if(matrix_job_start) begin
@@ -188,7 +203,7 @@ module dea8_projection_v3 #(
           read_tile_q<=matrix_tile_q;read_pair_q<=0;response_pair_q<=0;
           matrix_finished_q<=1;read_last_requested_q<=0;read_finished_q<=0;
           matrix_inflight_q<=0;
-          local_tile_q<=0;local_pair_q<=0;local_pending_q<=0;
+          local_tile_q<=0;local_pair_q<=0;
           next_pending_q<=matrix_tile_q<n_tiles_q-1;state_q<=S_OVERLAP;
         end
         S_OVERLAP: begin
@@ -219,7 +234,8 @@ module dea8_projection_v3 #(
           done<=1;
           if(start) begin
             k_tiles_q<=job_k_tiles;n_tiles_q<=job_n_tiles;
-            local_tile_q<=0;local_pair_q<=0;local_pending_q<=0;
+            local_tile_q<=0;local_pair_q<=0;
+            local_active_q<=1;stream_base_q<=0;
             done<=0;matrix_tile_q<=0;next_pending_q<=1;state_q<=S_LAUNCH;
           end
         end

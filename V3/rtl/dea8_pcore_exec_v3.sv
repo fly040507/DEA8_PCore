@@ -41,6 +41,7 @@ module dea8_pcore_exec_v3(
   logic [PAIR_BITS-1:0] projection_rd_pair;
   qoz_owner_e projection_rd_owner;
   logic job_output_qoz;
+  operation_profile_t active_profile;
   logic [5:0] qt;logic [PAIR_BITS-1:0] qp;logic [TILE_BITS-1:0] qtransport;a2_t qe;
   logic region_req_valid,region_req_ready; qoz_region_req_t region_req;
   logic qoz_req_valid,qoz_wr_valid,qoz_wr_ready; qoz_region_req_t qoz_req; post_result_t qoz_wr;
@@ -55,12 +56,19 @@ module dea8_pcore_exec_v3(
   assign qoz_req_valid=fixture_region_valid?fixture_region_valid:region_req_valid;
   assign qoz_req=fixture_region_valid?fixture_region:region_req;
   assign fixture_region_ready=fixture_region_valid&&region_req_ready;
-  always_comb job_output_qoz=operation_profile(aj.header.op).output_qoz;
+  always_comb begin
+    active_profile=operation_profile(aj.header.op);
+    job_output_qoz=active_profile.output_qoz;
+  end
   assign qoz_wr_valid=fixture_wr_valid?fixture_wr_valid:(post_result_valid&&job_output_qoz);
   assign qoz_wr=fixture_wr_valid?fixture_wr:post_result;
   assign fixture_wr_ready=fixture_wr_valid&&qoz_wr_ready;
   assign post_result_ready=!fixture_wr_valid&&(job_output_qoz?qoz_wr_ready:1'b1);
-  assign rr=3'(region_req_ready)<<active_adapter;
+  // A public fixture region has priority over an adapter acquire.  Mask the
+  // adapter ready seen by the controller on that cycle, otherwise the QOZ
+  // manager would accept the fixture while the adapter also retires its own
+  // request.
+  assign rr=3'((!fixture_region_valid)&&region_req_ready)<<active_adapter;
   assign post_valid=pv[active_adapter];assign post_job=posts[active_adapter];
   assign pr=3'(post_ready)<<active_adapter;
   assign pdv=3'(post_done_valid)<<active_adapter;assign post_done_ready=pdr[active_adapter];
@@ -69,7 +77,7 @@ module dea8_pcore_exec_v3(
   assign qrelease=(active_adapter==1)?attention_release:projection_release;
   assign attention_release_ready=(active_adapter==1)?qrelease_ready:1'b0;
   assign projection_release_ready=(active_adapter==0)?qrelease_ready:1'b0;
-  always_comb projection_rd_owner=operation_profile(aj.header.op).input_owner;
+  assign projection_rd_owner=active_profile.input_owner;
   assign rv[1]=0;assign regions[1]='0;assign pv[1]=0;assign posts[1]='0;assign pdr[1]=0;assign ddv[1]=0;assign datas[1]='0;
   dea8_pcore_ctrl_v3 ctrl(.clk,.reset,.clear,.job_valid,.job_ready,.job,.job_done_valid,.job_done_ready,.job_done,
     .busy,.protocol_error(ctrl_error),.owner(active_adapter),.adapter_valid(av),.adapter_ready(ar),.adapter_job(aj),
@@ -88,7 +96,7 @@ module dea8_pcore_exec_v3(
     .region_valid(rv[2]),.region_ready(rr[2]),.region(regions[2]),.region_complete(qoz_complete),
     .post_valid(pv[2]),.post_ready(pr[2]),.post_job(posts[2]),.post_done_valid(pdv[2]),.post_done_ready(pdr[2]),.post_done,
     .data_valid(ddv[2]),.data_ready(ddr[2]),.data_out(datas[2]),.z_commit(z_commit&&active_adapter==2),.z_n(post_result.n),
-    .a_valid(gu_input_valid&&active_adapter==2),.a_ready(gu_input_ready),.a_entry(gu_input_valid?gu_front_entry:gu_a_entry),
+    .a_valid(gu_input_valid&&active_adapter==2),.a_ready(gu_input_ready),.a_entry(gu_front_valid?gu_front_entry:gu_a_entry),
     .prefetch_valid(gu_prefetch_valid),.prefetch_ready(gu_prefetch_ready),.prefetch_n(gu_prefetch_n));
   // The legacy gu_a port is only the GU fixture boundary. Projection local-A
   // now comes from the shared QOZ reader above, not from this port.
