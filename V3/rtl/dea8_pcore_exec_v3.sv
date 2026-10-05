@@ -5,7 +5,6 @@ module dea8_pcore_exec_v3(
   output logic job_done_valid,input logic job_done_ready,output pcore_completion_t job_done,
   output logic busy,protocol_error,output logic [1:0] active_adapter,
   input logic xbc_valid,output logic xbc_ready,input xbc4_t xbc_entry,
-  input logic gu_a_valid,output logic gu_a_ready,input a2_t gu_a_entry,
   input logic hbm_valid,output logic hbm_ready,input b2_t hbm_entry,
   input logic kv_valid,output logic kv_ready,input b2_t kv_entry,
   output logic post_valid,input logic post_ready,output pcore_post_job_t post_job,
@@ -24,8 +23,9 @@ module dea8_pcore_exec_v3(
   input logic z_rd_valid,output logic z_rd_ready,input logic [5:0] z_rd_tile,
   input logic [PAIR_BITS-1:0] z_rd_pair,output logic z_out_valid,input logic z_out_ready,output a2_t z_entry,
   output logic qoz_complete,output qoz_region_req_t qoz_region,
-  input logic fixture_region_valid,output logic fixture_region_ready,input qoz_region_req_t fixture_region,
-  input logic fixture_wr_valid,output logic fixture_wr_ready,input post_result_t fixture_wr,
+  // External non-matrix subsystem producer; modeled by TB in this stage.
+  input logic ext_qoz_region_valid,output logic ext_qoz_region_ready,input qoz_region_req_t ext_qoz_region,
+  input logic ext_qoz_wr_valid,output logic ext_qoz_wr_ready,input post_result_t ext_qoz_wr,
   output logic gu_prefetch_valid,input logic gu_prefetch_ready,output logic [5:0] gu_prefetch_n
 );
   logic operation_clear,local_clear,ctrl_error,matrix_error,qoz_error;
@@ -46,29 +46,29 @@ module dea8_pcore_exec_v3(
   logic region_req_valid,region_req_ready; qoz_region_req_t region_req;
   logic qoz_req_valid,qoz_wr_valid,qoz_wr_ready; qoz_region_req_t qoz_req; post_result_t qoz_wr;
   logic z_commit;
-  logic projection_local_ready,gu_a_ready_int;
+  logic projection_local_ready;
   logic matrix_xbc_ready,gu_xbc_ready,gu_front_valid,gu_front_ready,gu_front_error;
   a2_t gu_front_entry;
   logic gu_input_valid,gu_input_ready;
   assign local_clear=clear||operation_clear;
   assign protocol_error=ctrl_error||matrix_error||qoz_error||gu_front_error||errors[active_adapter];
   assign region_req_valid=rv[active_adapter];assign region_req=regions[active_adapter];
-  assign qoz_req_valid=fixture_region_valid?fixture_region_valid:region_req_valid;
-  assign qoz_req=fixture_region_valid?fixture_region:region_req;
-  assign fixture_region_ready=fixture_region_valid&&region_req_ready;
+  assign qoz_req_valid=ext_qoz_region_valid?ext_qoz_region_valid:region_req_valid;
+  assign qoz_req=ext_qoz_region_valid?ext_qoz_region:region_req;
+  assign ext_qoz_region_ready=ext_qoz_region_valid&&region_req_ready;
   always_comb begin
     active_profile=operation_profile(aj.header.op);
     job_output_qoz=active_profile.output_qoz;
   end
-  assign qoz_wr_valid=fixture_wr_valid?fixture_wr_valid:(post_result_valid&&job_output_qoz);
-  assign qoz_wr=fixture_wr_valid?fixture_wr:post_result;
-  assign fixture_wr_ready=fixture_wr_valid&&qoz_wr_ready;
-  assign post_result_ready=!fixture_wr_valid&&(job_output_qoz?qoz_wr_ready:1'b1);
-  // A public fixture region has priority over an adapter acquire.  Mask the
+  assign qoz_wr_valid=ext_qoz_wr_valid?ext_qoz_wr_valid:(post_result_valid&&job_output_qoz);
+  assign qoz_wr=ext_qoz_wr_valid?ext_qoz_wr:post_result;
+  assign ext_qoz_wr_ready=ext_qoz_wr_valid&&qoz_wr_ready;
+  assign post_result_ready=!ext_qoz_wr_valid&&(job_output_qoz?qoz_wr_ready:1'b1);
+  // An external region has priority over an adapter acquire. Mask the
   // adapter ready seen by the controller on that cycle, otherwise the QOZ
-  // manager would accept the fixture while the adapter also retires its own
+  // manager would accept the external region while the adapter retires its own
   // request.
-  assign rr=3'((!fixture_region_valid)&&region_req_ready)<<active_adapter;
+  assign rr=3'((!ext_qoz_region_valid)&&region_req_ready)<<active_adapter;
   assign post_valid=pv[active_adapter];assign post_job=posts[active_adapter];
   assign pr=3'(post_ready)<<active_adapter;
   assign pdv=3'(post_done_valid)<<active_adapter;assign post_done_ready=pdr[active_adapter];
@@ -96,13 +96,11 @@ module dea8_pcore_exec_v3(
     .region_valid(rv[2]),.region_ready(rr[2]),.region(regions[2]),.region_complete(qoz_complete),
     .post_valid(pv[2]),.post_ready(pr[2]),.post_job(posts[2]),.post_done_valid(pdv[2]),.post_done_ready(pdr[2]),.post_done,
     .data_valid(ddv[2]),.data_ready(ddr[2]),.data_out(datas[2]),.z_commit(z_commit&&active_adapter==2),.z_n(post_result.n),
-    .a_valid(gu_input_valid&&active_adapter==2),.a_ready(gu_input_ready),.a_entry(gu_front_valid?gu_front_entry:gu_a_entry),
+    .a_valid(gu_input_valid&&active_adapter==2),.a_ready(gu_input_ready),.a_entry(gu_front_entry),
     .prefetch_valid(gu_prefetch_valid),.prefetch_ready(gu_prefetch_ready),.prefetch_n(gu_prefetch_n));
-  // The legacy gu_a port is only the GU fixture boundary. Projection local-A
-  // now comes from the shared QOZ reader above, not from this port.
+  // GU has one production ingress: XBC4 -> A2 -> Replay.
   assign gu_front_ready=gu_input_ready;
-  assign gu_input_valid=gu_front_valid||gu_a_valid;
-  assign gu_a_ready=(active_adapter==2&&!gu_front_valid)?gu_input_ready:1'b0;
+  assign gu_input_valid=gu_front_valid;
   dea8_gu_xbc_frontend_v3 gu_xbc(.clk,.reset,.clear(local_clear),.restart(av[2]&&ar[2]),
     .in_valid(xbc_valid&&active_adapter==2),.in_ready(gu_xbc_ready),.in_entry(xbc_entry),
     .out_valid(gu_front_valid),.out_ready(gu_front_ready),.out_entry(gu_front_entry),.protocol_error(gu_front_error));

@@ -4,12 +4,11 @@ import fp32_legacy_ref_pkg::*;
 module tb_v3_pcore_three_job_chain;
   logic clk=0;always #2 clk=~clk;
   logic reset=1,clear=0,job_valid=0,job_ready,job_done_valid,job_done_ready=0;
-  logic fixture_region_valid=0,fixture_region_ready,fixture_wr_valid=0,fixture_wr_ready;
-  qoz_region_req_t fixture_region;post_result_t fixture_wr;
+  logic ext_qoz_region_valid=0,ext_qoz_region_ready,ext_qoz_wr_valid=0,ext_qoz_wr_ready;
+  qoz_region_req_t ext_qoz_region;post_result_t ext_qoz_wr;
   pcore_job_t job;pcore_completion_t job_done;
   logic busy,protocol_error;logic [1:0] active_adapter;
   logic xbc_valid=0,xbc_ready;xbc4_t xbc_entry;
-  logic gu_a_valid=0,gu_a_ready;a2_t gu_a_entry;
   logic hbm_valid=0,hbm_ready;b2_t hbm_entry;
   logic kv_valid=0,kv_ready;b2_t kv_entry;
   logic post_valid,post_ready=1,post_done_valid=0,post_done_ready;pcore_post_job_t post_job,post_done;
@@ -31,12 +30,15 @@ module tb_v3_pcore_three_job_chain;
   int stall_a=0,stall_b=0,stall_slot=0,stall_matrix_handoff=0;
   int route_xbc[3],route_hbm[3],route_kvb[3],route_qoz_rd[3];
   int op_xbc[7],op_hbm[7],op_kvb[7],op_local[7],op_issues[7],op_outputs[7];
+  int op_accept[7],op_first[7],op_last[7],op_done[7],op_launches[7],op_posts[7],op_results[7];
+  int proj_first[7][64];
   int stall_a_n[32],stall_b_n[32],stall_slot_n[32],handoff_n[32];
   int gu_issue_tile=0,gu_issue_pair=0,previous_gu_n=-1,attn_final_done=-1;
   bit slow_post=0,gu_only=0,fault_test=0;
   bit data_stalled=0;post_data_t held_data;
   logic [1023:0] gu_golden[0:1631];logic [135:0] z_golden[0:1631];
   qvec16_t z_computed[0:50];
+  operation_profile_t desc_profile;
   dea8_pcore_exec_v3 dut(.*);
   function automatic qvec16_t qv(input int v,input int e);
     qvec16_t q;q='0;q.scale=8'(e);for(int i=0;i<16;i++)q.data[8*i+:8]=8'(v);return q;
@@ -51,6 +53,8 @@ module tb_v3_pcore_three_job_chain;
   endfunction
   function automatic logic [31:0] projection_expected(input pcore_op_e op);
     case(op)
+      OP_K_PROJ: return 32'h40000000;
+      OP_V_PROJ: return 32'h40400000;
       OP_O_PROJ: return 32'h3e800000;
       OP_DOWN_PROJ: return 32'h3f000000;
       default: return 32'h3f800000;
@@ -94,7 +98,7 @@ module tb_v3_pcore_three_job_chain;
   task automatic send_b_transport(input int logical_tile,transport_tile,group,n,input bit gu,input bit kv);
     b2_t e;e='0;e.tile_idx=TILE_BITS'(transport_tile);e.group_idx=3'(group);e.epoch=job.header.epoch;
     for(int c=0;c<2;c++)begin
-      e.col[c]=qv(1,128);
+      e.col[c]=qv(job.header.op==OP_K_PROJ?2:(job.header.op==OP_V_PROJ?3:1),128);
       if(gu)begin
         for(int i=0;i<16;i++)e.col[c].data[8*i+:8]=8'(bval(n,logical_tile/2,i,2*group+c,logical_tile[0]));
         e.col[c].scale=8'(128+(2*group+c)%2);
@@ -137,44 +141,21 @@ module tb_v3_pcore_three_job_chain;
       send_b_transport(k,(n*k_count+k)%64,g,n,0,0);
   endtask
   task automatic prepare_fixture(input qoz_owner_e owner,input pcore_op_e producer,input int tiles,input int id);
-    fixture_region='0;fixture_region.header='{job_id:16'(id),epoch:4'd3,head:3'd1,op:producer};
-    fixture_region.owner=owner;fixture_region.tiles=6'(tiles);fixture_region_valid=1;
-    do @(posedge clk);while(!fixture_region_ready);@(negedge clk);fixture_region_valid=0;
+    ext_qoz_region='0;ext_qoz_region.header='{job_id:16'(id),epoch:4'd3,head:3'd1,op:producer};
+    ext_qoz_region.owner=owner;ext_qoz_region.tiles=6'(tiles);ext_qoz_region_valid=1;
+    do @(posedge clk);while(!ext_qoz_region_ready);@(negedge clk);ext_qoz_region_valid=0;
     for(int t=0;t<tiles;t++)for(int p=0;p<PAIRS;p++)begin
-      fixture_wr='0;fixture_wr.header=fixture_region.header;fixture_wr.n=6'(t);
-      fixture_wr.pair_data.tile_idx=TILE_BITS'(t);fixture_wr.pair_data.pair_idx=PAIR_BITS'(p);
-      fixture_wr.pair_data.row_valid=row_mask(p);fixture_wr.pair_data.row[0]=qv(1,128);
-      fixture_wr.pair_data.row[1]=qv(1,128);fixture_wr.last=p==PAIRS-1;fixture_wr_valid=1;
-      do @(posedge clk);while(!fixture_wr_ready);@(negedge clk);fixture_wr_valid=0;
+      ext_qoz_wr='0;ext_qoz_wr.header=ext_qoz_region.header;ext_qoz_wr.n=6'(t);
+      ext_qoz_wr.pair_data.tile_idx=TILE_BITS'(t);ext_qoz_wr.pair_data.pair_idx=PAIR_BITS'(p);
+      ext_qoz_wr.pair_data.row_valid=row_mask(p);ext_qoz_wr.pair_data.row[0]=qv(1,128);
+      ext_qoz_wr.pair_data.row[1]=qv(1,128);ext_qoz_wr.last=p==PAIRS-1;ext_qoz_wr_valid=1;
+      do @(posedge clk);while(!ext_qoz_wr_ready);@(negedge clk);ext_qoz_wr_valid=0;
     end
     wait(qoz_complete);
   endtask
-  task automatic feed_gu;
-    fork
-      begin
-        for(int n=0;n<32;n++)begin
-          wait(allowed_n>=n);@(negedge clk);
-          for(int k=0;k<64;k++)for(int p=0;p<PAIRS;p++)begin
-            gu_a_entry='0;gu_a_entry.tile_idx=TILE_BITS'(k);gu_a_entry.pair_idx=PAIR_BITS'(p);gu_a_entry.row_valid=row_mask(p);
-            for(int r=0;r<2;r++)begin
-              gu_a_entry.row[r].scale=8'(128+(2*p+r)%3);
-              for(int i=0;i<16;i++)gu_a_entry.row[r].data[8*i+:8]=8'(aval(2*p+r,k,i));
-            end
-            gu_a_valid=1;do @(posedge clk);while(!gu_a_ready);@(negedge clk);gu_a_valid=0;
-          end
-        end
-      end
-      begin
-        for(int n=0;n<32;n++)begin
-          wait(allowed_n>=n);@(negedge clk);
-          for(int k=0;k<128;k++)for(int g=0;g<8;g++)send_b(k,g,n,1,0);
-        end
-      end
-    join
-  endtask
   // Seven-job regression uses the frozen GU ingress: one XBC beat contains
   // four consecutive rows and the GU front end serializes it into two A2
-  // pairs.  The payload is intentionally the same as feed_gu(), so the
+  // pairs.  The payload matches the independent reference model, so the
   // existing FP32/GELU reference remains the oracle.
   task automatic feed_gu_xbc;
     fork
@@ -293,7 +274,7 @@ module tb_v3_pcore_three_job_chain;
     wait(job_done_valid);
     if(job_done.header!==job.header||job_done.status!=JOB_OK||protocol_error)$fatal(1,"operation completion mismatch op=%0d",job.header.op);
     if($test$plusargs("SEVEN_JOBS"))begin
-      int op,k_count,n_count;op=int'(job.header.op);k_count=projection_k_tiles(job.header.op);n_count=(job.header.op==OP_O_PROJ||job.header.op==OP_DOWN_PROJ)?64:16;
+      int op,k_count,n_count;op=int'(job.header.op);k_count=projection_k_tiles(job.header.op);n_count=(job.header.op==OP_K_PROJ||job.header.op==OP_V_PROJ)?2:((job.header.op==OP_O_PROJ||job.header.op==OP_DOWN_PROJ)?64:16);
       if(job.header.op==OP_ATTENTION)begin
         if(op_xbc[op]||op_hbm[op]||!op_kvb[op]||!op_local[op])$fatal(1,"Attention source routing");
       end else begin
@@ -303,6 +284,28 @@ module tb_v3_pcore_three_job_chain;
         end else if(!op_xbc[op]||op_local[op])$fatal(1,"XBC source routing");
         if(job.header.op!=OP_GU&&(op_issues[op]!=k_count*n_count*PAIRS||op_outputs[op]!=n_count))$fatal(1,"Projection issue/output count");
       end
+      if(active_adapter==0)begin
+        int lo,hi,delta,span,job_span;
+        operation_profile_t profile;
+        profile=operation_profile(job.header.op);
+        if(!profile.geometry_valid||profile.k_tiles!=k_count||profile.n_tiles!=n_count)
+          $fatal(1,"Projection profile geometry");
+        if(op_launches[op]!=n_count||op_posts[op]!=n_count)$fatal(1,"Projection launch/post count");
+        if((job.header.op==OP_K_PROJ||job.header.op==OP_V_PROJ)&&
+           (op_xbc[op]!=1664||op_hbm[op]!=1024||op_results[op]!=0))$fatal(1,"KV workload/result contract");
+        lo=32'h7fffffff;hi=0;
+        for(int n=1;n<n_count;n++)begin
+          delta=proj_first[op][n]-proj_first[op][n-1];
+          if(delta<lo)lo=delta;
+          if(delta>hi)hi=delta;
+        end
+        op_done[op]=cycle;
+        span=op_last[op]-op_first[op]+1;job_span=op_done[op]-op_accept[op];
+        if(span<=0||job_span<=0)$fatal(1,"Projection invalid measured span");
+        $display("PROJ_PERF op=%0d K=%0d N=%0d accept=%0d first=%0d last=%0d done=%0d issues=%0d outputs=%0d launches=%0d posts=%0d interval=%0d..%0d matrix_span=%0d job_cycles=%0d PE_matrix_util=%0.3f%% PE_job_util=%0.3f%%",
+          op,k_count,n_count,op_accept[op],op_first[op],op_last[op],op_done[op],op_issues[op],op_outputs[op],op_launches[op],op_posts[op],lo,hi,span,job_span,
+          100.0*op_issues[op]/span,100.0*op_issues[op]/job_span);
+      end
       $display("OP_CHECK op=%0d issues=%0d outputs=%0d XBC=%0d HBM=%0d KVB=%0d QOZ=%0d mismatches=0",op,op_issues[op],op_outputs[op],op_xbc[op],op_hbm[op],op_kvb[op],op_local[op]);
     end
     repeat(4)begin @(negedge clk);if(!job_done_valid||job_ready)$fatal(1,"completion hold");end
@@ -310,6 +313,9 @@ module tb_v3_pcore_three_job_chain;
   endtask
   always @(posedge clk)if(!reset&&!clear&&!fault_test)begin
     cycle++;
+    if(job_valid&&job_ready)op_accept[job.header.op]=cycle;
+    if(post_valid&&post_ready)op_posts[job.header.op]++;
+    if(post_result_valid&&post_result_ready)op_results[job.header.op]++;
     if(data_stalled&&(!post_data_valid||post_data!==held_data))$fatal(1,"post data changed under backpressure");
     data_stalled=post_data_valid&&!post_data_ready;held_data=post_data;
     if(protocol_error)$fatal(1,"PCore protocol error owner=%0d ctrl=%b adapters=%b qoz=%b matrix=%b GU_ae=%b GU_be=%b GU_ge=%b",active_adapter,dut.ctrl_error,dut.errors,dut.qoz_error,dut.matrix_error,dut.gu.ae,dut.gu.be,dut.gu.ge);
@@ -326,6 +332,12 @@ module tb_v3_pcore_three_job_chain;
        (dut.gu.gu.a_replay.in_entry.tile_idx!=dut.gu.gu.a_replay.expected_k_q||dut.gu.gu.a_replay.in_entry.pair_idx!=dut.gu.gu.a_replay.fill_pair_q||dut.gu.gu.a_replay.in_entry.row_valid!=row_mask(dut.gu.gu.a_replay.fill_pair_q)||dut.gu.gu.a_replay.in_entry.reserved!=0))
       $fatal(1,"GU replay input mismatch tile=%0d expected=%0d pair=%0d expected=%0d mask=%b reserved=%h",dut.gu.gu.a_replay.in_entry.tile_idx,dut.gu.gu.a_replay.expected_k_q,dut.gu.gu.a_replay.in_entry.pair_idx,dut.gu.gu.a_replay.fill_pair_q,dut.gu.gu.a_replay.in_entry.row_valid,dut.gu.gu.a_replay.in_entry.reserved);
     if(dut.dispatch.matrix.req_valid)begin
+      if(op_issues[job.header.op]==0)op_first[job.header.op]=cycle;
+      op_last[job.header.op]=cycle;
+      if(active_adapter==0&&dut.dispatch.matrix.tile_seq_q==0&&dut.dispatch.matrix.req_meta.pair_idx==0)begin
+        proj_first[job.header.op][dut.dispatch.matrix.req_meta.nt]=cycle;
+        $display("PROJ_FIRST op=%0d n=%0d cycle=%0d",job.header.op,dut.dispatch.matrix.req_meta.nt,cycle);
+      end
       op_issues[job.header.op]++;
       if(active_adapter==2)begin
         int n;n=dut.dispatch.matrix.req_meta.gu_n;
@@ -341,8 +353,17 @@ module tb_v3_pcore_three_job_chain;
       end
     end
     if(dut.dispatch.req.start)begin
-      operation_profile_t profile;profile=operation_profile(job.header.op);
-      if(dut.dispatch.req.mode!=profile.mode||dut.dispatch.req.a_source!=profile.matrix_a||dut.dispatch.req.b_source!=profile.b_source)$fatal(1,"Matrix descriptor source/mode");
+      op_launches[job.header.op]++;
+      desc_profile=operation_profile(job.header.op);
+      if(dut.dispatch.req.mode!=desc_profile.mode||dut.dispatch.req.a_source!=desc_profile.matrix_a||dut.dispatch.req.b_source!=desc_profile.b_source)$fatal(1,"Matrix descriptor source/mode");
+      if(active_adapter==0)begin
+        if(!desc_profile.geometry_valid||dut.dispatch.req.tiles!=desc_profile.k_tiles||
+           dut.dispatch.req.nt>=desc_profile.n_tiles)$fatal(1,"Projection descriptor geometry");
+        if(dut.dispatch.req.acc_sel!=(dut.dispatch.req.nt[0]?ACC_FACC_B:ACC_FACC_A))
+          $fatal(1,"Projection FACC parity");
+        if(dut.dispatch.req.a_stream!=TILE_BITS'(int'(dut.dispatch.req.nt)*int'(desc_profile.k_tiles))||
+           dut.dispatch.req.b_stream!=dut.dispatch.req.a_stream)$fatal(1,"Projection transport base");
+      end
     end
     if(dut.dispatch.matrix.done)begin
       if(active_adapter==2)commit_gu[dut.dispatch.matrix.commit_meta.gu_n]=cycle;
@@ -385,17 +406,22 @@ module tb_v3_pcore_three_job_chain;
   initial begin
     slow_post=$test$plusargs("SLOW_POST");gu_only=$test$plusargs("GU_ONLY");
     $readmemh("tb/data/gu_fp32.mem",gu_golden);$readmemh("tb/data/gu_z_mxint8.mem",z_golden);
-    job='0;post_result='0;fixture_region='0;fixture_wr='0;acc_wr='0;xbc_entry='0;gu_a_entry='0;hbm_entry='0;kv_entry='0;p_entry='0;
+    job='0;post_result='0;ext_qoz_region='0;ext_qoz_wr='0;acc_wr='0;xbc_entry='0;hbm_entry='0;kv_entry='0;p_entry='0;
     for(int n=0;n<32;n++)begin count_gu[n]=0;first_gu[n]=0;last_gu[n]=0;commit_gu[n]=0;stall_a_n[n]=0;stall_b_n[n]=0;stall_slot_n[n]=0;handoff_n[n]=0;end
     for(int n=0;n<110;n++)begin count_attn[n]=0;first_attn[n]=0;last_attn[n]=0;commit_attn[n]=0;end
     for(int n=0;n<3;n++)begin route_xbc[n]=0;route_hbm[n]=0;route_kvb[n]=0;route_qoz_rd[n]=0;end
     for(int n=0;n<7;n++)begin op_xbc[n]=0;op_hbm[n]=0;op_kvb[n]=0;op_local[n]=0;op_issues[n]=0;op_outputs[n]=0;end
+    for(int op=0;op<7;op++)begin
+      op_accept[op]=0;op_first[op]=0;op_last[op]=0;op_done[op]=0;
+      op_launches[op]=0;op_posts[op]=0;op_results[op]=0;
+      for(int n=0;n<64;n++)proj_first[op][n]=0;
+    end
     repeat(35)@(negedge clk);reset=0;
     if($test$plusargs("SEVEN_JOBS"))begin
+      send_operation(OP_K_PROJ,11);fork feed_projection_xbc(2,64);finish_operation();join
+      send_operation(OP_V_PROJ,12);fork feed_projection_xbc(2,64);finish_operation();join
       send_operation(OP_Q_PROJ,10);fork feed_projection_xbc(16,64);finish_operation();join
       if(!qoz_complete||qoz_region.owner!=QOZ_Q||q_pairs!=416)$fatal(1,"seven Q projection not committed");
-      send_operation(OP_K_PROJ,11);fork feed_projection_xbc(16,64);finish_operation();join
-      send_operation(OP_V_PROJ,12);fork feed_projection_xbc(16,64);finish_operation();join
       send_operation(OP_ATTENTION,13);
       fork
         begin for(int j=0;j<110;j++)for(int t=0;t<16;t++)for(int g=0;g<8;g++)send_b(j*16+t,g,0,0,1);end
@@ -421,6 +447,11 @@ module tb_v3_pcore_three_job_chain;
       $display("SEVEN_ATTENTION jobs=110 body=416 steady=434 PV53_PV54=867 final_tail=439");
       send_operation(OP_DOWN_PROJ,16);fork feed_projection_hbm(64,32);finish_operation();join
       if(qoz_complete||dut.qactive)$fatal(1,"seven Down Projection did not release Z");
+      begin
+        int total;total=0;for(int op=0;op<7;op++)total+=op_issues[op];
+        if(total!=265408)$fatal(1,"seven total issue count=%0d",total);
+        $display("SEVEN_TOTAL issues=%0d order=K,V,Q,ATTENTION,O,GU,DOWN",total);
+      end
       if(route_xbc[0]==0||route_hbm[0]==0||route_xbc[2]==0||route_hbm[2]==0||
          route_kvb[1]==0||route_qoz_rd[1]==0||route_qoz_rd[0]==0)
         $fatal(1,"seven source routing incomplete XBC=%0d/%0d HBM=%0d/%0d KVB=%0d QOZ=%0d/%0d",
@@ -466,7 +497,7 @@ module tb_v3_pcore_three_job_chain;
       if(first_attn[109]-first_attn[108]!=867)$fatal(1,"Attention tail regression");
       if(attn_final_done-commit_attn[109]!=439)$fatal(1,"Attention AFIN tail regression %0d",attn_final_done-commit_attn[109]);
     end
-    send_operation(OP_GU,3);fork feed_gu();finish_operation();join
+    send_operation(OP_GU,3);fork feed_gu_xbc();finish_operation();join
     if(!qoz_complete||qoz_region.owner!=QOZ_Z||z_pairs!=832||prefetches!=31)$fatal(1,"Z region/prefetch count");
     for(int n=0;n<32;n++)begin
       if(count_gu[n]!=3328)$fatal(1,"GU issue count n=%0d count=%0d",n,count_gu[n]);

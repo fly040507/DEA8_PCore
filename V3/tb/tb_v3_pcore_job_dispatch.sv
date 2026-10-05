@@ -20,6 +20,19 @@ module tb_v3_pcore_job_dispatch;
   endtask
   initial begin
     job='0;for(int i=0;i<3;i++)adapter_done[i]='0;
+    for(int op=0;op<8;op++)begin
+      operation_profile_t profile;
+      profile=operation_profile(pcore_op_e'(op));
+      if(op==7)begin
+        if(profile!='0)$fatal(1,"invalid opcode returned a valid profile");
+      end else if(op==int'(OP_ATTENTION)||op==int'(OP_GU))begin
+        if(profile.geometry_valid||profile.k_tiles||profile.n_tiles)$fatal(1,"adapter-owned geometry leaked into profile");
+      end else begin
+        if(!profile.geometry_valid)$fatal(1,"Projection geometry missing");
+        if((op==int'(OP_K_PROJ)||op==int'(OP_V_PROJ))&&
+           (profile.k_tiles!=64||profile.n_tiles!=2||profile.output_qoz))$fatal(1,"KV per-core geometry");
+      end
+    end
     repeat(5)@(negedge clk);reset=0;
     for(int op=0;op<7;op++)begin
       int i;

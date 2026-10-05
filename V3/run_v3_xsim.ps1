@@ -65,12 +65,16 @@ try {
   $out|Set-Content (Join-Path $report "tb_v3_pcore_seven_jobs.txt") -Encoding UTF8
   $text=$out -join "`n"
   if($code -ne 0 -or $text -match '(?im)^\s*(Fatal|Error):' -or $text -notmatch 'tb_v3_pcore_three_job_chain PASS seven_jobs=7'){throw "Seven-job matrix chain failed"}
+  if($text -notmatch 'SEVEN_TOTAL issues=265408 order=K,V,Q,ATTENTION,O,GU,DOWN') {throw "Final seven-job order/workload failed"}
+  $perf=@($out | Where-Object { "$_" -match '^PROJ_PERF ' })
+  if($perf.Count -ne 5) {throw "Missing measured Projection performance"}
+  $perf | Set-Content (Join-Path $report "v3_projection_performance.txt") -Encoding UTF8
   Get-ChildItem (Join-Path $here "rtl"),(Join-Path $here "tb"),(Join-Path $here "legacy") -File -Filter *.sv |
     Sort-Object FullName |
     Get-FileHash -Algorithm SHA256 |
     ForEach-Object { "$($_.Hash),$($_.Path.Substring($here.Length+1))" } |
     Set-Content (Join-Path $report "v3_sources_sha256.csv") -Encoding UTF8
-  "All $($tops.Count) testbenches (formal + legacy compatibility), Seven PCore Matrix Jobs functional PASS, GU slow-post, Attention55 port-stress, 2 fabric FAULT/clear cases and 3 expected context rejections passed at $(Get-Date -Format o). Simulation only; no synthesis/P&R." | Set-Content (Join-Path $report "v3_simulation_summary.txt") -Encoding UTF8
+  "All $($tops.Count) testbenches (mainline + legacy compatibility), PCore V3 Matrix Stage Final Functional Freeze: K,V,Q,Attention,O,GU,Down; total issues=265408; Seven PCore Matrix Jobs functional PASS, GU slow-post, Attention55 port-stress, 2 fabric FAULT/clear cases and 3 expected context rejections passed at $(Get-Date -Format o). Simulation only; no synthesis/P&R." | Set-Content (Join-Path $report "v3_simulation_summary.txt") -Encoding UTF8
 } catch {
   "FAILED at $(Get-Date -Format o): $_" | Set-Content (Join-Path $report "v3_simulation_summary.txt") -Encoding UTF8
   throw

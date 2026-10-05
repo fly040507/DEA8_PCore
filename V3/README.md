@@ -1,362 +1,118 @@
-# V3 PCore 数据面
+# PCore V3 Matrix Stage
 
-## Seven PCore Matrix Jobs functional PASS（2026-10-05）
+## 当前状态
 
-最终完整 XSim 回归于 **00:54:15 +08:00** 通过：32 个 TB（含 legacy 兼容）、同 reset 七 Job、GU slow-post、Attention port-stress、2 个 fabric FAULT/clear 场景、3 类预期 context 拒绝。当前 Matrix 部分功能冻结；最新依据为 `reports/v3_simulation_summary.txt` 和 `reports/v3_sources_sha256.csv`，下文旧阶段记录仅供历史对照。
+**PCore V3 Matrix Stage — Final Functional Freeze**。2026-10-05 **22:14:18 +08:00**，当前源码完整 XSim 回归通过：32 个 TB（mainline + legacy compatibility）、七 Job 同 reset 链、GU slow-post、Attention port-stress、2 个 fabric FAULT/clear 场景、3 类预期 completion context 拒绝。最终源码 SHA256 清单已生成。
 
-| Operation | A 路径 / B 来源 | K × N | 实测 issue | 输出 tile |
-| --- | --- | --- | ---: | ---: |
-| Q / K / V Projection | XBC / HBM | 64 × 16 | 各 26624 | 各 16 |
-| Attention | QOZ/PBUF / KVB | 55-block | 45760 | 110 Matrix Job |
-| O Projection | QOZ_O local / HBM | 16 × 64 | 26624 | 64 |
-| G-U | XBC → Replay → local / HBM | 64 × 32 | 106496 | 32 Z tile |
-| Down Projection | QOZ_Z local / HBM | 32 × 64 | 53248 | 64 |
+本目录是 PCore V3 的单核矩阵阶段。一个 dea8_matrix_v3 串行执行 7 种 PCore Job，内部只保留 3 种 Matrix mode：
 
-- 同一 `dea8_pcore_exec_v3`、同一次 reset：Q → K → V → Attention → O → GU → Down；唯一 shared Matrix，三种 Matrix mode。逐 Operation 检查 source routing、issue 数和数值，mismatch=0。
-- O/Down physical tile 每 N 重读 0..K−1；A/B transport 为 `(n*K+k) mod64`。local reader 在请求接受时推进地址，由 QOZ 响应背压控制，可逐拍 consume/refill，支持 `S_OVERLAP` 连续供数。FACC 仍只有 A/B 两个 bank，按 logical N parity 切换。
-- QOZ_Q：Q Projection → Attention；QOZ_O：Attention → O Projection；QOZ_Z：GU → Down Projection。O 使用公开 fixture；七 Job Down 使用实际 GU Z，golden 根据各行 quantized Z、HBM B 和冻结分段 FP32 累加独立计算。
-- Q/GU 的 post completion 等待最后 QOZ pair 提交；K/V/O/Down 仅返回 post_done，本轮无需无消费者的 post_result。
-- GU XBC A2 payload 改为整包原子赋值，restart 拒绝输入握手专项通过；legacy gu_a payload 选择修复，旧三任务回归仍保留 832 次 Z 回读。
-- 扩宽 logical N 后修复 OACC 固定 16 列的地址布局：`pair*16+nt[3:0]`。未修改 DEQACC 数值规则和 11 级延迟。Attention descriptor out_tile 和旧 TB 改用 TILE_BITS；调度算法未改。
-- `operation_profile()` 使用同宽 packed-vector 返回，规避 Vivado 2022.2 结构体返回异常；最终使用默认 xelab 优化通过，无需 `--O0`。
+    MAT_PROJECTION
+    MAT_ATTENTION
+    MAT_GU
 
-### 保持的性能与边界
+VPU、SFU、Gcore、CNET 和真实 HBM 控制器不属于本阶段；非矩阵行为由 TB 模拟。当前只做功能仿真，不做综合和 P&R。
 
-- Attention scheduling：body=416、steady=434、PV53→PV54=867、final tail=439；55 QK + 55 PV，13056 最终值通过。
-- Attention port-stress：同一 numerical golden 通过，允许端口冲突增加等待；实测 steady=434..501、尾间隔=928、tail=449。
-- GU：3328 issues/N，last−first=3327，steady=3346，稳态 A/B/slot stall=0，31 次 handoff；冷启动 A/B 等待仍存在。
-- Slow post：受影响 GU 间隔=3623，slot stall=276；G63 之前不因慢 post 停顿，其他稳态间隔=3346。
-- 日志：`reports/tb_v3_pcore_seven_jobs.txt`、`tb_v3_projection_local_o.txt`、`tb_v3_projection_local_down.txt`、`tb_v3_gu_xbc_restart.txt`、`tb_v3_gu_prefetch_slow.txt`、`tb_v3_attention_55_port_stress.txt`。
-- 本轮只有功能仿真；未运行综合/P&R。旧 DEQACC 物理报告对应旧源码，不是本轮寻址修复后的物理签核。VPU/SFU/GCore/CNET 具体实现仍由外部 subsystem 负责。
-- 下一阶段可接 Layer Sequencer 与真实 Job 间的数据依赖；不再扩展本轮公共矩阵执行框架。
+## 七种 Job
 
-本目录从 `PCore_2.0/v3` 独立提升为 `VLA/V3`；`VLA/pcore` 是保留的旧单 INT8 版本。命令均从本目录执行。旧版 `PCore_2.0` 的非 v3 实现已由本版替代。
+正式执行顺序由上层发送方决定，本阶段验收顺序为：
 
-`reports/` 只保留 2026-10-02 功能冻结回归的日志、SHA256 清单和冻结 DEQACC 的必要 OOC 证据。历史日志中旧的绝对路径指向迁移前位置，不能据此判断现在的文件位置；迁移后需重新运行 `run_v3_xsim.ps1` 生成当前路径的验证记录。
+    K -> V -> Q -> Attention -> O -> G-U -> Down
 
-## PCore Execution Framework v3 Functional Freeze
+| Job | 单核矩阵 | K tiles | N tiles | A 来源 | B 来源 | 输出 |
+|---|---:|---:|---:|---|---|---|
+| OP_K_PROJ | [51,1024] x [1024,32] | 64 | 2 | XBC | HBM | 外部 post_done |
+| OP_V_PROJ | [51,1024] x [1024,32] | 64 | 2 | XBC | HBM | 外部 post_done |
+| OP_Q_PROJ | [51,1024] x [1024,256] | 64 | 16 | XBC | HBM | QOZ_Q |
+| OP_ATTENTION | 55-block 固定调度 | Adapter 管理 | Adapter 管理 | QOZ/PBUF | KVB | 外部 post_done |
+| OP_O_PROJ | [51,256] x [256,1024] | 16 | 64 | QOZ_O | HBM | 外部 post_done |
+| OP_GU | 两支 [51,1024] x [1024,512] | Adapter 管理 | Adapter 管理 | XBC -> Replay | HBM | QOZ_Z |
+| OP_DOWN_PROJ | [51,512] x [512,1024] | 32 | 64 | QOZ_Z | HBM | 外部 post_done |
 
-2026-10-02：按 `interaction/下一步方案.docx`、`AI工具意见.docx` 和 `冻结要求.docx` 完成本阶段接口、错误传播与遗留代码收尾。**功能冻结回归通过**，最终时间 **21:43:20 +08:00**。
+K/V 是单核 32 维输出。未来 8 个 PCore 拼接为 256 维 KV head，但本目录不实现多核 gather，也不把 head 字段解释为 shard ID。
 
-### 本次冻结改动
+所有合法 opcode 在 operation_profile() 中显式配置。geometry_valid 仅对 Projection 置位，k_tiles/n_tiles 只对 Projection 有效；Attention 和 G-U 的内部几何由各自 Adapter 管理。非法 opcode 返回全零 invalid profile，Ctrl 返回 JOB_UNSUPPORTED。opcode 编码保持 Q=0、K=1、V=2、Attention=3、O=4、GU=5、Down=6，不因验收顺序而改变。
 
-- `pcore_ctrl.fabric_error` 接收 `qoz_error || matrix_error`；ACTIVE 中任一全局错误或当前 owner 的 adapter error 进入 FAULT。非 active adapter 的 error 不影响当前 Job。
-- FAULT 不产生正常 completion、不接受新 Job、不自动释放当前 QOZ generation；统一 clear/reset 后恢复。总控仅保留 Job 分发、owner、context、完成保持与全局错误处理。
-- `matrix_service_req_t` 显式携带 `a_source / a_streaming / b_source`，dispatcher 不再根据 owner 推断数据来源。字段由调用方持续驱动，覆盖预取、执行和排空期间；当前三条路径在 Operation 内保持固定。
+## 数据路径和 QOZ
 
-| Adapter 路径 | a_source | a_streaming | b_source |
-| --- | --- | ---: | --- |
-| Q Projection | A_XBC | 0 | B_HBM |
-| Attention | A_LOCAL | 1 | B_KVB |
-| G-U | A_LOCAL | 0 | B_HBM |
+    Q Projection -> QOZ_Q -> Attention
+    Attention/external subsystem -> QOZ_O -> O Projection
+    G-U -> QOZ_Z -> Down Projection
 
-### POST 接口冻结契约
+Projection 的物理地址和 transport ID 分离：
 
-所有通道在 `valid && ready` 时转移；`valid && !ready` 时保持 valid 和完整 payload。command 接受后提供对应数据，result 与 done 原样携带接受时的 job_id/epoch/head/n；done 还须匹配原 post opcode。
+    physical_tile = k
+    transport     = (n_tile * k_tiles + k) mod 64
 
-| post_job.op | post_data.row | first / second | row_valid / last |
-| --- | --- | --- | --- |
-| POST_PROJ_QUANT | pair index 0..25 | even / odd FP32 row | 11，尾 pair 为 01；pair 25 为 last |
-| POST_GU | row index 0..50 | Gate / Up FP32 row | 01；row 50 为 last |
+O/Down 的 local-A reader 在 S_OVERLAP 期间继续供数；FACC 仍只有 A/B 两个物理 bank，按 logical N tile parity 选择。GU 正式路径为：
 
-- `POST_GU(n)` 输入 51 行 Gate/Up，外部 subsystem 返回 26 个 Z pair 和一次 done。GELU、乘法、Quant 的具体实现不属于本工程职责。
-- `post_result.pair_data.tile_idx == n`，pair_idx 顺序为 0..25，row mask 遵循尾行规则，last 仅在 pair 25 置位。
-- 最后 pair 必须真正被 QOZ 接受后才允许 done；同拍提交与 done 合法。只进入外部队列不算完成。
-- clear/reset 取消旧 generation；外部 subsystem 同步丢弃旧 command/data/result/completion。
+    XBC4 -> dea8_gu_xbc_frontend_v3 -> A2 -> GU Replay -> shared Matrix
 
-### QOZ 生命周期冻结契约
+正式 PCore 顶层不再保留旧 gu_a_* 入口。外部非矩阵 subsystem 写入测试阶段需要的 QOZ 数据时使用 ext_qoz_region_* 和 ext_qoz_wr_*。
 
-一个 32-tile 物理存储，单活动 region：**producer acquire → ordered writes → region_complete → consumer reads → consumer release**。
+QOZ 只有一个活动 region，生命周期为 acquire → 顺序写入 → region_complete → consumer 读取 → release。Q/O 各 16 tile，Z 为 32 tile。生产者与消费者 job_id 可以不同，epoch/head 必须匹配；完整生产者 header 校验写入，release 校验对应消费者操作。O 的 producer header 为 OP_ATTENTION，由外部 subsystem 写入；本阶段 TB 模拟该 producer。
 
-| owner | tiles | producer | 合法 release consumer |
-| --- | ---: | --- | --- |
-| QOZ_Q | 16 | OP_Q_PROJ | OP_ATTENTION |
-| QOZ_O | 16 | OP_O_PROJ | 本阶段未定义，拒绝 release |
-| QOZ_Z | 32 | OP_GU | OP_DOWN_PROJ |
+POST_PROJ_QUANT 的 row 为 pair 0..25，first/second 为 even/odd FP32 行；尾 pair row_valid=01，其余为11，pair25 为 last。POST_GU 的 row 为0..50，first/second 为 Gate/Up，row_valid=01，row50 为 last。valid 停顿时保持完整 payload。Q/GU 必须等最后 QOZ pair 被接受后才允许 post_done；K/V/O/Down 由外部 post_done 完成，不产生 post_result，也不写 QOZ。
 
-producer 和 consumer 的 job_id 可以不同；release 校验 epoch/head 与 owner 对应的消费者操作。写入必须匹配生产者完整 header。O/Down 表项仅冻结资源接口，不表示已实现对应 Operation adapter。O region 当前只能通过全局 clear/reset 取消。
+全局 Matrix/QOZ 错误和 active adapter 错误进入 FAULT，不发正常 completion、不接受新 Job、不自动释放 region；clear/reset 取消 generation，外部 subsystem 同步丢弃旧请求和结果。inactive adapter error 隔离检查通过。
 
-### 最终验收与 legacy 隔离
+## 验收指标
 
-- `v3_all.f` 仅含正式接口与其 TB；旧 controller、旧 Job typedef、`tb_v3_pcore_ctrl` 和 `tb_v3_gu_32_system` 移到 `legacy/`，由 `legacy/regression.f` 单独编译。有效历史检查继续运行。
-- `run_v3_xsim.ps1` 完成 **27 个正式 TB + 2 个 legacy 兼容 TB**，以及 GU slow-post、Attention port-stress、2 个 fabric FAULT/clear 场景、3 类预期 context assertion；另有 QOZ stale-write-after-release 和 double-release 两个生命周期边界 TB。
-- 分发专项覆盖 active error、inactive error 隔离及 fabric FAULT；Top 用非法 QOZ write 和内部 release 注入验证保留 region、无 JOB_OK、clear 恢复。
-- QOZ 专项增加 O16、Z32→Down release、错误 consumer、乱序写、三类错误 tiles 检查；三任务 TB 检查两类 post 的 index/mask/last 与数据背压保持。
-- GU 保持每 N 3328 连续 issue、稳态 3346 拍、A/B stall=0、fast slot stall=0；slow post 仅 G63 slot 停顿 276 拍。Attention 保持 416 / 434 / 867 / 439；Projection golden、Z 832 次回读均通过。
-- 证据：`reports/v3_simulation_summary.txt`、`reports/v3_sources_sha256.csv`、`reports/tb_v3_pcore_fabric_WRITE.txt`、`reports/tb_v3_pcore_fabric_RELEASE.txt` 及各专项日志。回归脚本现在会将失败写成 FAILED，避免普通异常留下 RUNNING。
+| Job | 最终实测结果（mismatch=0） |
+|---|---:|
+| K | 3328 issues，2 outputs，XBC 1664，HBM 1024 |
+| V | 3328 issues，2 outputs，XBC 1664，HBM 1024 |
+| Q | 26624 issues，16 outputs |
+| Attention | 45760 issues，110 Matrix jobs |
+| O | 26624 issues，64 outputs |
+| G-U | 106496 issues，3328 issues/n |
+| Down | 53248 issues，64 outputs |
+| 合计 | 265408 Matrix issues |
 
-本阶段到此冻结。下一阶段在此框架上增加 K/V/O/Down Operation adapter 行为和独立 Layer Sequencer。VPU/SFU 具体实现不列为本工程待办；本轮仍只做仿真，不包含综合/P&R。
+Attention 保持 body=416、steady=434、PV53 -> PV54=867、final tail=439。G-U 保持 3328 issues/n、last-first=3327、steady=3346，稳态 A/B/slot stall 均为 0。
 
-## 历史阶段：2026-10-02 三 Operation 共享执行结构
+Projection TB 运行时打印 PROJ_PERF，记录 accept、first issue、last issue、done、issue count、N tile 间隔、Matrix span、Job span 和两种利用率。K/V 数值使用不同权重模式，避免 K/V 路径接反而仍通过全 1 golden。
 
-当前 `dea8_pcore_exec_v3` 已串行跑通 `OP_Q_PROJ → OP_ATTENTION → OP_GU`，共用一个 Matrix 和一个物理 QOZ。最新完整回归于 **2026-10-03 14:44:53 +08:00** 结束：29 个 TB、额外 GU slow-post、Attention55 port-stress、3 类预期 completion 拒绝检查以及 QOZ 释放边界检查全部通过。证据：`reports/v3_simulation_summary.txt`、各 TB 日志及 `reports/v3_sources_sha256.csv`。
+### Projection 实测性能
 
-### 控制与资源契约
+下表均来自本轮七 Job TB；周期以该次 reset 后的计数为准。interval 为相邻 N tile 首 issue 的间隔；K/V 只有一次 N0→N1 间隔。
 
-- `dea8_pcore_ctrl_v3`：Operation 分发、单 owner、完成保持和故障；G-U 内部 N/K 计数归 adapter。原 G-U 专用控制保存在 `dea8_gu_ctrl_legacy.sv`，供历史 TB 回归。
-- Projection、Attention、GU 三个 Job adapter 通过 `dea8_matrix_job_dispatch_v3` 使用共享 Matrix；运行时选择 A source/streaming。原私有 wrapper 路径保留。
-- `pcore_op_e` 与 `matrix_mode_e` 分层；当前共享入口支持 Q Projection、Attention、GU，其他 Operation 尚未接入。
-- Q Projection 申请 Q region，post 结果经 QOZ 接受并完成提交。Attention 以相同 epoch/head 消费 Q；消费者 job_id 不要求等于生产者 job_id。Attention 完成后释放 Q，GU 才申请同一物理存储的 Z region。
-- `POST_GU` 每 N 一个任务，消费实际 G/U 行数据；最后 Z pair 提交后才允许 post completion。32 个 post 完成且 Z region complete 后，`OP_GU` 才完成。Z 保留给后续消费者，不包含 Down。
-- 错误 owner/context、非法 completion、错误 QOZ release 由协议检查拒绝；清除故障时外部引擎也必须取消旧 generation。
+| Job | accept / first / last / done | interval | Matrix span | Job cycles | Matrix issue 利用率 | Job issue 利用率 |
+|---|---|---:|---:|---:|---:|---:|
+| K | 2 / 32 / 3378 / 3454 | 1683 | 3347 | 3452 | 99.432% | 96.408% |
+| V | 3460 / 3490 / 6836 / 6912 | 1683 | 3347 | 3452 | 99.432% | 96.408% |
+| Q | 6918 / 6948 / 33856 / 33933 | 1683..1683 | 26909 | 27015 | 98.941% | 98.553% |
+| O | 83005 / 83035 / 111170 / 111247 | 440..440 | 28136 | 28242 | 94.626% | 94.271% |
+| Down | 218484 / 218514 / 273273 / 273350 | 856..856 | 54760 | 54866 | 97.239% | 97.051% |
 
-### 当前源码的仿真结果
+Matrix issue 利用率 = issues / (last−first+1)；Job issue 利用率 = issues / (done−accept)。这是当前 TB 的供数和 post 响应模型下的实测，不是整芯片利用率。逐 N 首 issue 见 `reports/tb_v3_pcore_seven_jobs.txt`，五条汇总见 `reports/v3_projection_performance.txt`。
 
-| 检查 | 结果 |
-| --- | --- |
-| 同 reset 三任务链 | 3 Operation、1 Matrix、1 QOZ、48 post、832 次 Z 回读 |
-| 正常 GU | 每 N 3328 次 issue；首个及稳态 N 间隔 3346 拍；slot stall=0 |
-| GU 预取 | 31 次 one-ahead prefetch；稳态 A/B 加载停顿检查通过 |
-| GU 冷启动与切换 | A/B 冷启动计数 54/26；Matrix handoff 总计 31，不能称为零开销 |
-| GU slow-post | 受影响间隔 3623 拍，slot stall=276；G63 前不因慢 post 停顿；其余稳态间隔 3346 |
-| Attention scheduling | body=416、普通首 issue 间隔=434、PV53→PV54=867、最终 tail=439 |
-| Attention port-stress | 13056 个最终值通过；真实 ACC 读写及 Matrix busy 期间 overlap 通过 |
-| 分发与 QOZ 专项 | 背压保持、错误 adapter/context、不支持操作、跨 job_id 消费 Q、错误 release 拒绝通过 |
+GU slow-post 仍只在 G63 结果 slot 处停顿：276 拍，受影响间隔3623，其余稳态3346。正式 GU 改用 XBC 后冷启动 A/B 等待实测67/26，稳态指标不变。Attention port-stress 13056 个最终值通过，端口压力下 steady=434..501、尾间隔928、tail449；416/434/867/439 是 scheduling 模式验收值。
 
-GU 加载由连续生产者、replay/FIFO credit 和 one-ahead 授权约束；正常稳态隐藏加载，慢 post 在单结果 slot 预留处停顿。日志：`reports/tb_v3_pcore_three_job_chain.txt`、`reports/tb_v3_gu_prefetch_slow.txt`。本次修复了加强后的 TB 对 Q reader ready 的错误层次引用，随后重新运行完整回归。
+## 仿真入口
 
-### 范围与下一步
+在 C:\Users\fly04\Desktop\VLA\V3 下执行：
 
-- VPU/SFU 非矩阵算术仍为 TB reference；共享 post 接口已接通，尚无真实后处理引擎 RTL 签核。
-- 三任务链验证共享执行与 Q 生命周期；GU 输入由 TB 提供，不代表完整模型层的 Attention 输出到 GU 输入数值链。
-- 新 PCore 未运行综合/P&R，不能引用下文冻结 DEQACC 的 250 MHz 结果作为共享 Top 签核。
-- 后续在已冻结接口上增加 K/V/O/Down 行为与 Layer/Denoise sequencer；VPU/SFU 实现由外部 subsystem 负责。
+    powershell -ExecutionPolicy Bypass -File .\run_v3_xsim.ps1
 
-## 历史阶段：2026-10-01 PCore Job入口与完整OP_GU
+脚本必须同时检查 xvlog、xelab、xsim 退出码、明确 PASS 文本和非预期 Fatal/Error。七 Job 复用：
 
-以下为旧 G-U 专用控制阶段记录；其中“当前”“尚未完成”仅描述该历史阶段，最新集成状态以上节为准。
+    tb_v3_pcore_three_job_chain_sim -testplusarg SEVEN_JOBS
 
-已同步现有G-U replay、Matrix交错累加、Pair Buffer和shared QOZ增量。本轮新增 `rtl/dea8_pcore_ctrl_v3.sv`，在统一操作入口跑通一条 `OP_GU`。最终 **24个testbench + Attention55 port-stress通过，3类错误completion拒绝检查通过**；证据为 `reports/v3_simulation_summary.txt`。本轮未运行综合/P&R。
+本轮完整回归的最终证据：
 
-### 两层Job契约
+    reports/v3_simulation_summary.txt
+    reports/v3_sources_sha256.csv
+    reports/tb_v3_pcore_seven_jobs.txt
+    reports/v3_projection_performance.txt
 
-- 上层 `pcore_op_e`：Q/K/V/O/Down Projection、Attention、GU各自独立。`OP_GU`完成仅表示Z形成，不含Down。
-- 公共 `job_header_t`：16-bit job_id、epoch、head、op；操作与各引擎completion必须返回接受时的context。
-- Matrix子Job：`pcore_matrix_job_t`，mode保留MAT_PROJECTION/MAT_ATTENTION/MAT_GU，附n、k_tiles、m_rows。
-- VPU/SFU使用各自payload：`POST_GU`、`GELU_GU`，不要求所有引擎解析统一大opcode。
-- 当前controller只执行OP_GU，固定51行、64 K Tile、默认32 N Tile；其他操作返回 `JOB_UNSUPPORTED`。Projection/Attention继续独立回归，尚未挂到同一dispatcher。
-- 所有命令/完成口在valid&&ready转移；停顿时保持payload。controller同时最多一个Operation、一个Matrix子Job、一个post tile；Matrix和上一tile后处理可重叠。
+仿真日志必须与当前 v3_sources_sha256.csv 对照。本轮全部通过，旧工具链阻塞诊断日志已删除；保留本阶段最终日志和独立冻结 DEQACC 物理证据。旧物理证据不作为当前 PCore 的综合/P&R 签核。
 
-### OP_GU完成与资源边界
+## 阶段边界
 
-1. 锁存Operation，申请shared QOZ的Z region；region begin接受后启动内部GU local scheduler。
-2. 发出32个MAT_GU子Job，每个由既有GU wrapper计算G/U；每n有3328次连续pair issue。
-3. Pair Buffer完整后，分别发VPU和SFU Job。TB只有两个post Job均接受才读取真实G/U；SFU数学/乘法/量化为reference模型。
-4. 每tile最后Z pair在QOZ写口被接受，向controller提供 `z_tile_commit`。VPU done必须在该commit之后（或同拍）；SFU done表示对应GELU生产完成。
-5. 32次Matrix completion、32个post tile的VPU/SFU完成及Z commit、QOZ region complete全部满足，才置 `job_done_valid`，一直保持到ready。
+- 不修改 DEQACC 数值语义和 11 级延迟
+- 不重做 Attention scheduler
+- 不实现真实 VPU/SFU/Gcore/CNET/HBM
+- 不实现 18-layer、10-step denoise 或多核 KV gather
+- 旧单 INT8 设计保留在 VLA/pcore
 
-协议错误（错误context、提前VPU done、非法Z提交等）置sticky `protocol_error`并进入FAULT；FAULT不发正常completion、不释放执行资源，必须对controller和相关引擎统一clear/reset。`JOB_PROTOCOL_ERROR`保存在completion payload中供诊断，但FAULT期间没有有效completion token。
-
-QOZ begin的owner=QOZ_Z、tiles=32由当前固定GU adapter连接，epoch/head来自 `active_header`。GU结束后Z region继续保留给消费者，controller不自动release；下一Operation若需重用必须先由资源管理方消费/release。当前所有外部engine也必须随clear取消旧generation。
-
-### 实际验证
-
-- `tb_v3_gu_32_system` 不再直接启动GU scheduler，只发一条OP_GU（job_id=0x7319）。实际32 Matrix / 32 VPU / 32 SFU Jobs，1632行G/U、832个Z pair、832次shared QOZ回读均通过，完成context匹配。
-- Z由实际RTL的G/U流计算，不再直接拷贝z_golden。TB使用tanh近似GELU、显式FP32舍入、乘法、E8M0 scale和RNE INT8量化，与独立Python生成的fixture逐项比较。这是固定刺激下的reference验证，不是正式SFU近似误差或模型精度签核。
-- `tb_v3_pcore_ctrl` 覆盖不支持opcode、region/engine背压、Matrix完成后继续等待Z、QOZ complete barrier、completion保持、错误job_id隔离和clear恢复。
-- 旧Matrix64 TB的job_tiles位宽修正为 `MATRIX_TILE_COUNT_BITS`，消除扩宽接口后的未知位停顿；保留1664次issue/commit、max_gap=1和数值检查。
-- Projection golden通过；Attention继续body=416、steady=434、尾部867、最终tail439，未重写两条既有计算链。
-
-### 当前仍未完成
-
-- controller、GU wrapper、shared QOZ目前由系统TB按公开接口连接，还不是完整可综合PCore Top。Matrix完成脉冲由adapter附上接受时descriptor；正式共享Top需保留这一关联。
-- A/B仍按每n供数；BFIFO无job-N标签，未启用跨n任意预取。内部GU scheduler的prefetch提示暂不消费，不能宣称跨n零启动开销。
-- VPU/SFU后处理算术仍为TB reference，真实引擎未实现。没有新增250MHz硬件签核。
-- 下一步先给Projection/Attention加Operation adapter并接同一dispatcher，再考虑共享资源Top和Layer/Denoise sequencer。
-
-以下DEQACC及Attention章节保留各自baseline与接口背景；本节是当前Job集成进度。
-
-## 当前状态：DEQACC_3.3ns
-
-2026-09-30：Matrix 使用冻结的 `DEQACC_3_3ns`。本轮按 `interaction/AI工具意见.docx` 收尾 Attention v4 接口与验证：完整尾部 guard、描述符背压保持、延迟 PBUF 就绪、v4 独立专项、55-block 双模式和错误 completion 检查。**本轮只做 RTL 仿真，没有运行综合或 P&R。** 下文 DEQACC 时序仅属于其既有 baseline，不能外推到新 Attention scheduler/wrapper。
-
-**当前 baseline 固定为 `DEQACC_3_3ns`**：11级、II=1，使用 `reports/DEQACC_3.3ns/final_250MHz.dcp` 作为最终 refined 物理实现证据。本阶段 DEQACC 优化到此结束，后续集成沿用此接口和数值/延迟契约。
-
-### 改动与固定契约
-
-- 11 级 D0..D10，输入采样到 commit 的 edge delta=10；32 lanes，每拍一个 row-pair，II=1。
-- D0 abs/lead；D1 normalize/exponent；D2 partial prepare 与 ACC read；D3 partial finish 与对应 RAM response；D4 order；D5 align；D6 add/coarse LZC；D7 shift control；D8 normalize；D9 round/pack；D10 physical write/commit。
-- ACC 内部读取使用 raw data + even/odd word valid，零值选择在 DEQACC lane 输入附近完成；外部 Result/VPU 接口保留 invalid→0 语义。
-- arithmetic、metadata payload 和 lane result 不复位；reset/clear 清 valid、done/commit 和 RAM valid bitmap。invalid 时 payload 不保证为零。
-- `add_old=0/1` 延迟一致；前者 old 输入置零且最终保留 partial 原值。保留 RAM response、lane/context 对齐和未提交同地址 RAW hazard 检查。
-- FP32 算术规则与 frozen reference 一致，本轮未引入 close/far 算法或修改特殊值处理。
-
-## 实际时序证据
-
-Vivado 2022.2，`xcu50-fsvh2104-2-e`。输入和输出在 `DEQACC_3.3ns_timing_shell.sv` 中注册，shell 寄存器不计入正式11级延迟。先在4ns下综合、布局布线，再以更严格的3.3ns目标执行物理优化，最后在同一个 routed netlist 上恢复4ns出验收报告。
-
-最终报告：`reports/DEQACC_3.3ns/refined_250MHz_timing.rpt`
-
-| 指标 | 最终结果 |
-| --- | ---: |
-| 时钟周期 | 4.000 ns / 250 MHz |
-| Setup WNS / TNS | +0.700 ns / 0 |
-| Hold WHS / THS | +0.019 ns / 0 |
-| 无时钟 / 内部未约束端点 / 组合环 | 0 / 0 / 0 |
-| Failed / unrouted nets | 0 / 0 |
-
-逐级 post-route Data Path Delay（logic + route）：
-
-| 阶段 | Logic ns | Route ns | Total ns |
-| --- | ---: | ---: | ---: |
-| D0 abs/lead | 1.053 | 1.632 | 2.685 |
-| D1 normalize/exponent | 0.802 | 2.330 | 3.132 |
-| D2 partial prepare | 0.809 | 2.236 | 3.045 |
-| D3 partial/RAM response | 0.266 | 2.884 | **3.150** |
-| D4 order | 0.643 | 2.379 | 3.022 |
-| D5 align | 0.677 | 2.209 | 2.886 |
-| D6 add/coarse LZC | 0.698 | 1.590 | 2.288 |
-| D7 shift control | 1.118 | 1.853 | 2.971 |
-| D8 normalize | 0.397 | 2.029 | 2.426 |
-| D9 round/pack | 0.726 | 1.965 | 2.691 |
-| ACC storage 路径组 | 0.479 | 2.586 | 3.065 |
-
-来源：`refined_stages.csv` 与对应 `refined_*.rpt`。路径按目的寄存器组统计，SRL 推断可能让部分路径跨逻辑字段边界；ACC storage 组包含读写控制，不等同于单独 D10 算术级。主要路径均≤3.3ns，多数≤3ns；尚不宣称全部≤3ns。
-
-最终 refined checkpoint 资源（2026-09-30 18:42 重新打开 `final_250MHz.dcp` 执行 `report_utilization -hierarchical`）：
-
-| 范围 | Total LUT | Logic LUT | LUTRAM | SRL | FF | RAMB36 | RAMB18 | DSP |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| DEQACC core | **33534** | 30827 | 1184 | 1523 | **20552** | 14 | 2 | 0 |
-| 含 registered timing shell | **33814** | 31107 | 1184 | 1523 | **23872** | 14 | 2 | 0 |
-
-来源：`reports/DEQACC_3.3ns/final_utilization.rpt`。以上替代首次 route 的资源数字；层次 LUT 统计直接采用 Vivado 报告，不手动相加。
-
-同一 checkpoint 重新执行 `report_drc`：**0 Error、0 Critical Warning、1项 Warning**。唯一检查项为 `RTSTAT-10: No routable loads`，涉及 OOC shell 的1062条输出无可路由外部负载（包括 commit/result）；未豁免或隐藏。详见 `reports/DEQACC_3.3ns/final_drc.rpt`，这不是完整板级DRC签核。
-
-**适用范围**：这是带真实 launch/capture FF 的独立模块 OOC 物理时序验证，不是整机上板验证。OOC 外部端口未绑定板级 pin，时钟源位置未指定；完整 PCore 的时钟树、外部接口及集成拥塞仍需重新实现验证。没有 false-path/multicycle 豁免内部算术路径，也没有降低目标频率。
-
-复现（在本目录）：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\run_DEQACC_3.3ns.ps1
-powershell -ExecutionPolicy Bypass -File .\run_v3_xsim.ps1
-```
-
-`run_DEQACC_3.3ns.ps1` 串联 `DEQACC_3.3ns.tcl` 和 `DEQACC_3.3ns_refine.tcl`，新运行保存并核对源码哈希。本次实际执行为直接调用这两个 Tcl；最终 checkpoint 为 `reports/DEQACC_3.3ns/final_250MHz.dcp`。
-
-仅重出最终checkpoint的资源/DRC，不重新实现：用Vivado batch运行 `report_DEQACC_3.3ns_final.tcl`，Tcl参数为本目录绝对路径。refine脚本也已加入最终资源与DRC报告，后续重跑保持相同输出。
-
-## 数值与协议验证
-
-统一入口 `run_v3_xsim.ps1`：27个正向 testbench、额外 GU slow-post 与 Attention55 port-stress、3类错误 completion 的预期拒绝检查。最终状态以 `reports/v3_simulation_summary.txt` 为准，源码对应 `reports/v3_sources_sha256.csv`。负向测试只有命中指定 DUT context assertion 才通过，普通报错或 watchdog 不算成功。
-
-DEQACC 上轮收尾仅删除无调用的 `normalize()`；对应专项日志为 `reports/DEQACC_3.3ns/baseline_cleanup_xsim.log`。DEQACC 最终 checkpoint 是既有 refined 网表；本轮 Attention 修改后更新的是仿真源码清单，未生成新综合/布线证据。
-
-- lane frozen reference：1000000笔连续事务，加 clear 中断及16笔重启；共1000016笔输出检查通过。
-- 32-lane：5000组连续 pair，轮换 FACC-A/FACC-B/OACC、地址、scale、符号、add_old、row mask；固定11级及metadata检查通过。
-- 独立FP函数：400256次加法、76928次pack对拍。frozen reference 独立于本轮改动，但不是第三方IEEE全覆盖模型。
-- Matrix64：1664次issue/commit，max_gap=1。
-- Projection：`[51,1024]×[1024,256]`，完整数值、尾行及输出背压保持检查通过。
-- Attention55 两种模式均逐项检查13056个最终OACC值、110个矩阵 job、55次 PBUF装载、416个QOZ A2和14080个KVB B2。
-- `tb_v3_attention_scheduler` 现在实例化 **v4**。快/慢两轮各55 block，覆盖P/scale早晚就绪、随机Matrix ready、VPU/SFU长背压、命令保持、同拍完成、尾部guard、done保持及新epoch/head。实际覆盖：Matrix stalls=1644、VPU stalls=2708、SFU stalls=1531、simultaneous_done=56。
-- `tb_v3_attention_matrix` 增加30拍 completion背压、pending PV先接受后装载PBUF、guard阻止launch时A预取，以及block/epoch/head错配拒绝。
-- 三类负向测试分别注入Matrix epoch、VPU head、SFU epoch错误，要求相应 `completion context mismatch` assertion。断言用于仿真检测，不是硬件错误恢复接口。
-- 其余检查：XBC M51/M50尾部、BFIFO连续流、pair-store region、跨bank ACC并发、PBUF身份和乱序保护。
-
-历史命名的 `tb_fp32_acc_lane_v5`、`tb_deqacc32_v5_stream` 当前测试对象已是 `DEQACC_3_3ns`，名称保留以便对应既有回归入口。
-
-## Attention 尾部与握手契约
-
-- 保留 current + pending 描述符，利用当前Job末次issue后的排空时间预取下一Job的A。B预取继续由真实BFIFO背压约束。
-- 删除 `TAIL_PREFETCH_CYCLES=8`。`TAIL_SCALE_SLOT_CYCLES=ATTN_NOMINAL_SLOT=433` 是完整架构时隙；PV53完成后即允许PV54描述符接受，不必等P/scale全部完成。
-- 预取等待对应PBUF committed generation。新增 scheduler输出/wrapper输入 **`tail_launch_ready`**；最终PV的执行同时要求guard到期、P已提交、scale已提交。不能将该信号丢弃或在系统级固定为1。单独wrapper测试可由TB驱动。
-- guard从PV53 completion握手边沿计入首拍，计数初值为 `TAIL_SCALE_SLOT_CYCLES-1`。数据按时到齐时，PV54首issue相隔PV53 commit **434拍**；源迟到会延长等待，不重新减去RAM启动补偿。
-- 实测：PV54 descriptor在47734拍接受，47735拍开始预取，48166拍guard放行，48167拍首issue。即加载发生于完整guard内部，PV53→PV54保持867拍。
-- `launch_valid` 不再依赖Matrix ready；`launch_fire` 才结合ready及当前completion是否已消费。完成通知被背压时，当前done/context保持，pending不得覆盖当前owner。
-- VPU/SFU命令在valid且未ready期间锁存保持。Matrix completion按接受顺序和完整command校验；VPU/SFU只允许各一个in-flight，done必须原样回传完整context。
-- pending描述符不变时，PBUF后续commit也必须刷新 `source_ready`；已把存储依赖展开为显式组合表达式，并通过延迟供数与慢端口模式验证。
-
-### VPU/SFU done 定义
-
-**done表示该命令的数据已提交、对下游可见，不是最后一个请求刚发出。** 各通道在valid&&ready时转移token；未握手保持valid和全部context。reset/clear取消当前generation，外部单元也必须取消相应in-flight，不能回送旧completion。
-
-| 命令 | 允许发done的条件 |
-| --- | --- |
-| `VPU_QK_POST` | 本block供Alpha/SFU使用的score/row-state全部可见 |
-| `SFU_ALPHA_EXP` | 对应alpha generation完整可见，P EXP与OACC scale可启动 |
-| `SFU_P_EXP` | 本P generation生产完成、供P_POST消费的数据可见 |
-| `VPU_P_POST` | 最后一个有效PBUF pair已被PCore接受且region committed |
-| `VPU_OACC_SCALE` | 最后一次OACC更新已被正式accumulator接口接受并提交，后续PV可安全读取 |
-| `SFU_RECIP` | reciprocal数据全部可供A_FIN消费 |
-| `VPU_AFIN` | 最终输出全部提交完成，包括最后一个下游握手 |
-
-若外部模块内部使用队列，“请求进入本地队列”不满足上述done条件；必须等待对PCore/下游可见的提交。当前accumulator写入接受边沿即物理commit。
-
-### 两种55-block验收模式
-
-| 指标 | Scheduling | Port-stress |
-| --- | ---: | ---: |
-| Matrix body | 416..416 | 416..416 |
-| 首request→首issue | 8 | 8 |
-| start握手→首issue | 9 | 9 |
-| 末issue→最终commit | 18 | 18 |
-| 普通稳态首issue间隔 | **434..434** | 434..501（不考核性能） |
-| 普通handoff | **1..1** | 1..68 |
-| PV53→PV54首issue间隔 | **867** | 928 |
-| PV54 commit→Attention done | **439** | 449 |
-| Attention job总周期 | **48620** | 52242 |
-| VPU正式端口读/写 | 1430 / 0 | **24310 / 22880** |
-| Matrix busy期间读/写 | 1430 / 0 | **23425 / 22048** |
-
-Scheduling模式断言body=416、普通interval=434、尾部867及439，SFU P-exp=204、OACC scale=208、A_FIN=408拍是TB模型假设，不代表真实VPU/SFU RTL性能。Port-stress使用同一矩阵数值golden，通过真实ACC接口读写，强制检查非零读/写overlap；不限制上层慢模型的周期。两模式都不能省略数值/协议检查。
-
-`first issue→commit=433` 是边沿差，body=416是有效issue计数（首末边沿差415）；因此commit tail为18。request/accept到commit会包含lookahead排队，已不再作为性能主指标。最终completion不再命名D4。job总周期从start握手算到Attention done握手，不含之前的QOZ装载与之后的debug核对。
-
-报告：`reports/tb_v3_attention_55.txt`、`reports/tb_v3_attention_55_port_stress.txt`、`reports/tb_v3_attention_scheduler.txt`、`reports/tb_v3_attention_scheduler_bad_*.txt`。单独重跑慢模式：
-
-```powershell
-& "D:\Xilinx\Vivado\2022.2\bin\xsim.bat" tb_v3_attention_55_sim -runall -testplusarg PORT_STRESS
-```
-
-### 尚未执行：Attention综合/P&R
-
-按本轮要求暂不运行。55-entry pending scan保留，是否需要pointer/FIFO替换必须由后续实际综合路径决定；没有声称已消除其潜在时序风险。新scheduler/wrapper的250MHz与资源尚无当前源码签核，不能借用DEQACC的WNS。该项是评审中唯一明确后置的验证工作。
-
-## 历史 Attention baseline：数据面与接口边界
-
-- 双行 MXU：16×16、256 DSP48E2，7级；51行转26个row-pair。
-- Projection A：XBC4→2×A2→AFIFO；Attention A：QOZ/PBUF同步reader→A2→AFIFO。本地committed源使用4-entry streaming credit，外部XBC仍要求完整Tile。
-- B：HBM/KVB B2→BFIFO→B1 serializer→双stationary bank；Job内锁存B源，本地模式允许Job间预取。
-- QOZ：16 Tile、单head region、epoch/head一致；最后A2自动commit，全局clear后替换。Projection真实FP32→INT8量化尚未接入。
-- PBUF：单Tile、双bank，slot=block_id[0]；26个顺序A2自动commit。block/epoch/head必须匹配，PV最终commit后release。错误顺序、mask、slot、active/full bank写入置sticky error。
-- FACC-A/B/OACC各自独立1R1W，Matrix整个Job占用目标bank，VPU可访问其他bank。读请求valid&&ready接受，响应一拍且无响应背压；VPU写接口为`acc_write_t`。
-- FACC保持LUTRAM；OACC保持14 RAMB36+2 RAMB18；AFIFO/BFIFO/PBUF/QOZ继续使用前轮BRAM结构。dbg口仅用于RTL仿真。
-- Projection输出必须连接`qoz_wr_ready`，停顿时保持数据与tile/pair标记。
-- 逻辑10-bit source ID与FIFO transport ID分离。实际HBM AXI/KVB寻址控制器、真实Mask/Softmax/EXP/reciprocal未在本目录完成。
-- VPU/SFU算术仍为TB模型，Matrix 只依赖 `valid/ready/done`、epoch/head/block 上下文和 PBUF/scale 就绪信号；本轮 TB 按后续双 lane 方案将 SFU P-exp 建模为204拍、OACC scale为208拍、A_FIN为408拍，恒等 OACC scale 用于保持矩阵数值对拍。该模型验证的是调度与接口，不是 VPU/SFU 的 RTL 算术签核。
-- Projection与Attention仍是独立wrapper；Top、G-U、VPU/SFU行级调度不属于本轮范围。
-
-## 七 Job 统一矩阵链路（进行中）
-
-当前冻结的单核 Job 映射为：
-
-| PCore Job | Matrix mode | A 外部来源 | Matrix A | B 来源 | Tile 几何 |
-| --- | --- | --- | --- | --- | --- |
-| Q/K/V Projection | `MAT_PROJECTION` | XBC | XBC | HBM | 64 K × 16 N |
-| Attention | `MAT_ATTENTION` | QOZ/PBUF | local A | KVB | 由 55-block scheduler 管理 |
-| O Projection | `MAT_PROJECTION` | QOZ_O | local A | HBM | 16 K × 64 N |
-| G-U | `MAT_GU` | XBC | Replay local A | HBM | 64 K × 32 N |
-| Down Projection | `MAT_PROJECTION` | QOZ_Z | local A | HBM | 32 K × 64 N |
-
-QOZ 生命周期固定为 `Q Projection -> QOZ_Q -> Attention`、
-`Attention -> QOZ_O -> O Projection`、`G-U -> QOZ_Z -> Down Projection`。
-O/Down 的 Projection local-A reader 按每个输出 N Tile 从 `tile=0,pair=0`
-重新向 committed QOZ 发起读取，响应经 shared Matrix 的 `local_valid/local_entry`
-进入 AFIFO；Job 完成后由对应 consumer release region。
-
-G-U 的正式输入边界为 `XBC -> dea8_gu_xbc_frontend_v3 -> A2 -> GU Replay`，
-保留 `gu_a_*` 仅用于过渡兼容，正式链路不依赖它。`dea8_pcore_exec_v3`
-另外提供显式 `fixture_region_* / fixture_wr_*` 端口，供 TB 在独立 Job
-启动前准备 Q/O/Z fixture，不引入 RTL 隐藏测试状态。
-
-`tb_v3_pcore_three_job_chain.sv` 已增加 `SEVEN_JOBS` 模式，按一次 reset
-串行发出 Q/K/V/Attention/O/G-U/Down 七个 Job，并由 TB 独立提供 XBC、HBM、
-KVB、QOZ fixture、VPU/SFU/Post 响应。GU 这一步已经改为真实的
-`XBC4 -> dea8_gu_xbc_frontend_v3 -> A2` 输入，旧 `gu_a_*` 只保留给历史
-兼容用例。七 Job 专项直接复用稳定的
-`tb_v3_pcore_three_job_chain_sim -testplusarg SEVEN_JOBS`，回归脚本会记录
-`reports/tb_v3_pcore_seven_jobs.txt`。
-
-本节代码已完成静态 `xvlog` 检查；七 Job 完整数值 TB 仍受 Vivado XSIM
-快照错误 `43-3409` 阻塞，当前不能把该模式表述为仿真 PASS。
+本阶段完成后，Matrix 公共执行框架冻结，后续转入 Layer Sequencer 和真实 Job 数据依赖。
