@@ -2,7 +2,7 @@
 
 ## 当前状态
 
-**PCore V3 Matrix Stage — Final Functional Freeze**。2026-10-05 **22:14:18 +08:00**，当前源码完整 XSim 回归通过：32 个 TB（mainline + legacy compatibility）、七 Job 同 reset 链、GU slow-post、Attention port-stress、2 个 fabric FAULT/clear 场景、3 类预期 completion context 拒绝。最终源码 SHA256 清单已生成。
+**PCore V3 Matrix Stage — Final Functional Freeze**。2026-10-06 **00:37:19 +08:00**，当前源码完成 XSim 功能回归：32 个 TB（mainline + legacy compatibility）、七 Job 同 reset 链、GU slow-post、Attention port-stress、2 个 fabric FAULT/clear 场景、3 类预期 completion context 拒绝均通过。最终七 Job 长仿真单独运行并通过，源码 SHA256 清单已刷新。
 
 本目录是 PCore V3 的单核矩阵阶段。一个 dea8_matrix_v3 串行执行 7 种 PCore Job，内部只保留 3 种 Matrix mode：
 
@@ -23,7 +23,7 @@ VPU、SFU、Gcore、CNET 和真实 HBM 控制器不属于本阶段；非矩阵�
 | OP_K_PROJ | [51,1024] x [1024,32] | 64 | 2 | XBC | HBM | 外部 post_done |
 | OP_V_PROJ | [51,1024] x [1024,32] | 64 | 2 | XBC | HBM | 外部 post_done |
 | OP_Q_PROJ | [51,1024] x [1024,256] | 64 | 16 | XBC | HBM | QOZ_Q |
-| OP_ATTENTION | 55-block 固定调度 | Adapter 管理 | Adapter 管理 | QOZ/PBUF | KVB | 外部 post_done |
+| OP_ATTENTION | 55-block 固定调度 | Adapter 管理 | Adapter 管理 | QOZ/PBUF | KVB | VPU/SFU completion、A_FIN、Q release |
 | OP_O_PROJ | [51,256] x [256,1024] | 16 | 64 | QOZ_O | HBM | 外部 post_done |
 | OP_GU | 两支 [51,1024] x [1024,512] | Adapter 管理 | Adapter 管理 | XBC -> Replay | HBM | QOZ_Z |
 | OP_DOWN_PROJ | [51,512] x [512,1024] | 32 | 64 | QOZ_Z | HBM | 外部 post_done |
@@ -98,14 +98,14 @@ GU slow-post 仍只在 G63 结果 slot 处停顿：276 拍，受影响间隔3623
 
     tb_v3_pcore_three_job_chain_sim -testplusarg SEVEN_JOBS
 
-本轮完整回归的最终证据：
+本轮回归的最终证据：
 
     reports/v3_simulation_summary.txt
     reports/v3_sources_sha256.csv
     reports/tb_v3_pcore_seven_jobs.txt
     reports/v3_projection_performance.txt
 
-仿真日志必须与当前 v3_sources_sha256.csv 对照。本轮全部通过，旧工具链阻塞诊断日志已删除；保留本阶段最终日志和独立冻结 DEQACC 物理证据。旧物理证据不作为当前 PCore 的综合/P&R 签核。
+仿真日志必须与当前 v3_sources_sha256.csv 对照。本轮专项回归全部通过；七 Job 长仿真在独立执行中完成，日志中确认总 issue=265408 且所有 OP_CHECK 的 mismatches=0。保留本阶段最终日志和独立冻结 DEQACC 物理证据。旧物理证据不作为当前 PCore 的综合/P&R 签核。
 
 ## 阶段边界
 

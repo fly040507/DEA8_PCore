@@ -63,7 +63,6 @@ package pcore3_pkg;
   // Matrix implementations and share one execution core.
   typedef struct packed {
     matrix_mode_e mode;
-    a_source_e external_a;
     a_source_e matrix_a;
     b_source_e b_source;
     logic [7:0] k_tiles;
@@ -76,13 +75,13 @@ package pcore3_pkg;
 
   function automatic logic [$bits(operation_profile_t)-1:0] operation_profile(input pcore_op_e op);
     case(op)
-      OP_Q_PROJ: return {MAT_PROJECTION,A_XBC,A_XBC,B_HBM,8'd64,8'd16,QOZ_NONE,1'b1,1'b1};
-      OP_K_PROJ: return {MAT_PROJECTION,A_XBC,A_XBC,B_HBM,8'd64,8'd2,QOZ_NONE,1'b0,1'b1};
-      OP_V_PROJ: return {MAT_PROJECTION,A_XBC,A_XBC,B_HBM,8'd64,8'd2,QOZ_NONE,1'b0,1'b1};
-      OP_O_PROJ: return {MAT_PROJECTION,A_LOCAL,A_LOCAL,B_HBM,8'd16,8'd64,QOZ_O,1'b0,1'b1};
-      OP_DOWN_PROJ: return {MAT_PROJECTION,A_LOCAL,A_LOCAL,B_HBM,8'd32,8'd64,QOZ_Z,1'b0,1'b1};
-      OP_ATTENTION: return {MAT_ATTENTION,A_LOCAL,A_LOCAL,B_KVB,8'd0,8'd0,QOZ_Q,1'b0,1'b0};
-      OP_GU: return {MAT_GU,A_XBC,A_LOCAL,B_HBM,8'd0,8'd0,QOZ_NONE,1'b1,1'b0};
+      OP_Q_PROJ: return {MAT_PROJECTION,A_XBC,B_HBM,8'd64,8'd16,QOZ_NONE,1'b1,1'b1};
+      OP_K_PROJ: return {MAT_PROJECTION,A_XBC,B_HBM,8'd64,8'd2,QOZ_NONE,1'b0,1'b1};
+      OP_V_PROJ: return {MAT_PROJECTION,A_XBC,B_HBM,8'd64,8'd2,QOZ_NONE,1'b0,1'b1};
+      OP_O_PROJ: return {MAT_PROJECTION,A_LOCAL,B_HBM,8'd16,8'd64,QOZ_O,1'b0,1'b1};
+      OP_DOWN_PROJ: return {MAT_PROJECTION,A_LOCAL,B_HBM,8'd32,8'd64,QOZ_Z,1'b0,1'b1};
+      OP_ATTENTION: return {MAT_ATTENTION,A_LOCAL,B_KVB,8'd0,8'd0,QOZ_Q,1'b0,1'b0};
+      OP_GU: return {MAT_GU,A_LOCAL,B_HBM,8'd0,8'd0,QOZ_NONE,1'b1,1'b0};
       default: return '0;
     endcase
   endfunction

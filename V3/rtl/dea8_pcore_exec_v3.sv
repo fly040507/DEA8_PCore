@@ -45,7 +45,7 @@ module dea8_pcore_exec_v3(
   logic [5:0] qt;logic [PAIR_BITS-1:0] qp;logic [TILE_BITS-1:0] qtransport;a2_t qe;
   logic region_req_valid,region_req_ready; qoz_region_req_t region_req;
   logic qoz_req_valid,qoz_wr_valid,qoz_wr_ready; qoz_region_req_t qoz_req; post_result_t qoz_wr;
-  logic z_commit;
+  logic qoz_commit;
   logic projection_local_ready;
   logic matrix_xbc_ready,gu_xbc_ready,gu_front_valid,gu_front_ready,gu_front_error;
   a2_t gu_front_entry;
@@ -73,7 +73,7 @@ module dea8_pcore_exec_v3(
   assign pr=3'(post_ready)<<active_adapter;
   assign pdv=3'(post_done_valid)<<active_adapter;assign post_done_ready=pdr[active_adapter];
   assign post_data_valid=ddv[active_adapter];assign post_data=datas[active_adapter];assign ddr=3'(post_data_ready)<<active_adapter;
-  assign z_commit=post_result_valid&&post_result_ready&&post_result.last;
+  assign qoz_commit=post_result_valid&&post_result_ready&&post_result.last;
   assign qrelease=(active_adapter==1)?attention_release:projection_release;
   assign attention_release_ready=(active_adapter==1)?qrelease_ready:1'b0;
   assign projection_release_ready=(active_adapter==0)?qrelease_ready:1'b0;
@@ -87,7 +87,7 @@ module dea8_pcore_exec_v3(
     .region_valid(rv[0]),.region_ready(rr[0]),.region(regions[0]),.region_complete(qoz_complete),.input_region(qoz_region),
     .input_release_valid(projection_release),.input_release_ready(projection_release_ready),
     .post_valid(pv[0]),.post_ready(pr[0]),.post_job(posts[0]),.post_done_valid(pdv[0]),.post_done_ready(pdr[0]),.post_done,
-    .data_valid(ddv[0]),.data_ready(ddr[0]),.data_out(datas[0]),.z_commit(z_commit&&active_adapter==0),.z_n(post_result.n),
+    .data_valid(ddv[0]),.data_ready(ddr[0]),.data_out(datas[0]),.qoz_commit(qoz_commit&&active_adapter==0),.qoz_commit_n(post_result.n),
     .local_a_valid(projection_out_valid),.local_a_ready(projection_local_ready),.local_a_entry(qe),
     .local_rd_valid(projection_rd_valid),.local_rd_ready(projection_rd_ready),.local_rd_tile(projection_rd_tile),
     .local_rd_pair(projection_rd_pair),.local_rd_transport(projection_rd_transport));
@@ -95,7 +95,7 @@ module dea8_pcore_exec_v3(
     .done_valid(dv[2]),.done_ready(dr[2]),.done(dc[2]),.error(errors[2]),.matrix_req(req[2]),.matrix_rsp(rsp[2]),
     .region_valid(rv[2]),.region_ready(rr[2]),.region(regions[2]),.region_complete(qoz_complete),
     .post_valid(pv[2]),.post_ready(pr[2]),.post_job(posts[2]),.post_done_valid(pdv[2]),.post_done_ready(pdr[2]),.post_done,
-    .data_valid(ddv[2]),.data_ready(ddr[2]),.data_out(datas[2]),.z_commit(z_commit&&active_adapter==2),.z_n(post_result.n),
+    .data_valid(ddv[2]),.data_ready(ddr[2]),.data_out(datas[2]),.z_commit(qoz_commit&&active_adapter==2),.z_n(post_result.n),
     .a_valid(gu_input_valid&&active_adapter==2),.a_ready(gu_input_ready),.a_entry(gu_front_entry),
     .prefetch_valid(gu_prefetch_valid),.prefetch_ready(gu_prefetch_ready),.prefetch_n(gu_prefetch_n));
   // GU has one production ingress: XBC4 -> A2 -> Replay.
