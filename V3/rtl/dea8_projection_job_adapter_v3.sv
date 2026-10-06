@@ -1,5 +1,7 @@
 import pcore3_pkg::*;
-module dea8_projection_job_adapter_v3(
+module dea8_projection_job_adapter_v3 #(
+  parameter bit PAIRED_Q_POST=0
+) (
   input logic clk,reset,clear,
   input logic op_valid,output logic op_ready,input pcore_job_t op_job,
   output logic done_valid,input logic done_ready,output pcore_completion_t done,
@@ -25,6 +27,8 @@ module dea8_projection_job_adapter_v3(
   logic [MATRIX_TILE_COUNT_BITS-1:0] post_n_q;logic post_sent_q,qoz_seen_q;
   operation_profile_t profile_q;
   logic needs_q_region,needs_local_region;
+  logic [QOZ_Q_TILES-1:0] qoz_committed_q;
+  logic post_qoz_ready;
   always_comb begin
     profile_q=operation_profile(header_q.op);
     needs_q_region=header_q.op==OP_Q_PROJ;
@@ -37,6 +41,15 @@ module dea8_projection_job_adapter_v3(
   assign post_valid=state_q==RUN&&qvalid&&!post_sent_q&&post_n_q<profile_q.n_tiles;
   assign post_job='{header:header_q,op:POST_PROJ_QUANT,n:6'(post_n_q)};
   assign post_done_ready=state_q==RUN&&post_sent_q;
+  always_comb begin
+    post_qoz_ready=qoz_seen_q||(qoz_commit&&qoz_commit_n==post_n_q);
+    if(PAIRED_Q_POST&&needs_q_region) begin
+      // Even post captures one RoPE half. Odd post commits BOTH halves.
+      post_qoz_ready=1;
+      if(post_n_q[0]) post_qoz_ready=qoz_committed_q[post_n_q-1]&&
+        (qoz_committed_q[post_n_q]||(qoz_commit&&qoz_commit_n==post_n_q));
+    end
+  end
   assign data_valid=qvalid&&post_sent_q;assign qready=data_ready&&post_sent_q;
   assign data_out='{header:header_q,n:6'(qt),row:6'(qp),row_valid:qr,last:qp==PAIRS-1,first:qe,second:qo};
   assign input_release_valid=state_q==RELEASE_LOCAL;
@@ -52,7 +65,7 @@ module dea8_projection_job_adapter_v3(
     .qoz_wr_valid(qvalid),.qoz_wr_ready(qready),.qoz_wr_tile(qt),.qoz_wr_pair(qp),.qoz_wr_row_valid(qr),
     .qoz_wr_even_fp32(qe),.qoz_wr_odd_fp32(qo),.matrix_a_protocol_error(ae),.matrix_b_protocol_error(be));
   always_ff @(posedge clk)begin
-    if(reset||clear)begin state_q<=IDLE;header_q<='0;post_n_q<=0;post_sent_q<=0;qoz_seen_q<=0;error<=0;end
+    if(reset||clear)begin state_q<=IDLE;header_q<='0;post_n_q<=0;post_sent_q<=0;qoz_seen_q<=0;qoz_committed_q<='0;error<=0;end
     else begin
       // Q is a producer and must acquire QOZ. K/V and the O/Down local-A
       // consumers receive their fixture through their selected input stream.
@@ -69,9 +82,16 @@ module dea8_projection_job_adapter_v3(
       end
       if(state_q==START)state_q<=RUN;
       if(post_valid&&post_ready)begin post_sent_q<=1;qoz_seen_q<=0;end
-      if(qoz_commit)begin if(qoz_commit_n!=post_n_q||!post_sent_q)error<=1;else qoz_seen_q<=1;end
+      if(qoz_commit)begin
+        if(PAIRED_Q_POST&&needs_q_region) begin
+          if(!post_sent_q||!post_n_q[0]||qoz_commit_n>=QOZ_Q_TILES||
+             (qoz_commit_n!=post_n_q&&qoz_commit_n!=post_n_q-1)||qoz_committed_q[qoz_commit_n])error<=1;
+          else qoz_committed_q[qoz_commit_n]<=1;
+        end else if(qoz_commit_n!=post_n_q||!post_sent_q)error<=1;
+        else qoz_seen_q<=1;
+      end
       if(post_done_valid&&post_done_ready)begin
-        if(post_done!=post_job||(profile_q.output_qoz&&!(qoz_seen_q||(qoz_commit&&qoz_commit_n==post_n_q))))error<=1;
+        if(post_done!=post_job||(profile_q.output_qoz&&!post_qoz_ready))error<=1;
         else begin post_sent_q<=0;post_n_q<=post_n_q+1'b1;end
       end
       if(post_done_valid&&!post_done_ready)error<=1;

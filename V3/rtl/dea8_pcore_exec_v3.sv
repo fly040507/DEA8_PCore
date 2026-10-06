@@ -1,5 +1,7 @@
 import pcore3_pkg::*;
-module dea8_pcore_exec_v3(
+module dea8_pcore_exec_v3 #(
+  parameter bit PAIRED_Q_POST=0
+) (
   input logic clk,reset,clear,
   input logic job_valid,output logic job_ready,input pcore_job_t job,
   output logic job_done_valid,input logic job_done_ready,output pcore_completion_t job_done,
@@ -82,7 +84,7 @@ module dea8_pcore_exec_v3(
   dea8_pcore_ctrl_v3 ctrl(.clk,.reset,.clear,.job_valid,.job_ready,.job,.job_done_valid,.job_done_ready,.job_done,
     .busy,.protocol_error(ctrl_error),.owner(active_adapter),.adapter_valid(av),.adapter_ready(ar),.adapter_job(aj),
     .adapter_done_valid(dv),.adapter_done_ready(dr),.adapter_done(dc),.adapter_error(errors),.fabric_error(qoz_error||matrix_error),.operation_clear);
-  dea8_projection_job_adapter_v3 projection(.clk,.reset,.clear(local_clear),.op_valid(av[0]),.op_ready(ar[0]),.op_job(aj),
+  dea8_projection_job_adapter_v3 #(.PAIRED_Q_POST(PAIRED_Q_POST)) projection(.clk,.reset,.clear(local_clear),.op_valid(av[0]),.op_ready(ar[0]),.op_job(aj),
     .done_valid(dv[0]),.done_ready(dr[0]),.done(dc[0]),.error(errors[0]),.matrix_req(req[0]),.matrix_rsp(rsp[0]),
     .region_valid(rv[0]),.region_ready(rr[0]),.region(regions[0]),.region_complete(qoz_complete),.input_region(qoz_region),
     .input_release_valid(projection_release),.input_release_ready(projection_release_ready),

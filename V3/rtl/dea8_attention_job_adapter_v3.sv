@@ -1,5 +1,5 @@
 import pcore3_pkg::*;
-module dea8_attention_job_adapter_v3(
+module dea8_attention_job_adapter_v3 (
   input logic clk,reset,clear,
   input logic op_valid,output logic op_ready,input pcore_job_t op_job,
   output logic done_valid,input logic done_ready,output pcore_completion_t done,output logic error,

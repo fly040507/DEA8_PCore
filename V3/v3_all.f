@@ -1,4 +1,5 @@
 rtl/pcore3_pkg.sv
+rtl/pcore_control_pkg.sv
 rtl/dea8_pcore_ctrl_v3.sv
 rtl/dea8_matrix_job_dispatch_v3.sv
 rtl/dea8_qoz_manager_v3.sv
@@ -6,6 +7,7 @@ rtl/dea8_projection_job_adapter_v3.sv
 rtl/dea8_attention_job_adapter_v3.sv
 rtl/dea8_gu_job_adapter_v3.sv
 rtl/dea8_pcore_exec_v3.sv
+rtl/dea8_pcore_control_v3.sv
 rtl/dea8_fp32_v3_pkg.sv
 rtl/DEQACC_3.3ns_lane.sv
 rtl/DEQACC_3.3ns.sv
@@ -64,3 +66,4 @@ tb/tb_v3_qoz_stale_write_after_release.sv
 tb/tb_v3_qoz_double_release.sv
 tb/tb_v3_gu_scheduler_stress.sv
 tb/tb_v3_attention_gu_chain.sv
+tb/tb_v3_pcore_control_v3.sv

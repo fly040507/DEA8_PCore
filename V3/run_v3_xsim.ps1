@@ -9,6 +9,7 @@ $tops=@("tb_v3_pcore_ctrl")+$tops
 $tops=@("tb_v3_pcore_job_dispatch","tb_v3_qoz_manager","tb_v3_pcore_three_job_chain")+$tops
 $tops=@("tb_v3_qoz_stale_write_after_release","tb_v3_qoz_double_release")+$tops
 $tops=@("tb_v3_gu_xbc_restart")+$tops
+$tops=@("tb_v3_pcore_control_v3")+$tops
 New-Item -ItemType Directory -Force -Path $report | Out-Null
 "RUNNING at $(Get-Date -Format o)" | Set-Content (Join-Path $report "v3_simulation_summary.txt") -Encoding UTF8
 Push-Location $here

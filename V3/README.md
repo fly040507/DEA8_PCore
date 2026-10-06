@@ -2,7 +2,7 @@
 
 ## 当前状态
 
-**PCore V3 Matrix Stage — Final Functional Freeze**。2026-10-06 **00:37:19 +08:00**，当前源码完成 XSim 功能回归：32 个 TB（mainline + legacy compatibility）、七 Job 同 reset 链、GU slow-post、Attention port-stress、2 个 fabric FAULT/clear 场景、3 类预期 completion context 拒绝均通过。最终七 Job 长仿真单独运行并通过，源码 SHA256 清单已刷新。
+**PCore V3 Matrix Stage — Matrix Baseline Freeze**。2026-10-06 **00:37:19 +08:00** 的报告对应 v3 Matrix 基线。其后新增 `dea8_pcore_control_v3` 和控制接口包；控制中心已完成全 RTL 编译、elaboration、七 Job 路由 smoke test，并把 K/V 拼接和 O/Down 归约明确为外部边界。
 
 本目录是 PCore V3 的单核矩阵阶段。一个 dea8_matrix_v3 串行执行 7 种 PCore Job，内部只保留 3 种 Matrix mode：
 
@@ -12,6 +12,20 @@
 
 VPU、SFU、Gcore、CNET 和真实 HBM 控制器不属于本阶段；非矩阵行为由 TB 模拟。当前只做功能仿真，不做综合和 P&R。
 
+## PCore 控制中心 V3
+
+`dea8_pcore_control_v3` 是 DEA8 与 PCore 的控制边界。DEA8 每次提交一个带 `job_id/epoch/head/user_tag` 的逻辑 Job；PCore 保留上下文，选择 Projection、Attention 或 G-U Adapter，并在对应矩阵、VPU/SFU、QOZ、拼接或归约事务全部完成后返回 `done`。`layer_id` 和 `denoise_step` 可编码在 `user_tag` 中，PCore 透传，不维护 18 层和 10 步循环。
+
+PCore 的外部逻辑 Job 仍为 K、V、Q、Attention、O、G-U、Down 七种。VPU/SFU 使用 `valid/ready` 命令和完成握手，完成延迟由外部模块决定；Projection/G-U 后处理使用 `post_valid/post_data/post_done` 流接口，Attention 使用已有 `vpu_*`/`sfu_*` 命令接口。所有返回事务都必须带回原始 `job_id/epoch/head`。
+
+`OP_GU` 在控制中心内部保持为一个逻辑任务，Gate/Up 结果通过同一个 tile/pair 上下文交给后处理。K/V 通过 `collective_cmd/result` 送外部拼接端；O/Down 通过 `collective_cmd/data/done` 送外部归约端。PCore 负责握手和等待完成，不实现八核拼接/归约树。
+
+新增控制中心的路由 smoke test：
+
+    tb_v3_pcore_control_v3 PASS jobs=7 context=opaque adapters=3 collective_boundary=1
+
+详细接口与启动条件见 `docs/PCore_Control_Center_v3.md`。
+
 ## 七种 Job
 
 正式执行顺序由上层发送方决定，本阶段验收顺序为：
@@ -20,13 +34,13 @@ VPU、SFU、Gcore、CNET 和真实 HBM 控制器不属于本阶段；非矩阵�
 
 | Job | 单核矩阵 | K tiles | N tiles | A 来源 | B 来源 | 输出 |
 |---|---:|---:|---:|---|---|---|
-| OP_K_PROJ | [51,1024] x [1024,32] | 64 | 2 | XBC | HBM | 外部 post_done |
-| OP_V_PROJ | [51,1024] x [1024,32] | 64 | 2 | XBC | HBM | 外部 post_done |
+| OP_K_PROJ | [51,1024] x [1024,32] | 64 | 2 | XBC | HBM | `collective_result` -> 拼接 |
+| OP_V_PROJ | [51,1024] x [1024,32] | 64 | 2 | XBC | HBM | `collective_result` -> 拼接 |
 | OP_Q_PROJ | [51,1024] x [1024,256] | 64 | 16 | XBC | HBM | QOZ_Q |
 | OP_ATTENTION | 55-block 固定调度 | Adapter 管理 | Adapter 管理 | QOZ/PBUF | KVB | VPU/SFU completion、A_FIN、Q release |
-| OP_O_PROJ | [51,256] x [256,1024] | 16 | 64 | QOZ_O | HBM | 外部 post_done |
+| OP_O_PROJ | [51,256] x [256,1024] | 16 | 64 | QOZ_O | HBM | `collective_data/done` -> 归约 |
 | OP_GU | 两支 [51,1024] x [1024,512] | Adapter 管理 | Adapter 管理 | XBC -> Replay | HBM | QOZ_Z |
-| OP_DOWN_PROJ | [51,512] x [512,1024] | 32 | 64 | QOZ_Z | HBM | 外部 post_done |
+| OP_DOWN_PROJ | [51,512] x [512,1024] | 32 | 64 | QOZ_Z | HBM | `collective_data/done` -> 归约 |
 
 K/V 是单核 32 维输出。未来 8 个 PCore 拼接为 256 维 KV head，但本目录不实现多核 gather，也不把 head 字段解释为 shard ID。
 
@@ -105,7 +119,7 @@ GU slow-post 仍只在 G63 结果 slot 处停顿：276 拍，受影响间隔3623
     reports/tb_v3_pcore_seven_jobs.txt
     reports/v3_projection_performance.txt
 
-仿真日志必须与当前 v3_sources_sha256.csv 对照。本轮专项回归全部通过；七 Job 长仿真在独立执行中完成，日志中确认总 issue=265408 且所有 OP_CHECK 的 mismatches=0。保留本阶段最终日志和独立冻结 DEQACC 物理证据。旧物理证据不作为当前 PCore 的综合/P&R 签核。
+仿真日志必须与对应的源码 SHA256 清单对照。上一轮 v3 Matrix 专项回归全部通过；控制中心最新长链 checkpoint 已覆盖 K/V/Q/Attention/O，Down-only 也已通过同一 collective 边界。完整七 Job 新长链的 G-U 数值段仍属于长时间回归，不能用旧日志替代。本轮 V3 控制中心证据见 `docs/PCore_Control_Center_v3.md`、`reports/pcore_control_v3_smoke.txt` 和 `reports/pcore_control_v3_long_latest.txt`。旧物理证据不作为当前 PCore 的综合/P&R 签核。
 
 ## 阶段边界
 
