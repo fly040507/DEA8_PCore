@@ -9,6 +9,12 @@ module tb_v3_pcore_three_job_chain;
   qoz_region_req_t ext_qoz_region;post_result_t ext_qoz_wr;
   control_job_t job;control_completion_t done,job_done;
   assign job_done=done;
+  pcore_job_t matrix_job;
+  pcore_completion_t matrix_done;
+  assign matrix_job='{header:job.header};
+  assign done.job=job;
+  assign done.status=matrix_done.status==JOB_OK?CONTROL_OK:
+    (matrix_done.status==JOB_UNSUPPORTED?CONTROL_UNSUPPORTED:CONTROL_CONTEXT_ERROR);
   logic busy,protocol_error;logic [1:0] active_adapter;
   logic xbc_valid=0,xbc_ready;xbc4_t xbc_entry;
   logic hbm_valid=0,hbm_ready;b2_t hbm_entry;
@@ -20,6 +26,10 @@ module tb_v3_pcore_three_job_chain;
   logic collective_data_valid,collective_data_ready=0;post_data_t collective_data;
   logic collective_result_valid,collective_result_ready=1;post_result_t collective_result;
   logic collective_done_valid=0,collective_done_ready;pcore_post_job_t collective_done;
+  assign collective_cmd_valid=0;
+  assign collective_data_valid=0;
+  assign collective_result_valid=0;
+  assign collective_done_ready=0;
   logic vpu_valid,vpu_ready=1,vpu_done_valid=0,vpu_done_ready;vpu_cmd_t vpu_cmd,vpu_done;
   logic sfu_valid,sfu_ready=1,sfu_done_valid=0,sfu_done_ready;sfu_cmd_t sfu_cmd,sfu_done;
   logic p_valid=0,p_ready;a2_t p_entry;logic [5:0] p_block;logic [EPOCH_BITS-1:0] p_epoch;logic [2:0] p_head;
@@ -45,7 +55,8 @@ module tb_v3_pcore_three_job_chain;
   logic [1023:0] gu_golden[0:1631];logic [135:0] z_golden[0:1631];
   qvec16_t z_computed[0:50];
   operation_profile_t desc_profile;
-  dea8_pcore_control_v3 dut(.*);
+  dea8_pcore_exec_v3 dut(.job(matrix_job),.job_valid,.job_ready,
+    .job_done(matrix_done),.job_done_valid(done_valid),.job_done_ready(done_ready),.*);
   function automatic qvec16_t qv(input int v,input int e);
     qvec16_t q;q='0;q.scale=8'(e);for(int i=0;i<16;i++)q.data[8*i+:8]=8'(v);return q;
   endfunction
@@ -343,31 +354,31 @@ module tb_v3_pcore_three_job_chain;
     if(post_result_valid&&post_result_ready)op_results[job.header.op]++;
     if(data_stalled&&(!post_data_valid||post_data!==held_data))$fatal(1,"post data changed under backpressure");
     data_stalled=post_data_valid&&!post_data_ready;held_data=post_data;
-    if(protocol_error)$fatal(1,"PCore protocol error owner=%0d ctrl=%b adapters=%b qoz=%b matrix=%b GU_ae=%b GU_be=%b GU_ge=%b",active_adapter,dut.exec.ctrl_error,dut.exec.errors,dut.exec.qoz_error,dut.exec.matrix_error,dut.exec.gu.ae,dut.exec.gu.be,dut.exec.gu.ge);
+    if(protocol_error)$fatal(1,"PCore protocol error owner=%0d ctrl=%b adapters=%b qoz=%b matrix=%b GU_ae=%b GU_be=%b GU_ge=%b",active_adapter,dut.ctrl_error,dut.errors,dut.qoz_error,dut.matrix_error,dut.gu.ae,dut.gu.be,dut.gu.ge);
     if(xbc_valid&&xbc_ready)route_xbc[active_adapter]++;
     if(xbc_valid&&xbc_ready)op_xbc[job.header.op]++;
     if(hbm_valid&&hbm_ready)op_hbm[job.header.op]++;
     if(kv_valid&&kv_ready)op_kvb[job.header.op]++;
-    if((dut.exec.projection_rd_valid&&dut.exec.projection_rd_ready)||(dut.exec.qread&&dut.exec.qread_ready))op_local[job.header.op]++;
+    if((dut.projection_rd_valid&&dut.projection_rd_ready)||(dut.qread&&dut.qread_ready))op_local[job.header.op]++;
     if(hbm_valid&&hbm_ready)route_hbm[active_adapter]++;
     if(kv_valid&&kv_ready)route_kvb[active_adapter]++;
-    if((dut.exec.projection_rd_valid&&dut.exec.projection_rd_ready)||(dut.exec.qread&&dut.exec.qread_ready)||(z_rd_valid&&z_rd_ready))route_qoz_rd[active_adapter]++;
+    if((dut.projection_rd_valid&&dut.projection_rd_ready)||(dut.qread&&dut.qread_ready)||(z_rd_valid&&z_rd_ready))route_qoz_rd[active_adapter]++;
     if(gu_prefetch_valid&&gu_prefetch_ready)begin allowed_n=gu_prefetch_n;prefetches++;end
-    if(active_adapter==2&&dut.exec.gu_input_valid&&dut.exec.gu_input_ready&&
-       (dut.exec.gu.gu.a_replay.in_entry.tile_idx!=dut.exec.gu.gu.a_replay.expected_k_q||dut.exec.gu.gu.a_replay.in_entry.pair_idx!=dut.exec.gu.gu.a_replay.fill_pair_q||dut.exec.gu.gu.a_replay.in_entry.row_valid!=row_mask(dut.exec.gu.gu.a_replay.fill_pair_q)||dut.exec.gu.gu.a_replay.in_entry.reserved!=0))
-      $fatal(1,"GU replay input mismatch tile=%0d expected=%0d pair=%0d expected=%0d mask=%b reserved=%h",dut.exec.gu.gu.a_replay.in_entry.tile_idx,dut.exec.gu.gu.a_replay.expected_k_q,dut.exec.gu.gu.a_replay.in_entry.pair_idx,dut.exec.gu.gu.a_replay.fill_pair_q,dut.exec.gu.gu.a_replay.in_entry.row_valid,dut.exec.gu.gu.a_replay.in_entry.reserved);
-    if(dut.exec.dispatch.matrix.req_valid)begin
+    if(active_adapter==2&&dut.gu_input_valid&&dut.gu_input_ready&&
+       (dut.gu.gu.a_replay.in_entry.tile_idx!=dut.gu.gu.a_replay.expected_k_q||dut.gu.gu.a_replay.in_entry.pair_idx!=dut.gu.gu.a_replay.fill_pair_q||dut.gu.gu.a_replay.in_entry.row_valid!=row_mask(dut.gu.gu.a_replay.fill_pair_q)||dut.gu.gu.a_replay.in_entry.reserved!=0))
+      $fatal(1,"GU replay input mismatch tile=%0d expected=%0d pair=%0d expected=%0d mask=%b reserved=%h",dut.gu.gu.a_replay.in_entry.tile_idx,dut.gu.gu.a_replay.expected_k_q,dut.gu.gu.a_replay.in_entry.pair_idx,dut.gu.gu.a_replay.fill_pair_q,dut.gu.gu.a_replay.in_entry.row_valid,dut.gu.gu.a_replay.in_entry.reserved);
+    if(dut.dispatch.matrix.req_valid)begin
       if(op_issues[job.header.op]==0)op_first[job.header.op]=cycle;
       op_last[job.header.op]=cycle;
-      if(active_adapter==0&&dut.exec.dispatch.matrix.tile_seq_q==0&&dut.exec.dispatch.matrix.req_meta.pair_idx==0)begin
-        proj_first[job.header.op][dut.exec.dispatch.matrix.req_meta.nt]=cycle;
-        $display("PROJ_FIRST op=%0d n=%0d cycle=%0d",job.header.op,dut.exec.dispatch.matrix.req_meta.nt,cycle);
+      if(active_adapter==0&&dut.dispatch.matrix.tile_seq_q==0&&dut.dispatch.matrix.req_meta.pair_idx==0)begin
+        proj_first[job.header.op][dut.dispatch.matrix.req_meta.nt]=cycle;
+        $display("PROJ_FIRST op=%0d n=%0d cycle=%0d",job.header.op,dut.dispatch.matrix.req_meta.nt,cycle);
       end
       op_issues[job.header.op]++;
       if(active_adapter==2)begin
-        int n;n=dut.exec.dispatch.matrix.req_meta.gu_n;
+        int n;n=dut.dispatch.matrix.req_meta.gu_n;
         if(previous_gu_n!=n)begin previous_gu_n=n;gu_issue_tile=0;gu_issue_pair=0;end
-        if(dut.exec.dispatch.matrix.tile_seq_q!=gu_issue_tile||dut.exec.dispatch.matrix.req_meta.pair_idx!=gu_issue_pair)
+        if(dut.dispatch.matrix.tile_seq_q!=gu_issue_tile||dut.dispatch.matrix.req_meta.pair_idx!=gu_issue_pair)
           $fatal(1,"GU issue sequence after slot stall");
         if(gu_issue_pair==PAIRS-1)begin gu_issue_pair=0;gu_issue_tile++;end else gu_issue_pair++;
         if(count_gu[n]==0)first_gu[n]=cycle;last_gu[n]=cycle;count_gu[n]++;
@@ -377,54 +388,54 @@ module tb_v3_pcore_three_job_chain;
         if(count_attn[attn_i]==416)attn_i++;
       end
     end
-    if(dut.exec.dispatch.req.start)begin
+    if(dut.dispatch.req.start)begin
       op_launches[job.header.op]++;
       desc_profile=operation_profile(job.header.op);
-      if(dut.exec.dispatch.req.mode!=desc_profile.mode||dut.exec.dispatch.req.a_source!=desc_profile.matrix_a||dut.exec.dispatch.req.b_source!=desc_profile.b_source)$fatal(1,"Matrix descriptor source/mode");
+      if(dut.dispatch.req.mode!=desc_profile.mode||dut.dispatch.req.a_source!=desc_profile.matrix_a||dut.dispatch.req.b_source!=desc_profile.b_source)$fatal(1,"Matrix descriptor source/mode");
       if(active_adapter==0)begin
-        if(!desc_profile.geometry_valid||dut.exec.dispatch.req.tiles!=desc_profile.k_tiles||
-           dut.exec.dispatch.req.nt>=desc_profile.n_tiles)$fatal(1,"Projection descriptor geometry");
-        if(dut.exec.dispatch.req.acc_sel!=(dut.exec.dispatch.req.nt[0]?ACC_FACC_B:ACC_FACC_A))
+        if(!desc_profile.geometry_valid||dut.dispatch.req.tiles!=desc_profile.k_tiles||
+           dut.dispatch.req.nt>=desc_profile.n_tiles)$fatal(1,"Projection descriptor geometry");
+        if(dut.dispatch.req.acc_sel!=(dut.dispatch.req.nt[0]?ACC_FACC_B:ACC_FACC_A))
           $fatal(1,"Projection FACC parity");
-        if(dut.exec.dispatch.req.a_stream!=TILE_BITS'(int'(dut.exec.dispatch.req.nt)*int'(desc_profile.k_tiles))||
-           dut.exec.dispatch.req.b_stream!=dut.exec.dispatch.req.a_stream)$fatal(1,"Projection transport base");
+        if(dut.dispatch.req.a_stream!=TILE_BITS'(int'(dut.dispatch.req.nt)*int'(desc_profile.k_tiles))||
+           dut.dispatch.req.b_stream!=dut.dispatch.req.a_stream)$fatal(1,"Projection transport base");
       end
     end
-    if(dut.exec.dispatch.matrix.done)begin
-      if(active_adapter==2)commit_gu[dut.exec.dispatch.matrix.commit_meta.gu_n]=cycle;
+    if(dut.dispatch.matrix.done)begin
+      if(active_adapter==2)commit_gu[dut.dispatch.matrix.commit_meta.gu_n]=cycle;
       if(active_adapter==1)begin commit_attn[attn_commits]=cycle;end
     end
-    if(active_adapter==1&&dut.exec.dispatch.matrix.commit_write_valid)begin
+    if(active_adapter==1&&dut.dispatch.matrix.commit_write_valid)begin
        logic [31:0] bits_pv,mag,norm;int lead;
        mag=(attn_commits==109?54:(attn_commits-2)/2)+1;lead=0;
        for(int b=0;b<32;b++)if(mag[b])lead=b;
        norm=mag<<(31-lead);bits_pv=fp32_legacy_ref_pkg::pack_scaled32(0,norm,lead-6,0,0);
-      if(dut.exec.dispatch.matrix.commit_meta.acc_sel==ACC_OACC)begin
-        for(int r=0;r<2;r++)for(int n=0;n<16;n++)if(dut.exec.dispatch.matrix.commit_write.row_valid[r])
-           if(dut.exec.dispatch.matrix.commit_write.data[r][n]!==bits_pv)$fatal(1,"Attention PV write golden mismatch block=%0d got=%h expected=%h",dut.exec.attention.frontend.cmd_q.block_id,dut.exec.dispatch.matrix.commit_write.data[r][n],bits_pv);
-      end else if(dut.exec.dispatch.matrix.commit_meta.tile_idx%16==15)begin
-        for(int r=0;r<2;r++)for(int n=0;n<16;n++)if(dut.exec.dispatch.matrix.commit_write.row_valid[r])
-          if(dut.exec.dispatch.matrix.commit_write.data[r][n]!==32'h3f000000)$fatal(1,"Attention QK write golden mismatch");
+      if(dut.dispatch.matrix.commit_meta.acc_sel==ACC_OACC)begin
+        for(int r=0;r<2;r++)for(int n=0;n<16;n++)if(dut.dispatch.matrix.commit_write.row_valid[r])
+           if(dut.dispatch.matrix.commit_write.data[r][n]!==bits_pv)$fatal(1,"Attention PV write golden mismatch block=%0d got=%h expected=%h",dut.attention.frontend.cmd_q.block_id,dut.dispatch.matrix.commit_write.data[r][n],bits_pv);
+      end else if(dut.dispatch.matrix.commit_meta.tile_idx%16==15)begin
+        for(int r=0;r<2;r++)for(int n=0;n<16;n++)if(dut.dispatch.matrix.commit_write.row_valid[r])
+          if(dut.dispatch.matrix.commit_write.data[r][n]!==32'h3f000000)$fatal(1,"Attention QK write golden mismatch");
       end
     end
-    if(active_adapter==1&&dut.exec.dispatch.matrix.done)attn_commits++;
-    if(active_adapter==2&&dut.exec.dispatch.matrix.job_busy&&!dut.exec.dispatch.matrix.req_valid&&!dut.exec.dispatch.matrix.a_running&&
-       !dut.exec.dispatch.matrix.tile_started_q)begin
-      int n;n=dut.exec.dispatch.matrix.job_gu_n_q;
-      if(dut.exec.dispatch.matrix.tile_seq_q==126&&!dut.exec.gu.gu.matrix_gu_slot_ready)begin stall_slot++;stall_slot_n[n]++;end
+    if(active_adapter==1&&dut.dispatch.matrix.done)attn_commits++;
+    if(active_adapter==2&&dut.dispatch.matrix.job_busy&&!dut.dispatch.matrix.req_valid&&!dut.dispatch.matrix.a_running&&
+       !dut.dispatch.matrix.tile_started_q)begin
+      int n;n=dut.dispatch.matrix.job_gu_n_q;
+      if(dut.dispatch.matrix.tile_seq_q==126&&!dut.gu.gu.matrix_gu_slot_ready)begin stall_slot++;stall_slot_n[n]++;end
       else begin
-        if(!dut.exec.dispatch.matrix.a_tile_available)begin stall_a++;stall_a_n[n]++;end
-        if(!dut.exec.dispatch.matrix.bank_ready[dut.exec.dispatch.matrix.req_bank]||
-           dut.exec.dispatch.matrix.bank_tile[dut.exec.dispatch.matrix.req_bank]!=dut.exec.dispatch.matrix.current_b_stream)begin stall_b++;stall_b_n[n]++;end
+        if(!dut.dispatch.matrix.a_tile_available)begin stall_a++;stall_a_n[n]++;end
+        if(!dut.dispatch.matrix.bank_ready[dut.dispatch.matrix.req_bank]||
+           dut.dispatch.matrix.bank_tile[dut.dispatch.matrix.req_bank]!=dut.dispatch.matrix.current_b_stream)begin stall_b++;stall_b_n[n]++;end
       end
     end
-    if(slow_post&&active_adapter==2&&dut.exec.gu.post_active_q&&dut.exec.gu.post_n_q==0&&count_gu[1]>0&&count_gu[1]<3276&&
-       dut.exec.dispatch.matrix.job_gu_n_q==1&&!dut.exec.dispatch.matrix.req_valid)
+    if(slow_post&&active_adapter==2&&dut.gu.post_active_q&&dut.gu.post_n_q==0&&count_gu[1]>0&&count_gu[1]<3276&&
+       dut.dispatch.matrix.job_gu_n_q==1&&!dut.dispatch.matrix.req_valid)
       $fatal(1,"slow post stalled GU before G63");
-    if(active_adapter==1&&dut.exec.attention.attention_done)attn_final_done=cycle;
-    if(active_adapter==1&&dut.exec.attention.q_out_valid&&dut.exec.attention.q_out_ready)begin
-      if(dut.exec.attention.frontend.q_entry.row[0]!==qv(64,127)||
-        (dut.exec.attention.frontend.q_entry.row_valid[1]&&dut.exec.attention.frontend.q_entry.row[1]!==qv(64,127)))
+    if(active_adapter==1&&dut.attention.attention_done)attn_final_done=cycle;
+    if(active_adapter==1&&dut.attention.q_out_valid&&dut.attention.q_out_ready)begin
+      if(dut.attention.frontend.q_entry.row[0]!==qv(64,127)||
+        (dut.attention.frontend.q_entry.row_valid[1]&&dut.attention.frontend.q_entry.row[1]!==qv(64,127)))
         $fatal(1,"Attention did not consume Projection Q");
     end
   end
@@ -452,10 +463,10 @@ module tb_v3_pcore_three_job_chain;
         begin for(int j=0;j<110;j++)for(int t=0;t<16;t++)for(int g=0;g<8;g++)send_b(j*16+t,g,0,0,1);end
         finish_operation();
       join
-      if(qoz_complete||dut.exec.qactive)$fatal(1,"seven Attention did not release Q");
+      if(qoz_complete||dut.qactive)$fatal(1,"seven Attention did not release Q");
       prepare_fixture(QOZ_O,OP_ATTENTION,16,20);
       send_operation(OP_O_PROJ,14);fork feed_projection_hbm(64,16);finish_operation();join
-      if(qoz_complete||dut.exec.qactive)$fatal(1,"seven O Projection did not release O");
+      if(qoz_complete||dut.qactive)$fatal(1,"seven O Projection did not release O");
       send_operation(OP_GU,15);fork feed_gu_xbc();finish_operation();join
       if(!qoz_complete||qoz_region.owner!=QOZ_Z)$fatal(1,"seven GU did not commit Z");
       for(int n=0;n<32;n++)begin
@@ -471,7 +482,7 @@ module tb_v3_pcore_three_job_chain;
       if(first_attn[109]-first_attn[108]!=867||attn_final_done-commit_attn[109]!=439)$fatal(1,"seven Attention tail");
       $display("SEVEN_ATTENTION jobs=110 body=416 steady=434 PV53_PV54=867 final_tail=439");
       send_operation(OP_DOWN_PROJ,16);fork feed_projection_hbm(64,32);finish_operation();join
-      if(qoz_complete||dut.exec.qactive)$fatal(1,"seven Down Projection did not release Z");
+      if(qoz_complete||dut.qactive)$fatal(1,"seven Down Projection did not release Z");
       begin
         int total;total=0;for(int op=0;op<7;op++)total+=op_issues[op];
         if(total!=265408)$fatal(1,"seven total issue count=%0d",total);
@@ -487,29 +498,29 @@ module tb_v3_pcore_three_job_chain;
     if($test$plusargs("DOWN_ONLY"))begin
       prepare_fixture(QOZ_Z,OP_GU,32,30);
       send_operation(OP_DOWN_PROJ,31);fork feed_projection_hbm(64,32);finish_operation();join
-      if(qoz_complete||dut.exec.qactive||op_outputs[OP_DOWN_PROJ]!=64)
+      if(qoz_complete||dut.qactive||op_outputs[OP_DOWN_PROJ]!=64)
         $fatal(1,"Down-only collective reduction did not complete");
       $display("tb_v3_pcore_three_job_chain PASS down_only=1 collective_data_done=1 issues=%0d outputs=%0d",
         op_issues[OP_DOWN_PROJ],op_outputs[OP_DOWN_PROJ]);$finish;
     end
     if($test$plusargs("FAULT_WRITE")||$test$plusargs("FAULT_RELEASE"))begin
       fault_test=1;
-      send_operation(OP_GU,90);wait(dut.exec.qactive);@(negedge clk);
+      send_operation(OP_GU,90);wait(dut.qactive);@(negedge clk);
       if($test$plusargs("FAULT_WRITE"))begin
         post_result='0;post_result.header=job.header;post_result.header.job_id=91;
         post_result.pair_data.row_valid=3;post_result_valid=1;
         @(negedge clk);post_result_valid=0;
       end else begin
-        force dut.exec.qrelease=1'b1;@(negedge clk);force dut.exec.qrelease=1'b0;
+        force dut.qrelease=1'b1;@(negedge clk);force dut.qrelease=1'b0;
       end
       repeat(4)@(negedge clk);
-      if(!dut.exec.qoz_error||!dut.exec.ctrl_error||dut.exec.ctrl.state_q!=3||job_ready||done_valid||!dut.exec.qactive)
+      if(!dut.qoz_error||!dut.ctrl_error||dut.ctrl.state_q!=3||job_ready||done_valid||!dut.qactive)
         $fatal(1,"QOZ fabric error did not enter retaining FAULT");
       repeat(5)begin @(negedge clk);if(done_valid||job_ready)$fatal(1,"FAULT escaped");end
       clear=1;@(negedge clk);
-      if($test$plusargs("FAULT_RELEASE"))release dut.exec.qrelease;
+      if($test$plusargs("FAULT_RELEASE"))release dut.qrelease;
       clear=0;@(negedge clk);
-      if(protocol_error||!job_ready||dut.exec.qactive)$fatal(1,"fabric clear recovery failed");
+      if(protocol_error||!job_ready||dut.qactive)$fatal(1,"fabric clear recovery failed");
       send_operation(pcore_op_e'(7),92);wait(done_valid);
       if(job_done.status!=CONTROL_UNSUPPORTED)$fatal(1,"dispatch after fabric clear failed");
       $display("tb_v3_pcore_three_job_chain PASS fabric_fault=1 clear_recovery=1 write=%0d release=%0d",$test$plusargs("FAULT_WRITE"),$test$plusargs("FAULT_RELEASE"));$finish;
@@ -522,7 +533,7 @@ module tb_v3_pcore_three_job_chain;
         begin for(int j=0;j<110;j++)for(int t=0;t<16;t++)for(int g=0;g<8;g++)send_b(j*16+t,g,0,0,1);end
         finish_operation();
       join
-      if(qoz_complete||dut.exec.qactive)$fatal(1,"Attention did not release Q");
+      if(qoz_complete||dut.qactive)$fatal(1,"Attention did not release Q");
       for(int j=0;j<110;j++)begin
         if(count_attn[j]!=416||last_attn[j]-first_attn[j]!=415)$fatal(1,"Attention body regression");
         if(j>0&&j<109&&first_attn[j]-first_attn[j-1]!=434)$fatal(1,"Attention steady regression %0d",first_attn[j]-first_attn[j-1]);
@@ -556,5 +567,5 @@ module tb_v3_pcore_three_job_chain;
     end
     $display("tb_v3_pcore_three_job_chain PASS operations=%0d shared_matrix=1 shared_qoz=1 posts=%0d z_readbacks=%0d gu_interval=%0d stall_slot=%0d slow=%0d",ops,posts,readbacks,first_gu[2]-first_gu[1],stall_slot,slow_post);$finish;
   end
-  initial begin #1600000;$fatal(1,"three job watchdog owner=%0d post=%0d q=%0d z=%0d GU_n=%0d ctrl=%0d proj=%0d region=%b xbc=%b/%b hbm=%b/%b issues=%0d",active_adapter,posts,q_pairs,z_pairs,dut.exec.gu.n_q,dut.exec.ctrl.state_q,dut.exec.projection.state_q,dut.exec.qactive,xbc_valid,xbc_ready,hbm_valid,hbm_ready,op_issues[0]);end
+  initial begin #1600000;$fatal(1,"three job watchdog owner=%0d post=%0d q=%0d z=%0d GU_n=%0d ctrl=%0d proj=%0d region=%b xbc=%b/%b hbm=%b/%b issues=%0d",active_adapter,posts,q_pairs,z_pairs,dut.gu.n_q,dut.ctrl.state_q,dut.projection.state_q,dut.qactive,xbc_valid,xbc_ready,hbm_valid,hbm_ready,op_issues[0]);end
 endmodule

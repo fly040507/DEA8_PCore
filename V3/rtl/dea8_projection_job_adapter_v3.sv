@@ -46,8 +46,9 @@ module dea8_projection_job_adapter_v3 #(
     if(PAIRED_Q_POST&&needs_q_region) begin
       // Even post captures one RoPE half. Odd post commits BOTH halves.
       post_qoz_ready=1;
-      if(post_n_q[0]) post_qoz_ready=qoz_committed_q[post_n_q-1]&&
-        (qoz_committed_q[post_n_q]||(qoz_commit&&qoz_commit_n==post_n_q));
+      if(post_n_q[0]) post_qoz_ready=qoz_committed_q[post_n_q/2]&&
+        (qoz_committed_q[post_n_q/2+QOZ_Q_TILES/2]||
+         (qoz_commit&&qoz_commit_n==post_n_q/2+QOZ_Q_TILES/2));
     end
   end
   assign data_valid=qvalid&&post_sent_q;assign qready=data_ready&&post_sent_q;
@@ -60,6 +61,7 @@ module dea8_projection_job_adapter_v3 #(
     .job_n_tiles(profile_q.n_tiles),
     .job_a_source(profile_q.matrix_a),.job_b_source(profile_q.b_source),
     .local_a_valid,.local_a_entry,
+    .local_a_ready(),
     .local_rd_valid,.local_rd_ready,.local_rd_tile,.local_rd_pair,.local_rd_transport,
     .busy(proj_busy),.done(proj_done),.xbc_valid(1'b0),.xbc_ready(),.xbc_entry('0),.hbm_valid(1'b0),.hbm_ready(),.hbm_entry('0),
     .qoz_wr_valid(qvalid),.qoz_wr_ready(qready),.qoz_wr_tile(qt),.qoz_wr_pair(qp),.qoz_wr_row_valid(qr),
@@ -85,7 +87,7 @@ module dea8_projection_job_adapter_v3 #(
       if(qoz_commit)begin
         if(PAIRED_Q_POST&&needs_q_region) begin
           if(!post_sent_q||!post_n_q[0]||qoz_commit_n>=QOZ_Q_TILES||
-             (qoz_commit_n!=post_n_q&&qoz_commit_n!=post_n_q-1)||qoz_committed_q[qoz_commit_n])error<=1;
+             (qoz_commit_n!=post_n_q/2&&qoz_commit_n!=post_n_q/2+QOZ_Q_TILES/2)||qoz_committed_q[qoz_commit_n])error<=1;
           else qoz_committed_q[qoz_commit_n]<=1;
         end else if(qoz_commit_n!=post_n_q||!post_sent_q)error<=1;
         else qoz_seen_q<=1;

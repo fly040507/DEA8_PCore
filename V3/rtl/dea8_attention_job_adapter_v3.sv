@@ -1,11 +1,15 @@
 import pcore3_pkg::*;
-module dea8_attention_job_adapter_v3 (
+module dea8_attention_job_adapter_v3 #(
+  parameter bit COMPLETE_O_OUTPUT=0
+) (
   input logic clk,reset,clear,
   input logic op_valid,output logic op_ready,input pcore_job_t op_job,
   output logic done_valid,input logic done_ready,output pcore_completion_t done,output logic error,
   output matrix_service_req_t matrix_req,input matrix_service_rsp_t matrix_rsp,
   input logic q_complete,input qoz_region_req_t q_region,
   output logic q_release,input logic q_release_ready,
+  output logic o_region_valid,input logic o_region_ready,
+  output qoz_region_req_t o_region,
   output logic q_rd_valid,input logic q_rd_ready,output logic [5:0] q_rd_tile,
   output logic [PAIR_BITS-1:0] q_rd_pair,output logic [TILE_BITS-1:0] q_rd_transport,
   input logic q_out_valid,output logic q_out_ready,input a2_t q_entry,
@@ -24,11 +28,16 @@ module dea8_attention_job_adapter_v3 (
   logic start_ready,busy,attention_done;
   logic mv,mr,mdv,mdr,tail_ready;matrix_cmd_t mc,md;
   logic ae,be;logic [3:0] qt;
+  logic q_last_committed_q,q_released_q,o_acquired_q,finished_q;
   assign op_ready=state_q==IDLE&&!reset&&!clear;
   assign done_valid=state_q==COMPLETE;assign done='{header:header_q,status:JOB_OK};
-  assign q_release=state_q==RELEASE_Q;
+  assign q_release=COMPLETE_O_OUTPUT ?
+    (state_q==RUN&&q_last_committed_q&&!q_released_q&&!q_rd_valid&&!q_out_valid):
+    state_q==RELEASE_Q;
+  assign o_region_valid=COMPLETE_O_OUTPUT&&state_q==RUN&&q_released_q&&!o_acquired_q;
+  assign o_region='{header:header_q,owner:QOZ_O,tiles:6'(QOZ_O_TILES)};
   assign q_rd_tile={2'b0,qt};
-  dea8_attention_scheduler_v4 scheduler(.clk,.reset,.clear,
+  dea8_attention_scheduler_v4 #(.STREAM_P_POST(COMPLETE_O_OUTPUT)) scheduler(.clk,.reset,.clear,
     .start_valid(state_q==START),.start_ready,.busy,.start_head(header_q.head),.start_epoch(header_q.epoch),
     .done_valid(attention_done),.done_ready(1'b1),.matrix_valid(mv),.matrix_ready(mr),.matrix_cmd(mc),
     .tail_launch_ready(tail_ready),.matrix_done_valid(mdv),.matrix_done_ready(mdr),.matrix_done(md),
@@ -51,7 +60,10 @@ module dea8_attention_job_adapter_v3 (
     .vpu_wr_valid(wr_valid),.vpu_wr_ready(wr_ready),.vpu_wr(wr),
     .dbg_valid(1'b0),.dbg_sel(ACC_OACC),.dbg_parity(1'b0),.dbg_addr('0),.dbg_lane('0),.dbg_data());
   always_ff @(posedge clk)begin
-    if(reset||clear)begin state_q<=IDLE;header_q<='0;error<=0;end
+    if(reset||clear)begin
+      state_q<=IDLE;header_q<='0;error<=0;
+      q_last_committed_q<=0;q_released_q<=0;o_acquired_q<=0;finished_q<=0;
+    end
     else begin
       if(op_valid&&op_ready)begin header_q<=op_job.header;state_q<=WAIT_Q;end
       if(state_q==WAIT_Q&&q_complete)begin
@@ -59,8 +71,18 @@ module dea8_attention_job_adapter_v3 (
         else state_q<=START;
       end
       if(state_q==START&&start_ready)state_q<=RUN;
-      if(state_q==RUN&&attention_done)state_q<=RELEASE_Q;
-      if(q_release&&q_release_ready)state_q<=COMPLETE;
+      if(mdv&&mdr&&md.op==MATRIX_QK&&md.block_id==KV_BLOCKS-1)q_last_committed_q<=1;
+      if(q_release&&q_release_ready)begin
+        q_released_q<=1;
+        if(!COMPLETE_O_OUTPUT)state_q<=COMPLETE;
+      end
+      if(o_region_valid&&o_region_ready)o_acquired_q<=1;
+      if(state_q==RUN&&attention_done)begin
+        finished_q<=1;
+        if(!COMPLETE_O_OUTPUT)state_q<=RELEASE_Q;
+      end
+      if(COMPLETE_O_OUTPUT&&state_q==RUN&&finished_q&&o_acquired_q&&
+         q_complete&&q_region.owner==QOZ_O&&q_region.header==header_q)state_q<=COMPLETE;
       if(done_valid&&done_ready)state_q<=IDLE;
       if(ae||be)error<=1;
     end

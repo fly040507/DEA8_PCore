@@ -1,197 +1,467 @@
 import pcore3_pkg::*;
 import pcore_control_pkg::*;
 
-// PCore internal control center, V3.
-//
-// DEA8 owns layer/denoise sequencing and submits one logical job at a time.
-// This wrapper preserves the complete DEA8 context and exposes the ownership
-// boundary to the external VPU/SFU and collective units.  It does not contain
-// a concatenation tree or a reduction tree.
-//
-// Interface contract:
-//   post_*             : VPU/SFU command, input data, and completion.
-//   collective_cmd_*  : K/V concat or O/Down reduction tile command.
-//   collective_data_* : O/Down FP32 partial stream sent to the reducer.
-//   collective_result_*: K/V quantized result returned by VPU/SFU and
-//                        forwarded to the concat unit.
-//   collective_done_* : O/Down reduction completion returned to PCore.
-//
-// For K/V, a post command is accepted only when both the VPU/SFU and the
-// concat command receiver are ready.  A K/V result is accepted only when the
-// concat receiver is ready; therefore the external VPU/SFU must hold its
-// result until post_result_ready is asserted.  For O/Down, the collective
-// unit directly owns the post command/data/done handshake.
-module dea8_pcore_control_v3 #(
-  parameter bit PAIRED_Q_POST=0
-) (
+module dea8_pcore_control_v3(
   input logic clk,reset,clear,
   input logic job_valid,output logic job_ready,input control_job_t job,
-  output logic done_valid,input logic done_ready,
-  output control_completion_t done,
-  output logic busy,output logic protocol_error,
-  output logic [1:0] active_adapter,
-
-  // Matrix-side streams. The selected V3 adapter owns their timing.
+  output logic done_valid,input logic done_ready,output control_completion_t done,
+  output logic busy,protocol_error,output logic [1:0] active_adapter,
+  output logic flush_valid,input logic vpu_flush_ack,sfu_flush_ack,
   input logic xbc_valid,output logic xbc_ready,input xbc4_t xbc_entry,
   input logic hbm_valid,output logic hbm_ready,input b2_t hbm_entry,
   input logic kv_valid,output logic kv_ready,input b2_t kv_entry,
-
-  // VPU/SFU post-processing command and input stream.
-  output logic post_valid,input logic post_ready,output pcore_post_job_t post_job,
-  input logic post_done_valid,output logic post_done_ready,input pcore_post_job_t post_done,
-  output logic post_data_valid,input logic post_data_ready,output post_data_t post_data,
-  input logic post_result_valid,output logic post_result_ready,input post_result_t post_result,
-
-  // K/V concat and O/Down reduction boundary.
-  output logic collective_cmd_valid,input logic collective_cmd_ready,
-  output pcore_post_job_t collective_cmd,
-  output logic collective_data_valid,input logic collective_data_ready,
-  output post_data_t collective_data,
-  output logic collective_result_valid,input logic collective_result_ready,
-  output post_result_t collective_result,
-  input logic collective_done_valid,output logic collective_done_ready,
-  input pcore_post_job_t collective_done,
-
-  // Attention VPU/SFU command ports. Their implementations and latency are
-  // external; PCore only supplies context and checks the returned token.
-  output logic vpu_valid,input logic vpu_ready,output vpu_cmd_t vpu_cmd,
-  input logic vpu_done_valid,output logic vpu_done_ready,input vpu_cmd_t vpu_done,
-  output logic sfu_valid,input logic sfu_ready,output sfu_cmd_t sfu_cmd,
-  input logic sfu_done_valid,output logic sfu_done_ready,input sfu_cmd_t sfu_done,
-
-  // Attention P/S sideband and accumulator ports.
-  input logic p_valid,output logic p_ready,input a2_t p_entry,input logic [5:0] p_block,
-  input logic [EPOCH_BITS-1:0] p_epoch,input logic [2:0] p_head,
+  output logic vector_valid,input logic vector_ready,output control_command_t vector_cmd,
+  input logic vector_done_valid,output logic vector_done_ready,input control_unit_done_t vector_done,
+  output logic function_valid,input logic function_ready,output control_command_t function_cmd,
+  input logic function_done_valid,output logic function_done_ready,input control_unit_done_t function_done,
+  output logic vector_data_valid,input logic vector_data_ready,output control_fp_data_t vector_data,
+  output logic function_data_valid,input logic function_data_ready,output control_fp_data_t function_data,
+  input logic function_result_valid,output logic function_result_ready,input control_fp_data_t function_result,
+  input logic vector_result_valid,output logic vector_result_ready,input control_quant_result_t vector_result,
+  input logic vector_mem_valid,output logic vector_mem_ready,input control_memory_req_t vector_mem_req,
+  output logic vector_mem_out_valid,input logic vector_mem_out_ready,output control_memory_rsp_t vector_mem_out,
+  input logic function_mem_valid,output logic function_mem_ready,input control_memory_req_t function_mem_req,
+  output logic function_mem_out_valid,input logic function_mem_out_ready,output control_memory_rsp_t function_mem_out,
+  input logic rope_req_valid,output logic rope_req_ready,input control_rope_req_t rope_req,
+  output logic rope_sfu_valid,input logic rope_sfu_ready,output control_rope_req_t rope_sfu_req,
+  input logic rope_sfu_out_valid,output logic rope_sfu_out_ready,input control_rope_rsp_t rope_sfu_out,
+  output logic rope_out_valid,input logic rope_out_ready,output control_rope_rsp_t rope_out,
+  output logic kv_out_valid,input logic kv_out_ready,output collective_packet_t kv_out,
+  output logic reduce_out_valid,input logic reduce_out_ready,output collective_packet_t reduce_out,
   input logic acc_rd_valid,output logic acc_rd_ready,input acc_sel_e acc_rd_sel,input logic [9:0] acc_rd_addr,
-  output logic acc_data_valid,output logic [15:0][31:0] acc_even,acc_odd,
+  input control_token_t acc_token,
+  output logic acc_data_valid,input logic acc_data_ready,output logic [TILE-1:0][FP_BITS-1:0] acc_even,acc_odd,
   input logic acc_wr_valid,output logic acc_wr_ready,input acc_write_t acc_wr,
-
-  // QOZ local reader and region boundary.
-  input logic z_rd_valid,output logic z_rd_ready,input logic [5:0] z_rd_tile,
-  input logic [PAIR_BITS-1:0] z_rd_pair,output logic z_out_valid,input logic z_out_ready,output a2_t z_entry,
   output logic qoz_complete,output qoz_region_req_t qoz_region,
   input logic ext_qoz_region_valid,output logic ext_qoz_region_ready,input qoz_region_req_t ext_qoz_region,
+  input logic [15:0] ext_qoz_context,
   input logic ext_qoz_wr_valid,output logic ext_qoz_wr_ready,input post_result_t ext_qoz_wr,
   output logic gu_prefetch_valid,input logic gu_prefetch_ready,output logic [5:0] gu_prefetch_n
 );
-  pcore_job_t legacy_job;
-  pcore_completion_t legacy_done;
-  logic legacy_job_ready,legacy_done_valid,legacy_done_ready;
-  logic legacy_busy,legacy_error;
-  logic [1:0] legacy_owner;
-  logic control_stream_error;
   control_job_t job_q;
+  pcore_job_t engine_job;
+  pcore_completion_t engine_done;
+  logic ejv,ejr,edv,edr,eb,ee,active_q,complete_q,fault_q,clear_q,flush_q;
+  logic [1:0] flush_acks_q;
+  control_status_e status_q;
+  logic [GENERATION_BITS-1:0] generation_q;
+  logic [COMMAND_BITS-2:0] vseq_q,fseq_q;
+  logic [15:0] region_context_q;
+  logic precondition,job_legal,is_reduce,is_kv;
+  logic post_valid,post_ready,post_done_valid,post_done_ready,data_valid,data_ready;
+  pcore_post_job_t post_job,post_done;
+  post_data_t data;
+  post_result_t result;
+  logic result_valid,result_ready;
+  logic av,ar,adv,adr,af,afr,afd,afdr;
+  vpu_cmd_t ac,ad;sfu_cmd_t as,asd;
+  logic sv,sr,sfv,sfr,sdv,sdr,sfdv,sfdr,svdone,sfdone,se,si,rl;
+  logic svc_ready,svc_done_valid,svc_done_ready,svc_data_ready,svc_fr_ready;
+  pcore_post_job_t svc_done;
+  control_command_t sc,sfc,vheld_q,fheld_q;
+  control_fp_data_t sd,sfd;
+  logic vb_q,fb_q,vdmatch,fdmatch,vrmatch,frmatch;
+  logic [15:0] vcount_q,fcount_q,kv_sent_q,reduce_sent_q;
+  logic [5:0] afin_tile_q;
+  logic [PAIR_BITS-1:0] afin_pair_q;
+  logic pv,pr;a2_t pe;
+  logic kin,kr,kempty,rin,rr,rempty;
+  collective_packet_t kp,rp;
+  logic rd_armed_q,rd_done_q,rd_legal;
+  pcore_post_job_t rd_command_q;
+  logic [PAIR_BITS-1:0] rd_pair_q;
+  logic [5:0] rd_tile_q;
+  logic raw_valid,raw_ready,raw_request,read_pending_q,response_q;
+  logic [TILE-1:0][FP_BITS-1:0] raw_even,raw_odd;
+  logic [2:0] read_pending_count_q,response_count_q;
+  logic [1:0] response_rd_q,response_wr_q;
+  logic [ROW_LANES*TILE*FP_BITS-1:0] response_mem[0:3];
+  logic read_credit,read_fire,response_fire;
+  logic fault_event;
+  logic acc_read_legal,acc_write_legal,raw_write_ready,raw_xbc_ready,raw_hbm_ready,raw_kv_ready,source_enable;
+  logic [9:0] matrix_acc_addr;
+  acc_write_t matrix_acc_write;
+  logic vm_legal,fm_legal,vm_ready,fm_ready;
+  logic [ROWS-1:0] v_written_q[0:3],f_written_q[0:1];
+  logic [9:0] acc_written_q;
+  logic v_writes_complete,f_writes_complete,raw_ext_region_ready,raw_ext_write_ready;
+  logic rope_pending_q,rope_legal,rope_response_match;
+  control_rope_req_t rope_held_q;
+  function automatic int v_write_slot(input control_buffer_e id);
+    case(id) WORK_SCORE:return 0;WORK_M:return 1;WORK_AA:return 2;default:return 3;endcase
+  endfunction
+  function automatic logic range_legal(input control_memory_req_t req);
+    logic good;good=req.index<ROWS;
+    if(req.buffer_id==WORK_SCORE)good&=req.write?req.mask=='1:1'b1;
+    else if(req.write)begin
+      good&=req.mask!=0;
+      for(int i=0;i<TILE;i++)if(req.mask[i]&&req.index+i>=ROWS)good=0;
+    end
+    return good;
+  endfunction
 
-  // The adapter keeps the live operation header. The wrapper retains the
-  // opaque DEA8 context and restores it on completion.
-  logic is_kv_job,is_reduce_job,is_collective_job;
-  logic exec_post_valid,exec_post_ready;
-  pcore_post_job_t exec_post_job;
-  logic exec_post_done_valid,exec_post_done_ready;
-  pcore_post_job_t exec_post_done;
-  logic exec_post_data_valid,exec_post_data_ready;
-  post_data_t exec_post_data;
-  logic exec_post_result_valid,exec_post_result_ready;
-  post_result_t exec_post_result;
-
-  assign legacy_job='{header:job.header};
-  assign job_ready=legacy_job_ready;
-  assign legacy_done_ready=done_ready;
-  assign busy=legacy_busy;
-  assign protocol_error=legacy_error||control_stream_error;
-  assign active_adapter=legacy_owner;
-
-  assign is_kv_job=(job_q.header.op==OP_K_PROJ)||(job_q.header.op==OP_V_PROJ);
-  assign is_reduce_job=(job_q.header.op==OP_O_PROJ)||(job_q.header.op==OP_DOWN_PROJ);
-  assign is_collective_job=is_kv_job||is_reduce_job;
-
-  // Start command fan-out. K/V needs an atomic command acceptance by both
-  // the post unit and the concat receiver. O/Down is owned by the reducer.
-  assign post_valid=(!is_reduce_job)&&exec_post_valid;
-  assign post_job=exec_post_job;
-  assign collective_cmd_valid=is_collective_job&&exec_post_valid;
-  assign collective_cmd=exec_post_job;
+  assign engine_job='{header:job.header};
+  assign is_reduce=job_q.header.op==OP_O_PROJ||job_q.header.op==OP_DOWN_PROJ;
+  assign is_kv=job_q.header.op==OP_K_PROJ||job_q.header.op==OP_V_PROJ;
   always_comb begin
-    if(is_reduce_job) exec_post_ready=collective_cmd_ready;
-    else if(is_kv_job) exec_post_ready=post_ready&&collective_cmd_ready;
-    else exec_post_ready=post_ready;
-  end
-
-  // O/Down data goes directly to the external reduction tree. K/V and Q/GU
-  // data goes to the external VPU/SFU through the legacy post_data port.
-  assign post_data_valid=(!is_reduce_job)&&exec_post_data_valid;
-  assign post_data=exec_post_data;
-  assign collective_data_valid=is_reduce_job&&exec_post_data_valid;
-  assign collective_data=exec_post_data;
-  assign exec_post_data_ready=is_reduce_job?collective_data_ready:post_data_ready;
-
-  // O/Down completion is returned by the reduction tree. Other operations
-  // use the VPU/SFU post_done port.
-  assign post_done_ready=(!is_reduce_job)&&exec_post_done_ready;
-  assign collective_done_ready=is_reduce_job&&exec_post_done_ready;
-  assign exec_post_done_valid=is_reduce_job?collective_done_valid:post_done_valid;
-  assign exec_post_done=is_reduce_job?collective_done:post_done;
-
-  // For K/V, the result is simultaneously consumed by the concat boundary
-  // and by the projection adapter. Backpressure is shared, so no result is
-  // lost when the concat unit stalls.
-  assign collective_result_valid=is_kv_job&&post_result_valid;
-  assign collective_result=post_result;
-  assign exec_post_result_valid=post_result_valid&&(!is_kv_job||collective_result_ready);
-  assign post_result_ready=is_kv_job?(collective_result_ready&&exec_post_result_ready):exec_post_result_ready;
-
-  always_comb begin
-    done='0;
-    done.job=job_q;
-    done.status=CONTROL_CHILD_ERROR;
-    case(legacy_done.status)
-      JOB_OK:done.status=CONTROL_OK;
-      JOB_UNSUPPORTED:done.status=CONTROL_UNSUPPORTED;
-      JOB_PROTOCOL_ERROR:done.status=CONTROL_CONTEXT_ERROR;
-      default:done.status=CONTROL_CHILD_ERROR;
+    job_legal=int'(job.header.op)<7&&job.layout_id==0&&job.position_base<=((1<<POSITION_BITS)-ROWS)&&
+      (job.header.op!=OP_K_PROJ||job.rope_pair_base<=128-TILE);
+    precondition=1;
+    case(job.header.op)
+      OP_ATTENTION:precondition=qoz_complete&&qoz_region.owner==QOZ_Q;
+      OP_O_PROJ:precondition=qoz_complete&&qoz_region.owner==QOZ_O;
+      OP_DOWN_PROJ:precondition=qoz_complete&&qoz_region.owner==QOZ_Z;
+      OP_Q_PROJ,OP_GU:precondition=qoz_region.owner==QOZ_NONE;
+      default:;
     endcase
-    if(control_stream_error) done.status=CONTROL_STREAM_ERROR;
+    if(job.header.op==OP_ATTENTION||job.header.op==OP_O_PROJ||job.header.op==OP_DOWN_PROJ)
+      precondition&=region_context_q==job.data_context&&qoz_region.header.epoch==job.header.epoch&&qoz_region.header.head==job.header.head;
   end
-  assign done_valid=legacy_done_valid;
+  assign job_ready=!active_q&&!complete_q&&!fault_q&&!flush_q&&!reset&&!clear&&ejr;
+  assign ejv=job_valid&&job_ready&&job_legal&&precondition;
+  assign busy=active_q||complete_q||fault_q||flush_q;
+  assign flush_valid=flush_q;
+  assign protocol_error=fault_q||ee||se;
+  assign done_valid=complete_q&&!reset&&!clear&&!flush_q;
+  assign done='{job:job_q,status:status_q};
+  assign edr=active_q&&!fault_q&&si&&kempty&&rempty&&!vb_q&&!fb_q&&!read_pending_q&&!response_q;
 
-  always_ff @(posedge clk) begin
-    if(reset||clear) begin
-      job_q<='0;
-      control_stream_error<=1'b0;
+  // One inflight command per unit. Tokens identify every data/return channel.
+  always_comb begin
+    vector_cmd=active_adapter==1?'0:sc;
+    function_cmd=active_adapter==1?'0:sfc;
+    if(active_adapter==1)begin
+      vector_cmd.job=job_q;vector_cmd.tile=ac.block_id;vector_cmd.attention_vpu=ac;
+      vector_cmd.tiles=1;vector_cmd.elements=16'(ROWS*TILE);
+      case(ac.op)
+        VPU_QK_POST:begin vector_cmd.function_id=VECTOR_QK_POST;vector_cmd.source=WORK_FACC;vector_cmd.destination=WORK_SCORE;end
+        VPU_P_POST:begin vector_cmd.function_id=VECTOR_P_POST;vector_cmd.source=WORK_P;vector_cmd.destination=WORK_P;end
+        VPU_OACC_SCALE:begin
+          vector_cmd.function_id=VECTOR_OACC_SCALE;vector_cmd.source=WORK_OACC;vector_cmd.destination=WORK_OACC;
+          vector_cmd.tiles=QOZ_O_TILES;vector_cmd.elements=16'(ROWS*TILE*QOZ_O_TILES);
+        end
+        default:begin
+          vector_cmd.function_id=VECTOR_AFIN_QUANT;vector_cmd.source=WORK_OACC;vector_cmd.destination=WORK_QOZ;
+          vector_cmd.tiles=QOZ_O_TILES;vector_cmd.elements=16'(ROWS*TILE*QOZ_O_TILES);
+        end
+      endcase
+      function_cmd.job=job_q;function_cmd.tile=as.block_id;function_cmd.attention_sfu=as;
+      function_cmd.function_id=as.op==SFU_ALPHA_EXP?FUNCTION_ALPHA_EXP:(as.op==SFU_P_EXP?FUNCTION_P_EXP:FUNCTION_RECIP);
+      function_cmd.elements=16'(as.op==SFU_P_EXP?ROWS*TILE:ROWS);
+      function_cmd.tiles=1;
+      case(as.op)
+        SFU_ALPHA_EXP:begin function_cmd.source=WORK_AA;function_cmd.destination=WORK_ALPHA;end
+        SFU_P_EXP:begin function_cmd.source=WORK_SCORE;function_cmd.destination=WORK_P;end
+        default:begin function_cmd.source=WORK_L;function_cmd.destination=WORK_RECIP;end
+      endcase
+    end
+    vector_cmd.token='{generation:generation_q,command_id:{vseq_q,1'b0}};
+    function_cmd.token='{generation:generation_q,command_id:{fseq_q,1'b1}};
+  end
+  assign vector_valid=active_q&&!fault_q&&!flush_q&&!vb_q&&(active_adapter==1?av:sv);
+  assign function_valid=active_q&&!fault_q&&!flush_q&&!fb_q&&(active_adapter==1?af:sfv);
+  assign ar=vector_valid&&vector_ready&&active_adapter==1;
+  assign sr=vector_valid&&vector_ready&&active_adapter!=1;
+  assign afr=function_valid&&function_ready&&active_adapter==1;
+  assign sfr=function_valid&&function_ready&&active_adapter!=1;
+  always_comb begin
+    v_writes_complete=1;f_writes_complete=1;
+    case(vheld_q.function_id)
+      VECTOR_QK_POST:v_writes_complete=(&v_written_q[0])&&(&v_written_q[1])&&(&v_written_q[2]);
+      VECTOR_P_POST:v_writes_complete=&v_written_q[3];
+      VECTOR_OACC_SCALE:v_writes_complete=acc_written_q==QOZ_O_TILES*PAIRS;
+      default:;
+    endcase
+    if(fheld_q.function_id==FUNCTION_ALPHA_EXP)f_writes_complete=&f_written_q[0];
+    if(fheld_q.function_id==FUNCTION_RECIP)f_writes_complete=&f_written_q[1];
+  end
+  assign vdmatch=vb_q&&v_writes_complete&&!rope_pending_q&&!rope_req_valid&&vector_done.command==vheld_q&&!vector_done.error&&!read_pending_q&&!response_q&&!vector_mem_valid&&!vector_mem_out_valid&&
+    (vheld_q.function_id!=VECTOR_AFIN_QUANT||vcount_q==QOZ_O_TILES*PAIRS)&&
+    (vheld_q.function_id!=VECTOR_P_POST||vcount_q==PAIRS);
+  assign fdmatch=fb_q&&f_writes_complete&&function_done.command==fheld_q&&!function_done.error&&!function_mem_valid&&!function_mem_out_valid&&
+    (fheld_q.function_id!=FUNCTION_P_EXP||fcount_q==PAIRS)&&
+    (fheld_q.function_id!=FUNCTION_GELU||fcount_q==ROWS);
+  assign vector_done_ready=!flush_q&&!fault_q&&vdmatch;
+  assign function_done_ready=!flush_q&&!fault_q&&fdmatch;
+  assign rope_legal=vb_q&&vheld_q.function_id==VECTOR_ROPE_QUANT&&rope_req.token==vheld_q.token&&
+    rope_req.row<ROWS&&rope_req.position==job_q.position_base+rope_req.row&&rope_req.frequency_base==vheld_q.rope_frequency_base;
+  assign rope_sfu_valid=rope_req_valid&&rope_legal&&!rope_pending_q&&!fault_q&&!flush_q;
+  assign rope_sfu_req=rope_req;
+  assign rope_req_ready=rope_sfu_ready&&rope_legal&&!rope_pending_q&&!fault_q&&!flush_q;
+  assign rope_response_match=rope_pending_q&&rope_sfu_out.request==rope_held_q;
+  assign rope_out_valid=rope_sfu_out_valid&&rope_response_match&&!fault_q&&!flush_q;
+  assign rope_out=rope_sfu_out;
+  assign rope_sfu_out_ready=rope_out_ready&&rope_response_match&&!fault_q&&!flush_q;
+  assign adv=vector_done_valid&&vector_done_ready&&active_adapter==1;assign ad=vheld_q.attention_vpu;
+  assign afd=function_done_valid&&function_done_ready&&active_adapter==1;assign asd=fheld_q.attention_sfu;
+  assign svdone=vector_done_valid&&vector_done_ready&&active_adapter!=1;
+  assign sfdone=function_done_valid&&function_done_ready&&active_adapter!=1;
+  assign frmatch=fb_q&&function_result.job==job_q&&function_result.token==fheld_q.token&&
+    function_result.tile==fheld_q.tile&&function_result.index==fcount_q&&
+    (fheld_q.function_id==FUNCTION_GELU||fheld_q.function_id==FUNCTION_P_EXP)&&
+    function_result.vector_valid==(active_adapter==1?row_mask(fcount_q):2'b01)&&
+    function_result.last==(fcount_q==(active_adapter==1?PAIRS-1:ROWS-1));
+  assign function_data_valid=sfdv&&!fault_q;
+  always_comb begin function_data=sfd;function_data.token=fheld_q.token;end
+  assign sfdr=function_data_ready&&!fault_q;
+  assign vector_data_valid=!fault_q&&(active_adapter==1?
+    (function_result_valid&&frmatch&&vb_q&&vheld_q.function_id==VECTOR_P_POST&&vheld_q.tile==function_result.tile):sdv);
+  always_comb begin vector_data=active_adapter==1?function_result:sd;vector_data.token=vheld_q.token;end
+  assign sdr=vector_data_ready&&active_adapter!=1&&!fault_q;
+  assign function_result_ready=!fault_q&&!flush_q&&frmatch&&
+    (active_adapter==1?(vector_data_valid&&vector_data_ready):svc_fr_ready);
+
+  always_comb begin
+    vrmatch=vb_q&&vector_result.token==vheld_q.token;
+    if(active_adapter!=1)vrmatch&=rl;
+    else if(vheld_q.function_id==VECTOR_P_POST)
+      vrmatch&=vector_result.tile==vheld_q.tile&&vector_result.index==vcount_q&&
+        vector_result.vector_valid==row_mask(vcount_q)&&vector_result.quant_axis==QUANT_FEATURE_B16&&vector_result.last==(vcount_q==PAIRS-1);
+    else if(vheld_q.function_id==VECTOR_AFIN_QUANT)
+      vrmatch&=vector_result.tile==afin_tile_q&&vector_result.index==afin_pair_q&&
+        vector_result.vector_valid==row_mask(afin_pair_q)&&vector_result.quant_axis==QUANT_FEATURE_B16&&vector_result.last==(afin_pair_q==PAIRS-1);
+    else vrmatch=0;
+    if(job_q.header.op==OP_V_PROJ)vrmatch&=vector_result.token_mask==(vector_result.index>=3*(TILE/ROW_LANES)?16'h0007:16'hffff);
+  end
+  assign vector_result_ready=!fault_q&&!flush_q&&vrmatch&&
+    (is_kv?kr:((active_adapter==1&&vheld_q.function_id==VECTOR_P_POST)?pr:result_ready));
+  assign kin=vector_result_valid&&vrmatch&&!fault_q&&is_kv;
+  always_comb begin
+    kp='0;kp.job=job_q;kp.token=vheld_q.token;kp.op=job_q.header.op==OP_K_PROJ?COLLECT_K:COLLECT_V;
+    kp.tile=vector_result.tile;kp.index=vector_result.index;kp.vector_valid=vector_result.vector_valid;
+    kp.token_mask=vector_result.token_mask;kp.quantized=1;
+    for(int r=0;r<ROW_LANES;r++)begin
+      kp.scales[r]=vector_result.vector_data[r].scale;
+      for(int i=0;i<TILE;i++)kp.payload[r][i]=32'(vector_result.vector_data[r].data[INT_BITS*i+:INT_BITS]);
+    end
+    kp.tile_last=vector_result.last;kp.last=vector_result.last&&vector_result.tile==1;
+    kp.feature_base=job_q.header.op==OP_K_PROJ?16'(job_q.rope_pair_base+vector_result.tile*128):
+      16'(job_q.core_id*32+vector_result.tile*TILE+(vector_result.index%(TILE/ROW_LANES))*ROW_LANES);
+    kp.token_base=job_q.header.op==OP_V_PROJ?16'((vector_result.index/(TILE/ROW_LANES))*TILE):16'(vector_result.index*ROW_LANES);
+    result='0;result.header=job_q.header;result.n=vector_result.tile;
+    result.pair_data.tile_idx=vector_result.tile;result.pair_data.pair_idx=PAIR_BITS'(vector_result.index);
+    result.pair_data.row_valid=vector_result.vector_valid;result.pair_data.row[0]=vector_result.vector_data[0];result.pair_data.row[1]=vector_result.vector_data[1];
+    result.last=vector_result.last;
+    pe=result.pair_data;pe.tile_idx=0;pe.slot=vheld_q.tile[0];
+  end
+  assign pv=vector_result_valid&&vrmatch&&!fault_q&&active_adapter==1&&vheld_q.function_id==VECTOR_P_POST;
+  assign result_valid=vector_result_valid&&vrmatch&&!fault_q&&
+    (job_q.header.op==OP_Q_PROJ||job_q.header.op==OP_GU||(active_adapter==1&&vheld_q.function_id==VECTOR_AFIN_QUANT));
+  assign rd_legal=data.header==job_q.header&&data.n==rd_tile_q&&data.row==rd_pair_q&&
+    data.row_valid==row_mask(rd_pair_q)&&data.last==(rd_pair_q==PAIRS-1);
+  assign rin=is_reduce&&data_valid&&rd_armed_q&&!fault_q&&rd_legal;
+  always_comb begin
+    rp='0;rp.job=job_q;rp.op=job_q.header.op==OP_O_PROJ?REDUCE_O:REDUCE_DOWN;
+    rp.tile=data.n;rp.index=10'(data.row);rp.vector_valid=data.row_valid;
+    rp.payload[0]=data.first;rp.payload[1]=data.second;rp.tile_last=data.last;
+    rp.last=data.last&&data.n==output_tiles(job_q.header.op)-1;
+    rp.feature_base=16'(data.n*TILE);rp.token_base=16'(data.row*ROW_LANES);
+  end
+  assign post_ready=!fault_q&&(is_reduce?(!rd_armed_q&&!rd_done_q):svc_ready);
+  assign post_done_valid=is_reduce?rd_done_q:svc_done_valid;assign post_done=is_reduce?rd_command_q:svc_done;
+  assign svc_done_ready=post_done_ready&&!is_reduce&&!fault_q;
+  assign data_ready=!fault_q&&(is_reduce?(rr&&rd_armed_q&&rd_legal):svc_data_ready);
+  dea8_pcore_post_v3 post_service(.clk,.reset,.clear(clear||ejv),.job(job_q),
+    .in_cmd_valid(post_valid&&!is_reduce&&!fault_q),.in_cmd_ready(svc_ready),.in_cmd(post_job),
+    .in_valid(data_valid&&!is_reduce&&!fault_q),.in_ready(svc_data_ready),.in_data(data),
+    .done_valid(svc_done_valid),.done_ready(svc_done_ready),.done(svc_done),
+    .vector_valid(sv),.vector_ready(sr),.vector_cmd(sc),.vector_done(svdone),
+    .function_valid(sfv),.function_ready(sfr),.function_cmd(sfc),.function_done(sfdone),
+    .vector_data_valid(sdv),.vector_data_ready(sdr),.vector_data(sd),
+    .function_data_valid(sfdv),.function_data_ready(sfdr),.function_data(sfd),
+    .function_result_valid(function_result_valid&&frmatch),.function_result_ready(svc_fr_ready),.function_result,
+    .result_fire(vector_result_valid&&vector_result_ready&&active_adapter!=1),.result(vector_result),.result_legal(rl),.error(se),.idle(si));
+  dea8_pcore_egress_v3 kv_egress(.clk,.reset,.clear,.in_valid(kin),.in_ready(kr),.in_packet(kp),
+    .out_valid(kv_out_valid),.out_ready(kv_out_ready),.out_packet(kv_out),.empty(kempty));
+  dea8_pcore_egress_v3 reduce_egress(.clk,.reset,.clear,.in_valid(rin),.in_ready(rr),.in_packet(rp),
+    .out_valid(reduce_out_valid),.out_ready(reduce_out_ready),.out_packet(reduce_out),.empty(rempty));
+
+  // Hold a RAM response until the unit consumes it; reserve capacity first.
+  assign acc_read_legal=vb_q&&active_adapter==1&&acc_token==vheld_q.token&&
+    ((vheld_q.function_id==VECTOR_QK_POST&&acc_rd_sel==(vheld_q.attention_vpu.facc_bank?ACC_FACC_B:ACC_FACC_A)&&acc_rd_addr<PAIRS)||
+     ((vheld_q.function_id==VECTOR_OACC_SCALE||vheld_q.function_id==VECTOR_AFIN_QUANT)&&acc_rd_sel==ACC_OACC&&acc_rd_addr<QOZ_O_TILES*PAIRS));
+  assign acc_write_legal=vb_q&&active_adapter==1&&acc_token==vheld_q.token&&
+    vheld_q.function_id==VECTOR_OACC_SCALE&&acc_wr.sel==ACC_OACC&&acc_wr.addr==acc_written_q&&acc_wr.addr<QOZ_O_TILES*PAIRS&&acc_wr.row_valid==row_mask(acc_wr.addr%PAIRS);
+  assign read_pending_q=read_pending_count_q!=0;
+  assign response_q=response_count_q!=0;
+  assign response_fire=response_q&&acc_data_ready;
+  assign read_credit=read_pending_count_q+response_count_q<4||response_fire;
+  assign raw_request=acc_rd_valid&&acc_read_legal&&read_credit&&!fault_q;
+  assign acc_rd_ready=raw_ready&&acc_read_legal&&read_credit&&!fault_q;
+  assign read_fire=raw_request&&raw_ready;
+  assign acc_wr_ready=raw_write_ready&&acc_write_legal&&!fault_q;
+  // Unit-facing OACC is tile-major; the existing DEQACC RAM is pair-major.
+  // Keep this conversion outside the matrix read/modify/write pipeline.
+  assign matrix_acc_addr=acc_rd_sel==ACC_OACC?
+    10'((acc_rd_addr%PAIRS)*QOZ_O_TILES+acc_rd_addr/PAIRS):acc_rd_addr;
+  always_comb begin
+    matrix_acc_write=acc_wr;
+    if(acc_wr.sel==ACC_OACC)
+      matrix_acc_write.addr=10'((acc_wr.addr%PAIRS)*QOZ_O_TILES+acc_wr.addr/PAIRS);
+  end
+  assign acc_data_valid=response_q;
+  assign {acc_odd,acc_even}=response_mem[response_rd_q];
+  always_comb begin
+    vm_legal=0;fm_legal=0;
+    case(vheld_q.function_id)
+      VECTOR_QK_POST:vm_legal=(vector_mem_req.buffer_id==WORK_M||
+        ((vector_mem_req.buffer_id==WORK_AA||vector_mem_req.buffer_id==WORK_SCORE)&&vector_mem_req.write));
+      VECTOR_P_POST:vm_legal=(vector_mem_req.buffer_id==WORK_L||
+        (vector_mem_req.buffer_id==WORK_ALPHA&&!vector_mem_req.write));
+      VECTOR_OACC_SCALE:vm_legal=vector_mem_req.buffer_id==WORK_ALPHA&&!vector_mem_req.write;
+      VECTOR_AFIN_QUANT:vm_legal=vector_mem_req.buffer_id==WORK_RECIP&&!vector_mem_req.write;
+      default:;
+    endcase
+    case(fheld_q.function_id)
+      FUNCTION_ALPHA_EXP:fm_legal=(function_mem_req.buffer_id==WORK_AA&&!function_mem_req.write)||
+        (function_mem_req.buffer_id==WORK_ALPHA&&function_mem_req.write);
+      FUNCTION_P_EXP:fm_legal=(function_mem_req.buffer_id==WORK_SCORE||function_mem_req.buffer_id==WORK_M)&&!function_mem_req.write;
+      FUNCTION_RECIP:fm_legal=(function_mem_req.buffer_id==WORK_L&&!function_mem_req.write)||
+        (function_mem_req.buffer_id==WORK_RECIP&&function_mem_req.write);
+      default:;
+    endcase
+    vm_legal&=vb_q&&active_adapter==1&&vector_mem_req.token==vheld_q.token&&range_legal(vector_mem_req)&&
+      vector_mem_req.bank==((vector_mem_req.buffer_id==WORK_ALPHA||vector_mem_req.buffer_id==WORK_SCORE)?vheld_q.tile[0]:1'b0);
+    fm_legal&=fb_q&&active_adapter==1&&function_mem_req.token==fheld_q.token&&range_legal(function_mem_req)&&
+      function_mem_req.bank==((function_mem_req.buffer_id==WORK_ALPHA||function_mem_req.buffer_id==WORK_SCORE)?fheld_q.tile[0]:1'b0);
+    if(vector_mem_req.write)begin
+      if(vector_mem_req.buffer_id==WORK_SCORE)vm_legal&=!v_written_q[0][vector_mem_req.index];
+      else for(int i=0;i<TILE;i++)if(vector_mem_req.mask[i]&&vector_mem_req.index+i<ROWS)
+        vm_legal&=!v_written_q[v_write_slot(vector_mem_req.buffer_id)][vector_mem_req.index+i];
+    end
+    if(function_mem_req.write)for(int i=0;i<TILE;i++)if(function_mem_req.mask[i]&&function_mem_req.index+i<ROWS)
+      fm_legal&=!f_written_q[function_mem_req.buffer_id==WORK_ALPHA?0:1][function_mem_req.index+i];
+  end
+  assign vector_mem_ready=vm_ready&&vm_legal&&!fault_q&&!flush_q;
+  assign function_mem_ready=fm_ready&&fm_legal&&!fault_q&&!flush_q;
+  dea8_pcore_workspace_v3 workspace(.clk,.reset,.clear(clear||ejv),
+    .v_valid(vector_mem_valid&&vm_legal&&!fault_q&&!flush_q),.v_ready(vm_ready),.v_req(vector_mem_req),
+    .v_out_valid(vector_mem_out_valid),.v_out_ready(vector_mem_out_ready),.v_out(vector_mem_out),
+    .f_valid(function_mem_valid&&fm_legal&&!fault_q&&!flush_q),.f_ready(fm_ready),.f_req(function_mem_req),
+    .f_out_valid(function_mem_out_valid),.f_out_ready(function_mem_out_ready),.f_out(function_mem_out));
+  assign source_enable=active_q&&!fault_q&&!flush_q;
+  assign xbc_ready=source_enable&&raw_xbc_ready;
+  assign hbm_ready=source_enable&&raw_hbm_ready;
+  assign kv_ready=source_enable&&raw_kv_ready;
+  assign ext_qoz_region_ready=raw_ext_region_ready&&!active_q&&!fault_q&&!flush_q;
+  assign ext_qoz_wr_ready=raw_ext_write_ready&&!active_q&&!fault_q&&!flush_q;
+  dea8_pcore_exec_v3 #(.PAIRED_Q_POST(1),.COMPLETE_O_OUTPUT(1)) exec(.clk,.reset,.clear,.external_error(fault_q||se),
+    .job_valid(ejv),.job_ready(ejr),.job(engine_job),.job_done_valid(edv),.job_done_ready(edr),.job_done(engine_done),
+    .busy(eb),.protocol_error(ee),.active_adapter,
+    .xbc_valid(xbc_valid&&source_enable),.xbc_ready(raw_xbc_ready),.xbc_entry,
+    .hbm_valid(hbm_valid&&source_enable),.hbm_ready(raw_hbm_ready),.hbm_entry,
+    .kv_valid(kv_valid&&source_enable),.kv_ready(raw_kv_ready),.kv_entry,
+    .post_valid,.post_ready,.post_job,.post_done_valid,.post_done_ready,.post_done,.post_data_valid(data_valid),.post_data_ready(data_ready),.post_data(data),
+    .post_result_valid(result_valid),.post_result_ready(result_ready),.post_result(result),
+    .vpu_valid(av),.vpu_ready(ar),.vpu_cmd(ac),.vpu_done_valid(adv),.vpu_done_ready(adr),.vpu_done(ad),
+    .sfu_valid(af),.sfu_ready(afr),.sfu_cmd(as),.sfu_done_valid(afd),.sfu_done_ready(afdr),.sfu_done(asd),
+    .p_valid(pv),.p_ready(pr),.p_entry(pe),.p_block(vheld_q.tile),.p_epoch(job_q.header.epoch),.p_head(job_q.header.head),
+    .acc_rd_valid(raw_request),.acc_rd_ready(raw_ready),.acc_rd_sel,.acc_rd_addr(matrix_acc_addr),.acc_data_valid(raw_valid),.acc_even(raw_even),.acc_odd(raw_odd),
+    .acc_wr_valid(acc_wr_valid&&!fault_q&&acc_write_legal),.acc_wr_ready(raw_write_ready),.acc_wr(matrix_acc_write),
+    .z_rd_valid(1'b0),.z_rd_ready(),.z_rd_tile('0),.z_rd_pair('0),.z_out_valid(),.z_out_ready(1'b0),.z_entry(),
+    .qoz_complete,.qoz_region,
+    .ext_qoz_region_valid(ext_qoz_region_valid&&!active_q&&!fault_q&&!flush_q),.ext_qoz_region_ready(raw_ext_region_ready),.ext_qoz_region,
+    .ext_qoz_wr_valid(ext_qoz_wr_valid&&!active_q&&!fault_q&&!flush_q),.ext_qoz_wr_ready(raw_ext_write_ready),.ext_qoz_wr,
+    .gu_prefetch_valid,.gu_prefetch_ready,.gu_prefetch_n);
+
+  assign fault_event=se||ee||(vector_done_valid&&!vdmatch&&!flush_q)||
+    (function_done_valid&&!fdmatch&&!flush_q)||(vector_result_valid&&!vrmatch&&!flush_q)||
+    (function_result_valid&&!frmatch&&!flush_q)||(is_reduce&&data_valid&&rd_armed_q&&!rd_legal)||
+    (acc_rd_valid&&!acc_read_legal&&!flush_q)||(acc_wr_valid&&!acc_write_legal&&!flush_q)||
+    (vector_mem_valid&&!vm_legal&&!flush_q)||(function_mem_valid&&!fm_legal&&!flush_q)||
+    ((ext_qoz_region_valid||ext_qoz_wr_valid)&&active_q&&!flush_q)||
+    (rope_req_valid&&!rope_legal&&!flush_q)||(rope_sfu_out_valid&&!rope_response_match&&!flush_q);
+  always_ff @(posedge clk)begin
+    if(reset)begin
+      job_q<='0;active_q<=0;complete_q<=0;fault_q<=0;status_q<=CONTROL_OK;
+      generation_q<=0;clear_q<=0;flush_q<=0;flush_acks_q<=0;region_context_q<=0;
+      vseq_q<=0;fseq_q<=0;vb_q<=0;fb_q<=0;vheld_q<='0;fheld_q<='0;vcount_q<=0;fcount_q<=0;
+      kv_sent_q<=0;reduce_sent_q<=0;afin_tile_q<=0;afin_pair_q<=0;
+      rd_armed_q<=0;rd_done_q<=0;rd_pair_q<=0;rd_tile_q<=0;rd_command_q<='0;
+      read_pending_count_q<=0;response_count_q<=0;response_rd_q<=0;response_wr_q<=0;
+      acc_written_q<=0;
+      rope_pending_q<=0;rope_held_q<='0;
+      for(int i=0;i<4;i++)v_written_q[i]<=0;
+      for(int i=0;i<2;i++)f_written_q[i]<=0;
+    end else if(clear)begin
+      if(!clear_q)generation_q<=generation_q+1'b1;
+      clear_q<=1;flush_q<=1;flush_acks_q<=0;active_q<=0;complete_q<=0;fault_q<=0;
+      vb_q<=0;fb_q<=0;rd_armed_q<=0;rd_done_q<=0;
+      read_pending_count_q<=0;response_count_q<=0;response_rd_q<=0;response_wr_q<=0;region_context_q<=0;
+      acc_written_q<=0;
+      rope_pending_q<=0;
+      for(int i=0;i<4;i++)v_written_q[i]<=0;
+      for(int i=0;i<2;i++)f_written_q[i]<=0;
     end else begin
-      if(job_valid&&job_ready) job_q<=job;
-      // K/V results cross two independent boundaries. Check the context at
-      // the forwarding point so a stale VPU result cannot reach concat.
-      if(is_kv_job&&post_result_valid&&post_result_ready&&
-         post_result.header!=job_q.header)
-        control_stream_error<=1'b1;
+      clear_q<=0;
+      if(rope_req_valid&&rope_req_ready)begin rope_pending_q<=1;rope_held_q<=rope_req;end
+      if(rope_out_valid&&rope_out_ready)rope_pending_q<=0;
+      if(flush_q)begin
+        flush_acks_q<=flush_acks_q|{sfu_flush_ack,vpu_flush_ack};
+        if(&(flush_acks_q|{sfu_flush_ack,vpu_flush_ack}))flush_q<=0;
+      end
+      if(job_valid&&job_ready)begin
+        job_q<=job;generation_q<=generation_q+1'b1;vseq_q<=0;fseq_q<=0;kv_sent_q<=0;reduce_sent_q<=0;status_q<=CONTROL_OK;
+        if(!job_legal||!precondition)begin complete_q<=1;status_q<=!job_legal?CONTROL_UNSUPPORTED:CONTROL_PRECONDITION;end
+        else begin active_q<=1;if(job.header.op==OP_Q_PROJ||job.header.op==OP_GU)region_context_q<=job.data_context;end
+      end
+      if(ext_qoz_region_valid&&ext_qoz_region_ready)region_context_q<=ext_qoz_context;
+      if(vector_valid&&vector_ready)begin
+        vb_q<=1;vheld_q<=vector_cmd;vseq_q<=vseq_q+1'b1;vcount_q<=0;afin_tile_q<=0;afin_pair_q<=0;acc_written_q<=0;
+        for(int i=0;i<4;i++)v_written_q[i]<=0;
+      end
+      if(function_valid&&function_ready)begin
+        fb_q<=1;fheld_q<=function_cmd;fseq_q<=fseq_q+1'b1;fcount_q<=0;
+        for(int i=0;i<2;i++)f_written_q[i]<=0;
+      end
+      if(acc_wr_valid&&acc_wr_ready)acc_written_q<=acc_written_q+1'b1;
+      if(vector_mem_valid&&vector_mem_ready&&vector_mem_req.write)begin
+        if(vector_mem_req.buffer_id==WORK_SCORE)v_written_q[0][vector_mem_req.index]<=1;
+        else for(int i=0;i<TILE;i++)if(vector_mem_req.mask[i]&&vector_mem_req.index+i<ROWS)
+          v_written_q[v_write_slot(vector_mem_req.buffer_id)][vector_mem_req.index+i]<=1;
+      end
+      if(function_mem_valid&&function_mem_ready&&function_mem_req.write)
+        for(int i=0;i<TILE;i++)if(function_mem_req.mask[i]&&function_mem_req.index+i<ROWS)
+          f_written_q[function_mem_req.buffer_id==WORK_ALPHA?0:1][function_mem_req.index+i]<=1;
+      if(vector_done_valid&&vector_done_ready)vb_q<=0;
+      if(function_done_valid&&function_done_ready)fb_q<=0;
+      if(function_result_valid&&function_result_ready)fcount_q<=fcount_q+1'b1;
+      if(vector_result_valid&&vector_result_ready)begin
+        vcount_q<=vcount_q+1'b1;
+        if(vheld_q.function_id==VECTOR_AFIN_QUANT)begin
+          if(afin_pair_q==PAIRS-1)begin afin_pair_q<=0;afin_tile_q<=afin_tile_q+1'b1;end
+          else afin_pair_q<=afin_pair_q+1'b1;
+        end
+      end
+      if(kv_out_valid&&kv_out_ready)kv_sent_q<=kv_sent_q+1'b1;
+      if(reduce_out_valid&&reduce_out_ready)reduce_sent_q<=reduce_sent_q+1'b1;
+      if(is_reduce&&post_valid&&post_ready)begin rd_command_q<=post_job;rd_armed_q<=1;rd_pair_q<=0;end
+      if(rin&&rr)begin
+        if(data.last)begin rd_done_q<=1;rd_armed_q<=0;rd_tile_q<=rd_tile_q+1'b1;end
+        else rd_pair_q<=rd_pair_q+1'b1;
+      end
+      if(is_reduce&&post_done_valid&&post_done_ready)rd_done_q<=0;
+      if(ejv)rd_tile_q<=0;
+      case({read_fire,raw_valid})
+        2'b10:read_pending_count_q<=read_pending_count_q+1'b1;
+        2'b01:read_pending_count_q<=read_pending_count_q-1'b1;
+        default:;
+      endcase
+      case({raw_valid,response_fire})
+        2'b10:response_count_q<=response_count_q+1'b1;
+        2'b01:response_count_q<=response_count_q-1'b1;
+        default:;
+      endcase
+      if(raw_valid)begin response_mem[response_wr_q]<={raw_odd,raw_even};response_wr_q<=response_wr_q+1'b1;end
+      if(response_fire)response_rd_q<=response_rd_q+1'b1;
+      if(edv&&edr)begin
+        active_q<=0;complete_q<=1;
+        if((is_reduce&&reduce_sent_q!=output_tiles(job_q.header.op)*PAIRS)||
+           (job_q.header.op==OP_K_PROJ&&kv_sent_q!=2*PAIRS)||
+           (job_q.header.op==OP_V_PROJ&&kv_sent_q!=2*V_PACKETS_PER_TILE))begin fault_q<=1;status_q<=CONTROL_EARLY_DONE;end
+      end
+      if(done_valid&&done_ready)complete_q<=0;
+      if(fault_event&&!fault_q&&!flush_q)begin fault_q<=1;complete_q<=1;status_q<=CONTROL_UNIT_ERROR;end
     end
   end
-
-  dea8_pcore_exec_v3 #(.PAIRED_Q_POST(PAIRED_Q_POST)) exec(
-    .clk,.reset,.clear,
-    .job_valid,.job_ready(legacy_job_ready),.job(legacy_job),
-    .job_done_valid(legacy_done_valid),.job_done_ready(legacy_done_ready),.job_done(legacy_done),
-    .busy(legacy_busy),.protocol_error(legacy_error),.active_adapter(legacy_owner),
-    .xbc_valid,.xbc_ready,.xbc_entry,
-    .hbm_valid,.hbm_ready,.hbm_entry,
-    .kv_valid,.kv_ready,.kv_entry,
-    .post_valid(exec_post_valid),.post_ready(exec_post_ready),.post_job(exec_post_job),
-    .post_done_valid(exec_post_done_valid),.post_done_ready(exec_post_done_ready),.post_done(exec_post_done),
-    .post_data_valid(exec_post_data_valid),.post_data_ready(exec_post_data_ready),.post_data(exec_post_data),
-    .post_result_valid(exec_post_result_valid),.post_result_ready(exec_post_result_ready),.post_result(post_result),
-    .vpu_valid,.vpu_ready,.vpu_cmd,
-    .vpu_done_valid,.vpu_done_ready,.vpu_done,
-    .sfu_valid,.sfu_ready,.sfu_cmd,
-    .sfu_done_valid,.sfu_done_ready,.sfu_done,
-    .p_valid,.p_ready,.p_entry,.p_block,.p_epoch,.p_head,
-    .acc_rd_valid,.acc_rd_ready,.acc_rd_sel,.acc_rd_addr,
-    .acc_data_valid,.acc_even,.acc_odd,
-    .acc_wr_valid,.acc_wr_ready,.acc_wr,
-    .z_rd_valid,.z_rd_ready,.z_rd_tile,.z_rd_pair,.z_out_valid,.z_out_ready,.z_entry,
-    .qoz_complete,.qoz_region,
-    .ext_qoz_region_valid,.ext_qoz_region_ready,.ext_qoz_region,
-    .ext_qoz_wr_valid,.ext_qoz_wr_ready,.ext_qoz_wr,
-    .gu_prefetch_valid,.gu_prefetch_ready,.gu_prefetch_n
-  );
 endmodule

@@ -1,8 +1,10 @@
 import pcore3_pkg::*;
 module dea8_pcore_exec_v3 #(
-  parameter bit PAIRED_Q_POST=0
+  parameter bit PAIRED_Q_POST=0,
+  parameter bit COMPLETE_O_OUTPUT=0
 ) (
   input logic clk,reset,clear,
+  input logic external_error=1'b0,
   input logic job_valid,output logic job_ready,input pcore_job_t job,
   output logic job_done_valid,input logic job_done_ready,output pcore_completion_t job_done,
   output logic busy,protocol_error,output logic [1:0] active_adapter,
@@ -60,7 +62,7 @@ module dea8_pcore_exec_v3 #(
   assign ext_qoz_region_ready=ext_qoz_region_valid&&region_req_ready;
   always_comb begin
     active_profile=operation_profile(aj.header.op);
-    job_output_qoz=active_profile.output_qoz;
+    job_output_qoz=active_profile.output_qoz||(COMPLETE_O_OUTPUT&&aj.header.op==OP_ATTENTION);
   end
   assign qoz_wr_valid=ext_qoz_wr_valid?ext_qoz_wr_valid:(post_result_valid&&job_output_qoz);
   assign qoz_wr=ext_qoz_wr_valid?ext_qoz_wr:post_result;
@@ -80,10 +82,10 @@ module dea8_pcore_exec_v3 #(
   assign attention_release_ready=(active_adapter==1)?qrelease_ready:1'b0;
   assign projection_release_ready=(active_adapter==0)?qrelease_ready:1'b0;
   assign projection_rd_owner=active_profile.input_owner;
-  assign rv[1]=0;assign regions[1]='0;assign pv[1]=0;assign posts[1]='0;assign pdr[1]=0;assign ddv[1]=0;assign datas[1]='0;
+  assign pv[1]=0;assign posts[1]='0;assign pdr[1]=0;assign ddv[1]=0;assign datas[1]='0;
   dea8_pcore_ctrl_v3 ctrl(.clk,.reset,.clear,.job_valid,.job_ready,.job,.job_done_valid,.job_done_ready,.job_done,
     .busy,.protocol_error(ctrl_error),.owner(active_adapter),.adapter_valid(av),.adapter_ready(ar),.adapter_job(aj),
-    .adapter_done_valid(dv),.adapter_done_ready(dr),.adapter_done(dc),.adapter_error(errors),.fabric_error(qoz_error||matrix_error),.operation_clear);
+    .adapter_done_valid(dv),.adapter_done_ready(dr),.adapter_done(dc),.adapter_error(errors),.fabric_error(qoz_error||matrix_error||external_error),.operation_clear);
   dea8_projection_job_adapter_v3 #(.PAIRED_Q_POST(PAIRED_Q_POST)) projection(.clk,.reset,.clear(local_clear),.op_valid(av[0]),.op_ready(ar[0]),.op_job(aj),
     .done_valid(dv[0]),.done_ready(dr[0]),.done(dc[0]),.error(errors[0]),.matrix_req(req[0]),.matrix_rsp(rsp[0]),
     .region_valid(rv[0]),.region_ready(rr[0]),.region(regions[0]),.region_complete(qoz_complete),.input_region(qoz_region),
@@ -106,9 +108,10 @@ module dea8_pcore_exec_v3 #(
   dea8_gu_xbc_frontend_v3 gu_xbc(.clk,.reset,.clear(local_clear),.restart(av[2]&&ar[2]),
     .in_valid(xbc_valid&&active_adapter==2),.in_ready(gu_xbc_ready),.in_entry(xbc_entry),
     .out_valid(gu_front_valid),.out_ready(gu_front_ready),.out_entry(gu_front_entry),.protocol_error(gu_front_error));
-  dea8_attention_job_adapter_v3 attention(.clk,.reset,.clear(local_clear),.op_valid(av[1]),.op_ready(ar[1]),.op_job(aj),
+  dea8_attention_job_adapter_v3 #(.COMPLETE_O_OUTPUT(COMPLETE_O_OUTPUT)) attention(.clk,.reset,.clear(local_clear),.op_valid(av[1]),.op_ready(ar[1]),.op_job(aj),
     .done_valid(dv[1]),.done_ready(dr[1]),.done(dc[1]),.error(errors[1]),.matrix_req(req[1]),.matrix_rsp(rsp[1]),
     .q_complete(qoz_complete),.q_region(qoz_region),.q_release(attention_release),.q_release_ready(attention_release_ready),
+    .o_region_valid(rv[1]),.o_region_ready(rr[1]),.o_region(regions[1]),
     .q_rd_valid(qread),.q_rd_ready(qread_ready),.q_rd_tile(qt),.q_rd_pair(qp),.q_rd_transport(qtransport),
     .q_out_valid(qout),.q_out_ready(qout_ready),.q_entry(qe),.p_valid,.p_ready,.p_entry,.p_block,.p_epoch,.p_head,
     .vpu_valid,.vpu_ready,.vpu_cmd,.vpu_done_valid,.vpu_done_ready,.vpu_done,

@@ -18,7 +18,8 @@ module dea8_attention_scheduler_v4 #(
   parameter int BLOCKS=KV_BLOCKS,
   // Full architectural tail slot. Descriptor acceptance/prefetch is separate
   // from launch permission; local RAM latency is not subtracted from this slot.
-  parameter int TAIL_SCALE_SLOT_CYCLES=ATTN_NOMINAL_SLOT
+  parameter int TAIL_SCALE_SLOT_CYCLES=ATTN_NOMINAL_SLOT,
+  parameter bit STREAM_P_POST=0
 ) (
   input logic clk,reset,clear,
   input logic start_valid, output logic start_ready,busy,
@@ -56,6 +57,8 @@ module dea8_attention_scheduler_v4 #(
   logic [BLOCKS-1:0] qk_pending_q,alpha_pending_q,p_exp_pending_q;
   logic [BLOCKS-1:0] p_post_pending_q,scale_pending_q;
   logic [BLOCKS-1:0] p_ready_q,scale_ready_q;
+  logic [BLOCKS-1:0] pv_committed_q,p_post_armed_q;
+  logic [BLOCKS-1:0] p_exp_done_q;
   logic recip_pending_q,afin_pending_q;
   logic vpu_busy_q,sfu_busy_q;
   vpu_cmd_t vpu_inflight_q;
@@ -117,9 +120,11 @@ module dea8_attention_scheduler_v4 #(
   always_comb begin
     vpu_pick='0;vpu_pick_qk=0;vpu_pick_p=0;vpu_pick_scale=0;vpu_pick_afin=0;
     for(int i=0;i<BLOCKS;i++) begin
-      if(!vpu_pick_qk&&qk_pending_q[i]) begin vpu_pick=i;vpu_pick_qk=1;end
+      if(!vpu_pick_qk&&qk_pending_q[i]&&
+         (!STREAM_P_POST||i==0||p_exp_done_q[i-1])) begin vpu_pick=i;vpu_pick_qk=1;end
       if(!vpu_pick_p&&!vpu_pick_qk&&p_post_pending_q[i]) begin vpu_pick=i;vpu_pick_p=1;end
-      if(!vpu_pick_scale&&!vpu_pick_qk&&!vpu_pick_p&&scale_pending_q[i]) begin
+      if(!vpu_pick_scale&&!vpu_pick_qk&&!vpu_pick_p&&scale_pending_q[i]&&
+         (!STREAM_P_POST||(i>0&&pv_committed_q[i-1]))) begin
         vpu_pick=i;vpu_pick_scale=1;
       end
     end
@@ -140,8 +145,10 @@ module dea8_attention_scheduler_v4 #(
   always_comb begin
     sfu_pick='0;sfu_pick_alpha=0;sfu_pick_p=0;sfu_pick_recip=0;
     for(int i=0;i<BLOCKS;i++) begin
-      if(!sfu_pick_alpha&&alpha_pending_q[i]) begin sfu_pick=i;sfu_pick_alpha=1;end
-      if(!sfu_pick_p&&!sfu_pick_alpha&&p_exp_pending_q[i]) begin sfu_pick=i;sfu_pick_p=1;end
+      if(!sfu_pick_alpha&&alpha_pending_q[i]&&
+         (!STREAM_P_POST||i<2||(p_ready_q[i-2]&&scale_ready_q[i-2]))) begin sfu_pick=i;sfu_pick_alpha=1;end
+      if(!sfu_pick_p&&!sfu_pick_alpha&&p_exp_pending_q[i]&&
+         (!STREAM_P_POST||p_post_armed_q[i])) begin sfu_pick=i;sfu_pick_p=1;end
     end
     sfu_pick_recip=recip_pending_q&&!sfu_pick_alpha&&!sfu_pick_p;
     sfu_cmd='0;sfu_cmd.epoch=epoch_q;sfu_cmd.head=head_q;sfu_cmd.block_id=sfu_pick;
@@ -161,6 +168,8 @@ module dea8_attention_scheduler_v4 #(
       head_q<=0;epoch_q<=0;qk_pending_q<='0;alpha_pending_q<='0;
       p_exp_pending_q<='0;p_post_pending_q<='0;scale_pending_q<='0;
       p_ready_q<='0;scale_ready_q<='0;scale_ready_q[0]<=1;
+      pv_committed_q<='0;p_post_armed_q<='0;
+      p_exp_done_q<='0;
       recip_pending_q<=0;afin_pending_q<=0;vpu_busy_q<=0;sfu_busy_q<=0;
       vpu_inflight_q<='0;sfu_inflight_q<='0;
     end else begin
@@ -173,6 +182,8 @@ module dea8_attention_scheduler_v4 #(
         qk_pending_q<='0;alpha_pending_q<='0;p_exp_pending_q<='0;
         p_post_pending_q<='0;scale_pending_q<='0;p_ready_q<='0;
         scale_ready_q<='0;scale_ready_q[0]<=1;
+        pv_committed_q<='0;p_post_armed_q<='0;
+        p_exp_done_q<='0;
         recip_pending_q<=0;afin_pending_q<=0;vpu_busy_q<=0;sfu_busy_q<=0;
       end
 
@@ -182,6 +193,7 @@ module dea8_attention_scheduler_v4 #(
       if(matrix_done_valid&&matrix_done_ready) begin
         matrix_completed_q<=matrix_completed_q+1'b1;
         if(matrix_done.op==MATRIX_QK) qk_pending_q[matrix_done.block_id]<=1;
+        if(matrix_done.op==MATRIX_PV) pv_committed_q[matrix_done.block_id]<=1;
         if(matrix_done.op==MATRIX_PV&&matrix_done.block_id==BLOCKS-2) begin
           tail_remaining_q<=TAIL_BITS'(TAIL_SCALE_SLOT_CYCLES-1);
           // Include the commit edge in the full guard. With preloaded A/B,
@@ -200,7 +212,10 @@ module dea8_attention_scheduler_v4 #(
         vpu_busy_q<=1;vpu_inflight_q<=vpu_cmd;
         case(vpu_cmd.op)
           VPU_QK_POST: qk_pending_q[vpu_cmd.block_id]<=0;
-          VPU_P_POST: p_post_pending_q[vpu_cmd.block_id]<=0;
+          VPU_P_POST: begin
+            p_post_pending_q[vpu_cmd.block_id]<=0;
+            p_post_armed_q[vpu_cmd.block_id]<=1;
+          end
           VPU_OACC_SCALE: scale_pending_q[vpu_cmd.block_id]<=0;
           VPU_AFIN: afin_pending_q<=0;
           default: ;
@@ -232,9 +247,13 @@ module dea8_attention_scheduler_v4 #(
         case(sfu_done.op)
           SFU_ALPHA_EXP: begin
             p_exp_pending_q[sfu_done.block_id]<=1;
+            if(STREAM_P_POST) p_post_pending_q[sfu_done.block_id]<=1;
             if(sfu_done.block_id!=0) scale_pending_q[sfu_done.block_id]<=1;
           end
-          SFU_P_EXP: p_post_pending_q[sfu_done.block_id]<=1;
+          SFU_P_EXP: begin
+            p_exp_done_q[sfu_done.block_id]<=1;
+            if(!STREAM_P_POST) p_post_pending_q[sfu_done.block_id]<=1;
+          end
           SFU_RECIP: afin_pending_q<=1;
           default: ;
         endcase

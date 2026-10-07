@@ -12,11 +12,15 @@ package pcore_control_pkg;
     logic [USER_TAG_BITS-1:0] user_tag;
     logic [CORE_BITS-1:0] core_id;
     logic [POSITION_BITS-1:0] position_base;
+    logic [15:0] data_context;
+    logic [7:0] rope_pair_base;
+    logic [1:0] layout_id;
   } control_job_t;
 
   typedef enum logic [3:0] {
     CONTROL_OK,CONTROL_UNSUPPORTED,CONTROL_CHILD_ERROR,CONTROL_CONTEXT_ERROR,
-    CONTROL_STREAM_ERROR,CONTROL_EARLY_DONE,CONTROL_UNIT_ERROR
+    CONTROL_STREAM_ERROR,CONTROL_EARLY_DONE,CONTROL_UNIT_ERROR,
+    CONTROL_PRECONDITION
   } control_status_e;
   typedef struct packed {
     control_job_t job;
@@ -31,10 +35,12 @@ package pcore_control_pkg;
     VECTOR_CAPTURE,VECTOR_ROPE,VECTOR_GU_MUL,VECTOR_QUANT,
     VECTOR_QK_POST,VECTOR_P_POST,VECTOR_OACC_SCALE,VECTOR_AFIN,
     FUNCTION_ROPE_COEFF,FUNCTION_GELU,FUNCTION_ALPHA_EXP,
-    FUNCTION_P_EXP,FUNCTION_RECIP
+    FUNCTION_P_EXP,FUNCTION_RECIP,
+    VECTOR_V_QUANT,VECTOR_ROPE_QUANT,VECTOR_GU_POST,VECTOR_AFIN_QUANT
   } control_function_e;
-  typedef enum logic [2:0] {
-    WORK_PAIR,WORK_GATE,WORK_Z,WORK_SCORE,WORK_P,WORK_ALPHA,WORK_OACC,WORK_QOZ
+  typedef enum logic [3:0] {
+    WORK_PAIR,WORK_GATE,WORK_Z,WORK_SCORE,WORK_P,WORK_ALPHA,WORK_OACC,WORK_QOZ,
+    WORK_M,WORK_AA,WORK_L,WORK_RECIP,WORK_FACC,WORK_KV_OUT
   } control_buffer_e;
   typedef enum logic {QUANT_FEATURE_B16,QUANT_TOKEN_B16} quant_axis_e;
   typedef struct packed {
@@ -46,7 +52,7 @@ package pcore_control_pkg;
     logic [5:0] tile;
     logic [5:0] tiles;
     logic [15:0] elements;
-    // Both RoPE halves reside in WORK_PAIR. tile is the first physical tile.
+    // RoPE tile identifies the completed internal pair; result tile is canonical.
     logic [7:0] rope_frequency_base;
     vpu_cmd_t attention_vpu;
     sfu_cmd_t attention_sfu;
@@ -69,6 +75,40 @@ package pcore_control_pkg;
     qvec16_t [0:1] vector_data;
     logic last;
   } control_quant_result_t;
+
+  typedef struct packed {
+    control_job_t job;
+    control_token_t token;
+    logic [5:0] tile,index;
+    logic [1:0] vector_valid;
+    logic [TILE-1:0] token_mask;
+    logic [TILE-1:0][FP_BITS-1:0] first,second;
+    logic last;
+  } control_fp_data_t;
+
+  typedef struct packed {
+    control_token_t token;
+    control_buffer_e buffer_id;
+    logic bank,write;
+    logic [5:0] index;
+    logic [TILE-1:0] mask;
+    logic [TILE-1:0][FP_BITS-1:0] data;
+  } control_memory_req_t;
+  typedef struct packed {
+    control_token_t token;
+    logic [TILE-1:0] mask;
+    logic [TILE-1:0][FP_BITS-1:0] data;
+  } control_memory_rsp_t;
+  typedef struct packed {
+    control_token_t token;
+    logic [5:0] row;
+    logic [POSITION_BITS-1:0] position;
+    logic [7:0] frequency_base;
+  } control_rope_req_t;
+  typedef struct packed {
+    control_rope_req_t request;
+    logic [TILE-1:0][FP_BITS-1:0] cosine,sine;
+  } control_rope_rsp_t;
 
   typedef enum logic [1:0] {COLLECT_K,COLLECT_V,REDUCE_O,REDUCE_DOWN} collective_op_e;
   typedef struct packed {
@@ -95,6 +135,8 @@ package pcore_control_pkg;
     logic [ROW_LANES-1:0][TILE-1:0][FP_BITS-1:0] payload;
     logic [ROW_LANES-1:0][SCALE_BITS-1:0] scales;
     logic last;
+    logic tile_last;
+    logic [15:0] feature_base,token_base;
   } collective_packet_t;
 
   function automatic logic is_collective(input pcore_op_e op);
