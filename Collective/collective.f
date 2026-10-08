@@ -1,0 +1,9 @@
+../V3/rtl/pcore3_pkg.sv
+../V3/rtl/pcore_control_pkg.sv
+../V3/rtl/dea8_fp32_v3_pkg.sv
+rtl/dea8_collective_pkg.sv
+rtl/dea8_collective_fifo.sv
+rtl/dea8_collective_fp_add.sv
+rtl/dea8_collective_reduce.sv
+rtl/dea8_collective_top.sv
+tb/tb_collective.sv
