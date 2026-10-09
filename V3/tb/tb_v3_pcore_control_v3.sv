@@ -184,11 +184,16 @@ module tb_v3_pcore_control_v3 #(
     while(rope_rsp_q.size()==0)@(negedge clk);
     r=rope_rsp_q.pop_front();
   endtask
-  // Every request queue and pending response must be idle before unit done.
-  task automatic drain_channels;
-    while(acc_rd_q.size()||acc_wr_q.size()||vm_req_q.size()||fm_req_q.size()||rope_req_q.size()||
-          acc_rsp_q.size()||vm_rsp_q.size()||fm_rsp_q.size()||rope_rsp_q.size()||rope_sfu_rsp_q.size())
+  // Unit completion drains only that unit's channels. SFU workspace traffic
+  // may continue independently while the VPU returns its completion token.
+  task automatic drain_vector_channels;
+    while(acc_rd_q.size()||acc_wr_q.size()||vm_req_q.size()||rope_req_q.size()||
+          acc_age.size()||vm_age.size()||rope_age.size()||
+          acc_rsp_q.size()||vm_rsp_q.size()||rope_rsp_q.size()||rope_sfu_rsp_q.size())
       @(negedge clk);
+  endtask
+  task automatic drain_function_channels;
+    while(fm_req_q.size()||fm_age.size()||fm_rsp_q.size())@(negedge clk);
   endtask
   // SFU4 / VPU32 release budget: lane throughput, not latency, limits the stream.
   task automatic pace_beat(input int values,input int lanes);
@@ -622,7 +627,7 @@ module tb_v3_pcore_control_v3 #(
           default:$fatal(1,"unexpected vector function");
         endcase
         @(negedge clk);vector_result_valid=0;vector_data_ready=0;hold_result=0;
-        drain_channels();
+        drain_vector_channels();
         vstage_end=cycle;
         if(vstage_end-vstage_start>stage_dur_max[c.function_id])stage_dur_max[c.function_id]=vstage_end-vstage_start;
         if(c.function_id==VECTOR_OACC_SCALE)begin
@@ -714,7 +719,7 @@ module tb_v3_pcore_control_v3 #(
           end
         end else $fatal(1,"unexpected SFU function");
         @(negedge clk);function_result_valid=0;function_data_ready=0;
-        while(fm_req_q.size()||fm_age.size()||fm_rsp_q.size())@(negedge clk);
+        drain_function_channels();
         fstage_end=cycle;
         if(fstage_end-fstage_start>stage_dur_max[c.function_id])stage_dur_max[c.function_id]=fstage_end-fstage_start;
         stage_delay(SFU_DONE_LAT,8,31,8);
