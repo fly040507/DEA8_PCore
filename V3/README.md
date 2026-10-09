@@ -117,7 +117,11 @@ GU slow-post 仍只在 G63 结果 slot 处停顿：276 拍，受影响间隔3623
     reports/tb_v3_pcore_seven_jobs.txt
     reports/v3_projection_performance.txt
 
-仿真日志必须与对应源码 SHA256 对照。完整控制的入口是 `run_control_v3.ps1`，最终状态为 `reports/control_v3_summary.txt`，对应源码清单为 `reports/control_v3_sources_sha256.csv`。历史 smoke/checkpoint 不能替代新控制验证，旧物理证据不作为当前 PCore 的综合/P&R 签核。
+仿真日志必须与对应源码 SHA256 对照。完整控制的入口是 `run_control_v3.ps1`，最新回归路径与状态由 `reports/control_v3_signoff_latest.txt` 给出；该目录保存 summary、coverage、日志及前后两份源码 SHA256。旧 `control_v3_summary.txt` 属于历史基线，不代表最新收尾结果。历史 smoke/checkpoint 不能替代新控制验证，旧物理证据不作为当前 PCore 的综合/P&R 签核。
+
+控制收尾默认验证确定性七 Job、异常与 cancel/recovery、16 个 stress seed、邻接模块。实例通过固定 `PCORE_ID` 检查 DEA8 下发的核号；VPU/SFU 返回检查数量上限与完整结果后的 done。只验证控制和接口，算术仍由 TB 模拟，不增加 SFU/VPU 算术 RTL。详细覆盖和运行方法见 `docs/PCore_Control_Center_v3.md`。
+
+2026-10-09：PCore Control V3 仿真收尾通过，25 项回归全部 PASS，包括 16 个独立 seed 的完整七 Job 链、56 个故障用例、9 类中途取消与 6 个数值 V 恢复 Job。当前证据为 `reports/control_signoff_20261008_210425/`；原始及续跑 SHA256 均保留，续跑前后 77 项一致。修复了后台 PowerShell 拆分 seed 参数的问题，未改 Matrix/DEQACC 算术。C0～C12 验收表和续跑说明见控制文档。本结论不包含真实 SFU/VPU、八核或 FPGA 时序签核。
 
 ## 阶段边界
 

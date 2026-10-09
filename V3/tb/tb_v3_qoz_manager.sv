@@ -30,10 +30,15 @@ module tb_v3_qoz_manager;
     if(!region_complete||active_req.header.job_id!=1)$fatal(1,"Q region not committed");
     // A different operation job_id is a legal consumer in the same epoch/head.
     consumer='{job_id:16'd2,epoch:4'd2,head:3'd1,op:OP_ATTENTION};
-    @(negedge clk);rd_valid=1;rd_tile=7;rd_pair=12;
+    @(negedge clk);out_ready=0;rd_valid=1;rd_tile=15;rd_pair=PAIRS-1;
     do @(posedge clk);while(!rd_ready);#1;
-    if(!out_valid||out_entry.row[0].data!=712)$fatal(1,"shared Q read");
-    @(negedge clk);rd_valid=0;@(negedge clk);release_valid=1;
+    if(!out_valid||out_entry.row[0].data!=1525)$fatal(1,"shared final Q read");
+    @(negedge clk);rd_valid=0;release_valid=1;
+    repeat(32)begin
+      @(negedge clk);
+      if(release_ready||!region_active||!out_valid||out_entry.row[0].data!=1525)$fatal(1,"release crossed stalled final Q response");
+    end
+    out_ready=1;@(negedge clk);
     do @(posedge clk);while(!release_ready);@(negedge clk);release_valid=0;
     acquire(QOZ_Z,OP_GU,3,32);
     if(active_req.owner!=QOZ_Z||region_complete)$fatal(1,"Q to Z handover");
@@ -66,7 +71,7 @@ module tb_v3_qoz_manager;
       @(negedge clk);req_valid=1;#1;if(req_ready)$fatal(1,"wrong tiles accepted");
       @(negedge clk);req_valid=0;if(!protocol_error)$fatal(1,"wrong tiles not detected");
     end
-    $display("tb_v3_qoz_manager PASS physical_store=1 Q_to_Z=1 consumer_job_id=1 stale_producer_rejected=1 wrong_release_rejected=1 O16=1 Z32_Down_release=1 wrong_consumer=1 unordered_write=1 wrong_tiles=3");$finish;
+    $display("tb_v3_qoz_manager PASS physical_store=1 Q_to_Z=1 consumer_job_id=1 stale_producer_rejected=1 wrong_release_rejected=1 O16=1 Z32_Down_release=1 wrong_consumer=1 unordered_write=1 wrong_tiles=3 last_Q_response_release_stall=32");$finish;
   end
   initial begin #30000;$fatal(1,"QOZ manager watchdog");end
 endmodule

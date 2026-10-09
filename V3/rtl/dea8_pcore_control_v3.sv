@@ -1,7 +1,9 @@
 import pcore3_pkg::*;
 import pcore_control_pkg::*;
 
-module dea8_pcore_control_v3(
+module dea8_pcore_control_v3 #(
+  parameter logic [CORE_BITS-1:0] PCORE_ID='0
+)(
   input logic clk,reset,clear,
   input logic job_valid,output logic job_ready,input control_job_t job,
   output logic done_valid,input logic done_ready,output control_completion_t done,
@@ -47,7 +49,7 @@ module dea8_pcore_control_v3(
   logic [GENERATION_BITS-1:0] generation_q;
   logic [COMMAND_BITS-2:0] vseq_q,fseq_q;
   logic [15:0] region_context_q;
-  logic precondition,job_legal,is_reduce,is_kv;
+  logic precondition,job_legal,core_match,is_reduce,is_kv;
   logic post_valid,post_ready,post_done_valid,post_done_ready,data_valid,data_ready;
   pcore_post_job_t post_job,post_done;
   post_data_t data;
@@ -104,6 +106,7 @@ module dea8_pcore_control_v3(
   assign is_reduce=job_q.header.op==OP_O_PROJ||job_q.header.op==OP_DOWN_PROJ;
   assign is_kv=job_q.header.op==OP_K_PROJ||job_q.header.op==OP_V_PROJ;
   always_comb begin
+    core_match=job.core_id==PCORE_ID;
     job_legal=int'(job.header.op)<7&&job.layout_id==0&&job.position_base<=((1<<POSITION_BITS)-ROWS)&&
       (job.header.op!=OP_K_PROJ||job.rope_pair_base<=128-TILE);
     precondition=1;
@@ -118,7 +121,7 @@ module dea8_pcore_control_v3(
       precondition&=region_context_q==job.data_context&&qoz_region.header.epoch==job.header.epoch&&qoz_region.header.head==job.header.head;
   end
   assign job_ready=!active_q&&!complete_q&&!fault_q&&!flush_q&&!reset&&!clear&&ejr;
-  assign ejv=job_valid&&job_ready&&job_legal&&precondition;
+  assign ejv=job_valid&&job_ready&&job_legal&&precondition&&core_match;
   assign busy=active_q||complete_q||fault_q||flush_q;
   assign flush_valid=flush_q;
   assign protocol_error=fault_q||ee||se;
@@ -175,9 +178,12 @@ module dea8_pcore_control_v3(
     if(fheld_q.function_id==FUNCTION_ALPHA_EXP)f_writes_complete=&f_written_q[0];
     if(fheld_q.function_id==FUNCTION_RECIP)f_writes_complete=&f_written_q[1];
   end
-  assign vdmatch=vb_q&&v_writes_complete&&!rope_pending_q&&!rope_req_valid&&vector_done.command==vheld_q&&!vector_done.error&&!read_pending_q&&!response_q&&!vector_mem_valid&&!vector_mem_out_valid&&
+  assign vdmatch=vb_q&&v_writes_complete&&!rope_pending_q&&!rope_req_valid&&vector_done.command==vheld_q&&!vector_done.error&&!read_pending_q&&!response_q&&!acc_rd_valid&&!acc_wr_valid&&!vector_mem_valid&&!vector_mem_out_valid&&
     (vheld_q.function_id!=VECTOR_AFIN_QUANT||vcount_q==QOZ_O_TILES*PAIRS)&&
-    (vheld_q.function_id!=VECTOR_P_POST||vcount_q==PAIRS);
+    (vheld_q.function_id!=VECTOR_P_POST||vcount_q==PAIRS)&&
+    (vheld_q.function_id!=VECTOR_V_QUANT||vcount_q==V_PACKETS_PER_TILE)&&
+    (vheld_q.function_id!=VECTOR_ROPE_QUANT||vcount_q==2*PAIRS)&&
+    (vheld_q.function_id!=VECTOR_GU_POST||vcount_q==PAIRS);
   assign fdmatch=fb_q&&f_writes_complete&&function_done.command==fheld_q&&!function_done.error&&!function_mem_valid&&!function_mem_out_valid&&
     (fheld_q.function_id!=FUNCTION_P_EXP||fcount_q==PAIRS)&&
     (fheld_q.function_id!=FUNCTION_GELU||fcount_q==ROWS);
@@ -199,6 +205,7 @@ module dea8_pcore_control_v3(
   assign frmatch=fb_q&&function_result.job==job_q&&function_result.token==fheld_q.token&&
     function_result.tile==fheld_q.tile&&function_result.index==fcount_q&&
     (fheld_q.function_id==FUNCTION_GELU||fheld_q.function_id==FUNCTION_P_EXP)&&
+    fcount_q<(active_adapter==1?PAIRS:ROWS)&&
     function_result.vector_valid==(active_adapter==1?row_mask(fcount_q):2'b01)&&
     function_result.last==(fcount_q==(active_adapter==1?PAIRS-1:ROWS-1));
   assign function_data_valid=sfdv&&!fault_q;
@@ -215,10 +222,10 @@ module dea8_pcore_control_v3(
     vrmatch=vb_q&&vector_result.token==vheld_q.token;
     if(active_adapter!=1)vrmatch&=rl;
     else if(vheld_q.function_id==VECTOR_P_POST)
-      vrmatch&=vector_result.tile==vheld_q.tile&&vector_result.index==vcount_q&&
+      vrmatch&=vcount_q<PAIRS&&vector_result.tile==vheld_q.tile&&vector_result.index==vcount_q&&
         vector_result.vector_valid==row_mask(vcount_q)&&vector_result.quant_axis==QUANT_FEATURE_B16&&vector_result.last==(vcount_q==PAIRS-1);
     else if(vheld_q.function_id==VECTOR_AFIN_QUANT)
-      vrmatch&=vector_result.tile==afin_tile_q&&vector_result.index==afin_pair_q&&
+      vrmatch&=vcount_q<QOZ_O_TILES*PAIRS&&vector_result.tile==afin_tile_q&&vector_result.index==afin_pair_q&&
         vector_result.vector_valid==row_mask(afin_pair_q)&&vector_result.quant_axis==QUANT_FEATURE_B16&&vector_result.last==(afin_pair_q==PAIRS-1);
     else vrmatch=0;
     if(job_q.header.op==OP_V_PROJ)vrmatch&=vector_result.token_mask==(vector_result.index>=3*(TILE/ROW_LANES)?16'h0007:16'hffff);
@@ -402,7 +409,10 @@ module dea8_pcore_control_v3(
       end
       if(job_valid&&job_ready)begin
         job_q<=job;generation_q<=generation_q+1'b1;vseq_q<=0;fseq_q<=0;kv_sent_q<=0;reduce_sent_q<=0;status_q<=CONTROL_OK;
-        if(!job_legal||!precondition)begin complete_q<=1;status_q<=!job_legal?CONTROL_UNSUPPORTED:CONTROL_PRECONDITION;end
+        if(!core_match||!job_legal||!precondition)begin
+          complete_q<=1;
+          status_q<=!core_match?CONTROL_CONTEXT_ERROR:(!job_legal?CONTROL_UNSUPPORTED:CONTROL_PRECONDITION);
+        end
         else begin active_q<=1;if(job.header.op==OP_Q_PROJ||job.header.op==OP_GU)region_context_q<=job.data_context;end
       end
       if(ext_qoz_region_valid&&ext_qoz_region_ready)region_context_q<=ext_qoz_context;
@@ -461,7 +471,12 @@ module dea8_pcore_control_v3(
            (job_q.header.op==OP_V_PROJ&&kv_sent_q!=2*V_PACKETS_PER_TILE))begin fault_q<=1;status_q<=CONTROL_EARLY_DONE;end
       end
       if(done_valid&&done_ready)complete_q<=0;
-      if(fault_event&&!fault_q&&!flush_q)begin fault_q<=1;complete_q<=1;status_q<=CONTROL_UNIT_ERROR;end
+      if(fault_event&&!fault_q&&!flush_q)begin
+        fault_q<=1;
+        // An already offered completion is immutable until accepted. A late
+        // return still faults the core, but cannot rewrite that held packet.
+        if(!complete_q)begin complete_q<=1;status_q<=CONTROL_UNIT_ERROR;end
+      end
     end
   end
 endmodule

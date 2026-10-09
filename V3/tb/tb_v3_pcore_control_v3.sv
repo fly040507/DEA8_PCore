@@ -3,7 +3,7 @@ import pcore3_pkg::*;
 import pcore_control_pkg::*;
 import fp32_legacy_ref_pkg::*;
 
-module tb_v3_pcore_control_v3;
+module tb_v3_pcore_control_v3 #(parameter bit MANUAL=0);
   logic clk=0;always #2 clk=~clk;
   logic reset=1,clear=0,job_valid=0,job_ready,done_valid,done_ready=0,busy,protocol_error;
   control_job_t job;control_completion_t done;
@@ -49,7 +49,43 @@ module tb_v3_pcore_control_v3;
   logic [15:0][31:0] scratch0[51],scratch1[51];
   bit kv_stall=0,reduce_stall=0;collective_packet_t kv_hold,reduce_hold;
   bit vector_stall=0,function_stall=0;control_command_t vector_hold,function_hold;
-  dea8_pcore_control_v3 dut(.*);
+  bit agents_enabled=1,allow_fault=0,hold_kv=0,hold_reduce=0;
+  bit stress=0,corners=0;
+  int seed=1;
+  logic [31:0] random_state[20];
+  longint coverage[24];
+  int barrier_hits[7],function_commands=0,done_wait[7];
+  int lifecycle_reads=0,lifecycle_releases=0,lifecycle_o_acquires=0,pv54_commits=0;
+  bit q_released=0;
+  bit acc_stall=0,vm_stall=0,fm_stall=0,rope_stall=0;
+  logic [1023:0] acc_hold;
+  control_memory_rsp_t vm_hold,fm_hold;
+  control_rope_rsp_t rope_hold;
+  int kv_tail_hold=0,reduce_tail_hold=0;
+  bit kv_tail_seen=0,reduce_tail_seen=0;
+  dea8_pcore_control_v3 #(.PCORE_ID(3'd2)) dut(.*);
+
+  function automatic int random_limit(input int channel,maximum);
+    logic [31:0] x;
+    x=random_state[channel];x^=x<<13;x^=x>>17;x^=x<<5;
+    random_state[channel]=x;
+    return int'(x%32'(maximum+1));
+  endfunction
+  task automatic delay_cycles(input int channel,maximum,counter);
+    int count;
+    count=stress?random_limit(channel,maximum):0;
+    coverage[counter]+=count;
+    repeat(count)@(negedge clk);
+  endtask
+  task automatic source_gap(input int channel,counter);
+    if(stress&&random_limit(channel,15)==0)delay_cycles(channel,7,counter);
+  endtask
+  task automatic barrier_wait(input int op);
+    if(corners)begin
+      barrier_hits[op]++;
+      repeat(32)begin @(negedge clk);if(done_valid||!busy)$fatal(1,"early completion at barrier op=%0d",op);end
+    end
+  endtask
 
   function automatic logic [31:0] bits(input real x);shortreal s;s=x;return $shortrealtobits(s);endfunction
   function automatic real real32(input logic [31:0] x);return real'($bitstoshortreal(x));endfunction
@@ -104,48 +140,72 @@ module tb_v3_pcore_control_v3;
       for(int i=0;i<TILE;i++)b.col[c].data[i*8+:8]=8'(is_kvb?(pv?1:1+block%3):bint(job.header.op,n,2*group+c,transport[0]));
     end
     @(negedge clk);
+    source_gap(is_kvb?2:1,is_kvb?2:1);
     if(is_kvb)begin kv_entry=b;kv_valid=1;do @(posedge clk);while(!kv_ready);@(negedge clk);kv_valid=0;end
     else begin hbm_entry=b;hbm_valid=1;do @(posedge clk);while(!hbm_ready);@(negedge clk);hbm_valid=0;end
   endtask
   task automatic feed_projection(input int nt,kt,input bit local_a);
     fork
       begin
+        if(stress&&!local_a)begin
+          int pause;pause=(seed+int'(job.header.op))%2?320:32;
+          coverage[0]+=pause;repeat(pause)@(negedge clk);
+        end
         if(!local_a)for(int n=0;n<nt;n++)for(int k=0;k<kt;k++)for(int g=0;g<XBC_GROUPS;g++)begin
-          @(negedge clk);xbc_entry='0;xbc_entry.tile_idx=TILE_BITS'(k);xbc_entry.group_idx=4'(g);
+          @(negedge clk);source_gap(0,0);xbc_entry='0;xbc_entry.tile_idx=TILE_BITS'(k);xbc_entry.group_idx=4'(g);
           xbc_entry.row_valid=g==XBC_GROUPS-1?4'b0111:4'b1111;
           for(int r=0;r<4;r++)xbc_entry.row[r]=qv(aint(4*g+r));
           xbc_valid=1;do @(posedge clk);while(!xbc_ready);@(negedge clk);xbc_valid=0;
         end
       end
-      begin for(int n=0;n<nt;n++)for(int k=0;k<kt;k++)for(int g=0;g<TILE/2;g++)send_b(local_a?(n*kt+k)%64:k,g,n,0,0,0);end
+      begin
+        if(stress)begin
+          int pause;pause=(seed+int'(job.header.op))%2?32:320;
+          coverage[1]+=pause;repeat(pause)@(negedge clk);
+        end
+        for(int n=0;n<nt;n++)for(int k=0;k<kt;k++)for(int g=0;g<TILE/2;g++)send_b(local_a?(n*kt+k)%64:k,g,n,0,0,0);
+      end
     join
   endtask
   task automatic feed_gu;
     fork
       begin
+        if(stress)begin coverage[0]+=128;repeat(128)@(negedge clk);end
         for(int n=0;n<32;n++)begin
           if(n>0)wait(allowed_n>=n);
           for(int k=0;k<64;k++)for(int g=0;g<XBC_GROUPS;g++)begin
-            @(negedge clk);xbc_entry='0;xbc_entry.tile_idx=TILE_BITS'(k);xbc_entry.group_idx=4'(g);
+            @(negedge clk);source_gap(0,0);xbc_entry='0;xbc_entry.tile_idx=TILE_BITS'(k);xbc_entry.group_idx=4'(g);
             xbc_entry.row_valid=g==XBC_GROUPS-1?4'b0111:4'b1111;
             for(int r=0;r<4;r++)xbc_entry.row[r]=qv(aint(4*g+r));
             xbc_valid=1;do @(posedge clk);while(!xbc_ready);@(negedge clk);xbc_valid=0;
           end
         end
       end
-      begin for(int n=0;n<32;n++)for(int t=0;t<128;t++)for(int g=0;g<8;g++)send_b(t%64,g,n,0,0,0);end
+      begin
+        if(stress)begin coverage[1]+=256;repeat(256)@(negedge clk);end
+        for(int n=0;n<32;n++)for(int t=0;t<128;t++)for(int g=0;g<8;g++)send_b(t%64,g,n,0,0,0);
+      end
     join
   endtask
   task automatic feed_attention;
     int b;bit pv_job;
+    if(stress)begin coverage[2]+=160;repeat(160)@(negedge clk);end
     for(int j=0;j<110;j++)begin
+      delay_cycles(2,15,2);
       if(j==0)begin b=0;pv_job=0;end
       else if(j==109)begin b=54;pv_job=1;end
       else begin pv_job=!j[0];b=j[0]?(j+1)/2:j/2-1;end
-      for(int t=0;t<16;t++)for(int g=0;g<8;g++)send_b((j*16+t)%64,g,0,1,b,pv_job);
+      for(int t=0;t<16;t++)for(int g=0;g<8;g++)begin
+        if(j==109&&t==15&&g==7)barrier_wait(OP_ATTENTION);
+        send_b((j*16+t)%64,g,0,1,b,pv_job);
+      end
     end
   endtask
   task automatic result_pair(input control_command_t c,input int tile,p,input qvec16_t a,b,input bit token_axis,input logic [15:0] mask);
+    delay_cycles(5,5,5);
+    if(c.job.header.op==OP_Q_PROJ&&tile==15&&p==PAIRS-1)barrier_wait(OP_Q_PROJ);
+    if(c.job.header.op==OP_GU&&tile==31&&p==PAIRS-1)barrier_wait(OP_GU);
+    if(c.function_id==VECTOR_AFIN_QUANT&&tile==15&&p==PAIRS-1)barrier_wait(OP_ATTENTION);
     @(negedge clk);vector_result='0;vector_result.token=c.token;vector_result.tile=6'(tile);vector_result.index=10'(p);
     vector_result.quant_axis=token_axis?QUANT_TOKEN_B16:QUANT_FEATURE_B16;
     vector_result.vector_valid=token_axis?2'b11:row_mask(p);vector_result.token_mask=mask;
@@ -156,6 +216,7 @@ module tb_v3_pcore_control_v3;
   task automatic read_acc(input acc_sel_e sel,input int addr,output logic [15:0][31:0] a,b);
     @(negedge clk);acc_rd_sel=sel;acc_rd_addr=10'(addr);acc_rd_valid=1;
     do @(posedge clk);while(!acc_rd_ready);@(negedge clk);acc_rd_valid=0;
+    delay_cycles(9,9,9);
     acc_data_ready=1;do @(posedge clk);while(!acc_data_valid);a=acc_even;b=acc_odd;
     @(negedge clk);acc_data_ready=0;
   endtask
@@ -174,6 +235,7 @@ module tb_v3_pcore_control_v3;
       function_mem_req=req;function_mem_valid=1;do @(posedge clk);while(!function_mem_ready);
       @(negedge clk);function_mem_valid=0;
       if(!write)begin
+        delay_cycles(11,9,10);
         function_mem_out_ready=1;do @(posedge clk);while(!function_mem_out_valid);
         if(function_mem_out.token!=c.token)$fatal(1,"SFU memory response identity");value=function_mem_out.data;
         @(negedge clk);function_mem_out_ready=0;
@@ -182,13 +244,14 @@ module tb_v3_pcore_control_v3;
       vector_mem_req=req;vector_mem_valid=1;do @(posedge clk);while(!vector_mem_ready);
       @(negedge clk);vector_mem_valid=0;
       if(!write)begin
+        delay_cycles(10,9,10);
         vector_mem_out_ready=1;do @(posedge clk);while(!vector_mem_out_valid);
         if(vector_mem_out.token!=c.token)$fatal(1,"VPU memory response identity");value=vector_mem_out.data;
         @(negedge clk);vector_mem_out_ready=0;
       end
     end
   endtask
-  initial begin: vector_model
+  task automatic vector_agent;
     control_command_t c;control_fp_data_t d;
     logic [15:0][31:0] a,b,x,y,stat,dummy;logic [31:0] v,old_m,new_m;
     real angle,cs,sn,frq;int tile;
@@ -197,6 +260,8 @@ module tb_v3_pcore_control_v3;
       @(posedge clk);
       if(vector_valid&&vector_ready)begin
         c=vector_cmd;commands[c.job.header.op]++;@(negedge clk);acc_token=c.token;
+        delay_cycles(5,37,5);
+        if(corners&&(c.function_id==VECTOR_AFIN_QUANT))barrier_wait(OP_ATTENTION);
         if(c.function_id==VECTOR_OACC_SCALE||c.function_id==VECTOR_AFIN_QUANT)begin
           if(c.elements!=ROWS*TILE*QOZ_O_TILES||c.tiles!=QOZ_O_TILES||c.source!=WORK_OACC)
             $fatal(1,"OACC command descriptor");
@@ -212,6 +277,7 @@ module tb_v3_pcore_control_v3;
               @(negedge clk);vector_data_ready=0;
               rope_req='{token:c.token,row:6'(r),position:16'(c.job.position_base+r),frequency_base:c.rope_frequency_base};
               rope_req_valid=1;do @(posedge clk);while(!rope_req_ready);@(negedge clk);rope_req_valid=0;
+              delay_cycles(12,9,12);
               rope_out_ready=1;do @(posedge clk);while(!rope_out_valid);
               for(int i=0;i<TILE;i++)begin
                 if(d.first[i]!==projection_golden(c.job.header.op,r,c.tile-1,i)||d.second[i]!==projection_golden(c.job.header.op,r,c.tile,i))$fatal(1,"RoPE matrix golden");
@@ -336,12 +402,13 @@ module tb_v3_pcore_control_v3;
           end
           default:$fatal(1,"unexpected vector function");
         endcase
+        delay_cycles(7,31,7);
         @(negedge clk);vector_done='{command:c,error:0};vector_done_valid=1;
         do @(posedge clk);while(!vector_done_ready);@(negedge clk);vector_done_valid=0;
       end
     end
-  end
-  initial begin: function_model
+  endtask
+  task automatic function_agent;
     control_command_t c;control_fp_data_t d;real x,t;
     logic [15:0][31:0] sc,stat,dummy;
     wait(!reset);
@@ -349,6 +416,9 @@ module tb_v3_pcore_control_v3;
       @(posedge clk);
       if(function_valid&&function_ready)begin
         c=function_cmd;@(negedge clk);
+        function_commands++;
+        delay_cycles(6,37,6);
+        if(corners&&c.function_id==FUNCTION_RECIP)barrier_wait(OP_ATTENTION);
         if(c.elements!=((c.function_id==FUNCTION_GELU||c.function_id==FUNCTION_P_EXP)?ROWS*TILE:ROWS))
           $fatal(1,"SFU command element count");
         if(c.function_id==FUNCTION_GELU)begin
@@ -361,7 +431,7 @@ module tb_v3_pcore_control_v3;
               x=real32(d.first[i]);t=$sqrt(2.0/3.141592653589793)*(x+0.044715*x*x*x);
               function_result.first[i]=bits(0.5*x*(2.0/(1.0+$exp(-2.0*t))));
             end
-            @(negedge clk);function_data_ready=0;function_result_valid=1;
+            @(negedge clk);function_data_ready=0;delay_cycles(6,5,6);function_result_valid=1;
             do @(posedge clk);while(!function_result_ready);@(negedge clk);function_result_valid=0;
           end
         end else if(c.function_id==FUNCTION_P_EXP)begin
@@ -377,7 +447,7 @@ module tb_v3_pcore_control_v3;
                 else function_result.second[i]=(sc[i]==32'hff800000) ? 0 : bits($exp(real32(sc[i])-real32(stat[0])));
               end
             end
-            @(negedge clk);function_result_valid=1;do @(posedge clk);while(!function_result_ready);
+            @(negedge clk);delay_cycles(6,5,6);function_result_valid=1;do @(posedge clk);while(!function_result_ready);
             @(negedge clk);function_result_valid=0;
           end
         end else if(c.function_id==FUNCTION_RECIP)begin
@@ -394,18 +464,20 @@ module tb_v3_pcore_control_v3;
             memory_access(c,1,WORK_ALPHA,r,c.tile[0],1,stat,dummy);
           end
         end else $fatal(1,"unexpected SFU function");
+        delay_cycles(8,31,8);
         @(negedge clk);function_done='{command:c,error:0};function_done_valid=1;
         do @(posedge clk);while(!function_done_ready);@(negedge clk);function_done_valid=0;
       end
     end
-  end
-  initial begin: rope_coefficient_model
+  endtask
+  task automatic rope_agent;
     control_rope_req_t req;real angle;
     wait(!reset);
     forever begin
       @(posedge clk);
       if(rope_sfu_valid&&rope_sfu_ready)begin
         req=rope_sfu_req;@(negedge clk);rope_sfu_out='0;rope_sfu_out.request=req;
+        delay_cycles(18,13,12);
         for(int i=0;i<TILE;i++)begin
           angle=req.position*(10000.0**(-2.0*(req.frequency_base+i)/256.0));
           rope_sfu_out.cosine[i]=bits($cos(angle));rope_sfu_out.sine[i]=bits($sin(angle));
@@ -414,13 +486,40 @@ module tb_v3_pcore_control_v3;
         @(negedge clk);rope_sfu_out_valid=0;
       end
     end
+  endtask
+  initial begin: unit_agents
+    forever begin
+      wait(agents_enabled&&!reset&&!clear);
+      fork
+        vector_agent();
+        function_agent();
+        rope_agent();
+        begin wait(!agents_enabled||clear||reset);end
+      join_any
+      disable fork;
+    end
   end
-  always @(posedge clk)if(!reset&&!clear)begin
+  always @(posedge clk)if(reset||clear)begin
+    kv_stall=0;reduce_stall=0;vector_stall=0;function_stall=0;
+    acc_stall=0;vm_stall=0;fm_stall=0;rope_stall=0;
+    q_released=0;
+  end else begin
     cycle++;
     if(cycle%10000==0)$display("CONTROL_PROGRESS cycle=%0d op=%0d issues=%0d post=%0d capture=%0d index=%0d vec=%0d sfu=%0d region=%0d",
       cycle,job.header.op,issues[job.header.op],dut.post_service.state_q,dut.post_service.capture_q,dut.post_service.index_q,
       dut.vheld_q.function_id,dut.fheld_q.function_id,qoz_region.owner);
-    if(protocol_error)$fatal(1,"control fault status=%0d post=%b engine=%b op=%0d",dut.status_q,dut.se,dut.ee,job.header.op);
+    if(protocol_error&&!allow_fault)$fatal(1,"control fault status=%0d post=%b engine=%b op=%0d",dut.status_q,dut.se,dut.ee,job.header.op);
+    if(xbc_valid&&!xbc_ready)coverage[13]++;
+    if(hbm_valid&&!hbm_ready)coverage[14]++;
+    if(kv_valid&&!kv_ready)coverage[15]++;
+    if(vector_valid&&!vector_ready)coverage[3]++;
+    if(function_valid&&!function_ready)coverage[4]++;
+    if(acc_data_valid&&!acc_data_ready)coverage[9]++;
+    if((vector_mem_out_valid&&!vector_mem_out_ready)||(function_mem_out_valid&&!function_mem_out_ready))coverage[10]++;
+    if(rope_sfu_valid&&!rope_sfu_ready)coverage[11]++;
+    if(rope_out_valid&&!rope_out_ready)coverage[12]++;
+    if(kv_out_valid&&!kv_out_ready)coverage[16]++;
+    if(reduce_out_valid&&!reduce_out_ready)coverage[17]++;
     if(dut.exec.dispatch.matrix.req_valid)issues[job.header.op]++;
     if(dut.exec.dispatch.req.start&&active_adapter==1)matrix_jobs++;
     if(gu_prefetch_valid&&gu_prefetch_ready)allowed_n=gu_prefetch_n;
@@ -430,9 +529,32 @@ module tb_v3_pcore_control_v3;
     if(vector_stall&&(!vector_valid||vector_cmd!==vector_hold))$fatal(1,"vector command changed while stalled");
     if(function_stall&&(!function_valid||function_cmd!==function_hold))$fatal(1,"function command changed while stalled");
     vector_stall=vector_valid&&!vector_ready;function_stall=function_valid&&!function_ready;vector_hold=vector_cmd;function_hold=function_cmd;
+    if(acc_stall&&(!acc_data_valid||{acc_odd,acc_even}!==acc_hold))$fatal(1,"ACC response changed while stalled");
+    if(vm_stall&&(!vector_mem_out_valid||vector_mem_out!==vm_hold))$fatal(1,"VPU memory response changed while stalled");
+    if(fm_stall&&(!function_mem_out_valid||function_mem_out!==fm_hold))$fatal(1,"SFU memory response changed while stalled");
+    if(rope_stall&&(!rope_out_valid||rope_out!==rope_hold))$fatal(1,"RoPE response changed while stalled");
+    acc_stall=acc_data_valid&&!acc_data_ready;acc_hold={acc_odd,acc_even};
+    vm_stall=vector_mem_out_valid&&!vector_mem_out_ready;vm_hold=vector_mem_out;
+    fm_stall=function_mem_out_valid&&!function_mem_out_ready;fm_hold=function_mem_out;
+    rope_stall=rope_out_valid&&!rope_out_ready;rope_hold=rope_out;
+    if(active_adapter==1&&dut.exec.qout&&dut.exec.qout_ready)lifecycle_reads++;
+    if(active_adapter==1&&dut.exec.qrelease&&dut.exec.qrelease_ready)begin
+      if(dut.exec.qoz.store.rd_out_valid||dut.exec.qread)$fatal(1,"Q release before reads drain");
+      q_released=1;lifecycle_releases++;
+    end
+    if(active_adapter==1&&dut.exec.qoz_req_valid&&dut.exec.region_req_ready&&dut.exec.qoz_req.owner==QOZ_O)begin
+      if(!q_released)$fatal(1,"O acquire before Q release");
+      lifecycle_o_acquires++;
+    end
+    if(active_adapter==1&&dut.exec.attention.mdv&&dut.exec.attention.mdr&&dut.exec.attention.md.op==MATRIX_PV&&dut.exec.attention.md.block_id==54)pv54_commits++;
+    if(function_valid&&function_ready&&function_cmd.function_id==FUNCTION_RECIP&&pv54_commits!=1)$fatal(1,"RECIP before PV54 commit");
     if(kv_out_valid&&kv_out_ready)begin
       qvec16_t expected;int tile,p,r;
       tile=kv_out.tile;p=kv_out.index;
+      if(!kv_out.quantized||kv_out.op!=(job.header.op==OP_K_PROJ?COLLECT_K:COLLECT_V))$fatal(1,"KV layout/type");
+      if(kv_out.feature_base!==(job.header.op==OP_K_PROJ?16'(job.rope_pair_base+tile*128):16'(job.core_id*32+tile*TILE+(p%8)*2)))$fatal(1,"KV feature coordinate");
+      if(kv_out.token_base!==(job.header.op==OP_K_PROJ?16'(p*2):16'((p/8)*16)))$fatal(1,"KV token coordinate");
+      if(kv_out.vector_valid!==(job.header.op==OP_K_PROJ?row_mask(p):2'b11)||kv_out.token_mask!==(job.header.op==OP_V_PROJ&&p>=24?16'h0007:16'hffff))$fatal(1,"KV mask");
       if(kv_out.job!=job||sent[job.header.op]!=(job.header.op==OP_K_PROJ?tile*PAIRS+p:tile*32+p))$fatal(1,"KV order/context");
       for(int lane=0;lane<2;lane++)if(kv_out.vector_valid[lane])begin
         if(job.header.op==OP_K_PROJ)expected=kgold[tile][2*p+lane];
@@ -448,21 +570,34 @@ module tb_v3_pcore_control_v3;
       sent[job.header.op]++;
     end
     if(reduce_out_valid&&reduce_out_ready)begin
+      if(reduce_out.quantized||reduce_out.op!=(job.header.op==OP_O_PROJ?REDUCE_O:REDUCE_DOWN)||
+         reduce_out.feature_base!=reduce_out.tile*TILE||reduce_out.token_base!=reduce_out.index*ROW_LANES||
+         reduce_out.vector_valid!=row_mask(reduce_out.index))$fatal(1,"reduce layout/coordinate");
       if(reduce_out.job!=job||sent[job.header.op]!=reduce_out.tile*PAIRS+reduce_out.index)$fatal(1,"reduce order/context");
       for(int r=0;r<2;r++)if(reduce_out.vector_valid[r])for(int i=0;i<TILE;i++)
         if(reduce_out.payload[r][i]!==projection_golden(job.header.op,2*reduce_out.index+r,reduce_out.tile,i))$fatal(1,"reduce numerical golden");
       sent[job.header.op]++;
     end
   end
-  always @(negedge clk)if(!reset)begin
-    kv_out_ready=cycle%7!=0;reduce_out_ready=cycle%5!=0;
-    vector_ready=cycle%11!=0;function_ready=cycle%13!=0;
+  always @(negedge clk)if(!reset&&agents_enabled)begin
+    kv_out_ready=stress?random_limit(13,4)!=0:cycle%7!=0;
+    reduce_out_ready=stress?random_limit(14,4)!=0:cycle%5!=0;
+    vector_ready=stress?random_limit(3,4)!=0:cycle%11!=0;
+    function_ready=stress?random_limit(4,4)!=0:cycle%13!=0;
+    rope_sfu_ready=stress?random_limit(15,4)!=0:1;
+    if(corners&&kv_out_valid&&kv_out.last&&!kv_tail_seen)begin kv_tail_seen=1;kv_tail_hold=32;barrier_hits[job.header.op]++;end
+    if(corners&&reduce_out_valid&&reduce_out.last&&!reduce_tail_seen)begin reduce_tail_seen=1;reduce_tail_hold=32;barrier_hits[job.header.op]++;end
+    if(kv_tail_hold>0)begin kv_out_ready=0;kv_tail_hold--;if(done_valid)$fatal(1,"KV tail done");end
+    if(reduce_tail_hold>0)begin reduce_out_ready=0;reduce_tail_hold--;if(done_valid)$fatal(1,"reduce tail done");end
+    if(hold_kv)kv_out_ready=0;
+    if(hold_reduce)reduce_out_ready=0;
   end
   task automatic run_job(input pcore_op_e op,input int id,expected_issues);
     if(op==OP_O_PROJ||op==OP_DOWN_PROJ)
       for(int r=0;r<ROWS;r++)reduced_gold[op][r]=local_projection_golden(op,r);
     @(negedge clk);job='0;job.header='{job_id:16'(id),epoch:4'd3,head:3'd1,op:op};
     job.data_context=16'h1234;job.user_tag=64'ha5a5000000000000|id;job.position_base=7;job.core_id=2;job.rope_pair_base=32;
+    kv_tail_seen=0;reduce_tail_seen=0;
     job_valid=1;do @(posedge clk);while(!job_ready);job_start=cycle;@(negedge clk);job_valid=0;
     fork
       begin
@@ -479,7 +614,8 @@ module tb_v3_pcore_control_v3;
         wait(done_valid);
         if(done.job!==job||done.status!=CONTROL_OK||issues[op]!=expected_issues)$fatal(1,"Job completion op=%0d issues=%0d expected=%0d",op,issues[op],expected_issues);
         $display("CONTROL_JOB op=%0d cycles=%0d issues=%0d sent=%0d commands=%0d",op,cycle-job_start,issues[op],sent[op],commands[op]);
-        repeat(4)begin @(negedge clk);if(!done_valid||job_ready||done.job!==job)$fatal(1,"completion hold");end
+        done_wait[op]=stress?4+random_limit(7,31):4;
+        repeat(done_wait[op])begin @(negedge clk);if(!done_valid||job_ready||done.job!==job||done.status!=CONTROL_OK)$fatal(1,"completion hold");end
         done_ready=1;@(negedge clk);done_ready=0;completed++;
       end
     join
@@ -505,11 +641,18 @@ module tb_v3_pcore_control_v3;
     end
   endtask
   initial begin
+    agents_enabled=!MANUAL;
+    stress=$test$plusargs("STRESS");corners=$test$plusargs("CORNERS");
+    if($value$plusargs("SEED=%d",seed))begin end
+    for(int i=0;i<20;i++)random_state[i]=32'(seed)^(32'h9e3779b9*32'(i+1));
+    for(int i=0;i<24;i++)coverage[i]=0;
+    for(int i=0;i<7;i++)begin barrier_hits[i]=0;done_wait[i]=0;end
     job='0;vector_done='0;function_done='0;vector_result='0;function_result='0;xbc_entry='0;hbm_entry='0;kv_entry='0;acc_wr='0;
     ext_qoz_region='0;ext_qoz_wr='0;
     for(int i=0;i<7;i++)begin issues[i]=0;sent[i]=0;commands[i]=0;outputs[i]=0;end
     for(int r=0;r<ROWS;r++)begin m[r]=32'hff800000;lsum[r]=0;end
     repeat(35)@(negedge clk);reset=0;
+    if(MANUAL)wait(1'b0);
     if($test$plusargs("ATTENTION_ONLY"))begin
       prepare_q();run_job(OP_ATTENTION,4,45760);
       if(!qoz_complete||qoz_region.owner!=QOZ_O||matrix_jobs!=110)$fatal(1,"Attention-only count");
@@ -529,6 +672,17 @@ module tb_v3_pcore_control_v3;
     run_job(OP_GU,6,106496);
     run_job(OP_DOWN_PROJ,7,53248);
     if(sent[OP_K_PROJ]!=52||sent[OP_V_PROJ]!=64||sent[OP_O_PROJ]!=1664||sent[OP_DOWN_PROJ]!=1664)$fatal(1,"egress counts");
+    if(lifecycle_reads!=55*16*PAIRS||lifecycle_releases!=1||lifecycle_o_acquires!=1||pv54_commits!=1)$fatal(1,"Attention lifecycle coverage reads=%0d release=%0d acquire=%0d tail=%0d",lifecycle_reads,lifecycle_releases,lifecycle_o_acquires,pv54_commits);
+    if(stress)begin
+      for(int i=0;i<13;i++)if(coverage[i]==0)$fatal(1,"missing stress coverage channel=%0d",i);
+      if(coverage[16]==0||coverage[17]==0)$fatal(1,"missing egress stress coverage");
+    end
+    $display("CONTROL_LIFECYCLE Q_reads=%0d Q_release=%0d O_acquire=%0d PV54_commit=%0d",lifecycle_reads,lifecycle_releases,lifecycle_o_acquires,pv54_commits);
+    for(int i=0;i<7;i++)begin
+      if(corners&&barrier_hits[i]==0)$fatal(1,"missing completion corner op=%0d",i);
+      $display("CONTROL_COVER_JOB op=%0d issues=%0d packets=%0d vpu=%0d barrier=%0d done_hold=%0d",i,issues[i],sent[i],commands[i],barrier_hits[i],done_wait[i]);
+    end
+    $display("CONTROL_COVER seed=%0d stress=%0d xbc_gap=%0d hbm_gap=%0d kvb_gap=%0d vcmd_stall=%0d fcmd_stall=%0d vresult_delay=%0d fresult_delay=%0d vdone_delay=%0d fdone_delay=%0d acc_backpressure=%0d workspace_backpressure=%0d rope_request_stall=%0d rope_response_stall=%0d kv_out_stall=%0d reduce_out_stall=%0d sfu_commands=%0d",seed,stress,coverage[0],coverage[1],coverage[2],coverage[3],coverage[4],coverage[5],coverage[6],coverage[7],coverage[8],coverage[9],coverage[10],coverage[11],coverage[12],coverage[16],coverage[17],function_commands);
     $display("tb_v3_pcore_control_v3 PASS jobs=7 issues=265408 attention_jobs=110 real_rope=1 real_gelu=1 real_softmax=1 all_mask_row=1 q_o_z_chain=1 egress_backpressure=1");$finish;
   end
   initial begin #12000000;$fatal(1,"control watchdog op=%0d stage=%0d vec=%0d sfu=%0d",job.header.op,dut.post_service.state_q,dut.vheld_q.function_id,dut.fheld_q.function_id);end

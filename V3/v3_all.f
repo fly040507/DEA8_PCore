@@ -71,3 +71,4 @@ tb/tb_v3_gu_scheduler_stress.sv
 tb/tb_v3_attention_gu_chain.sv
 tb/tb_v3_pcore_control_v3.sv
 tb/tb_v3_pcore_control_protocol.sv
+tb/tb_v3_pcore_control_faults.sv
