@@ -153,14 +153,6 @@ module tb_v3_pcore_control_v3 #(
     req='0;req.token=c.token;req.buffer_id=buf_id;req.index=6'(index);req.bank=bank;req.write=write;
     req.mask=buf_id==WORK_SCORE?'1:16'b1;req.data=data;vm_req_q.push_back(req);
   endtask
-  task automatic vm_stat_write(input control_command_t c,input control_buffer_e buffer_id,
-    input int index,input logic [15:0][31:0] data);
-    control_memory_req_t request_item;
-    request_item='0;request_item.token=c.token;request_item.buffer_id=buffer_id;
-    request_item.index=6'(index);request_item.write=1;request_item.data=data;
-    for(int i=0;i<TILE;i++)request_item.mask[i]=(index+i<ROWS);
-    vm_req_q.push_back(request_item);
-  endtask
   task automatic fm_issue(input control_command_t c,input control_buffer_e buf_id,input bit bank,
     input int index,input bit write,input logic [15:0][31:0] data);
     control_memory_req_t req;
@@ -168,9 +160,8 @@ module tb_v3_pcore_control_v3 #(
     req.mask=buf_id==WORK_SCORE?'1:16'b1;req.data=data;fm_req_q.push_back(req);
   endtask
   task automatic acc_collect(output logic [15:0][31:0] a,b);
-    logic [1023:0] payload;
     while(acc_rsp_q.size()==0)@(negedge clk);
-    payload=acc_rsp_q.pop_front();{b,a}=payload;
+    {b,a}=acc_rsp_q.pop_front();
   endtask
   task automatic vm_collect(output control_memory_rsp_t r);
     while(vm_rsp_q.size()==0)@(negedge clk);
@@ -193,7 +184,6 @@ module tb_v3_pcore_control_v3 #(
   // SFU4 / VPU32 release budget: lane throughput, not latency, limits the stream.
   task automatic pace_beat(input int values,input int lanes);
     int due;
-    @(negedge clk);
     fpace_n++;
     due=fpace_ref+((fpace_n*values)+lanes-1)/lanes;
     while(cycle<due)@(negedge clk);
@@ -353,14 +343,13 @@ module tb_v3_pcore_control_v3 #(
     if(c.function_id==VECTOR_AFIN_QUANT&&tile==15&&p==PAIRS-1)begin
       @(negedge clk);vector_result_valid=0;barrier_wait(OP_ATTENTION);
     end
-    if(clk!==1'b0)@(negedge clk);
-    vector_result='0;vector_result.token=c.token;vector_result.tile=6'(tile);vector_result.index=10'(p);
+    @(negedge clk);vector_result='0;vector_result.token=c.token;vector_result.tile=6'(tile);vector_result.index=10'(p);
     vector_result.quant_axis=token_axis?QUANT_TOKEN_B16:QUANT_FEATURE_B16;
     vector_result.vector_valid=token_axis?2'b11:row_mask(p);vector_result.token_mask=mask;
     vector_result.vector_data[0]=a;vector_result.vector_data[1]=b;
     vector_result.last=p==(token_axis?31:PAIRS-1);vector_result_valid=1;
     do @(posedge clk);while(!vector_result_ready);
-    @(negedge clk);vector_result_valid=0;
+    if(!hold_result)begin @(negedge clk);vector_result_valid=0;end
   endtask
 
   // ---------------- legacy manual helpers (fault environment) ----------------
@@ -401,14 +390,10 @@ module tb_v3_pcore_control_v3 #(
   endtask
   task automatic rope_quant(input control_command_t c);
     control_fp_data_t d;control_rope_rsp_t rr;int tile;
-    control_rope_req_t request_item;
     logic [15:0][31:0] va[ROWS],vb[ROWS];
     logic [$bits(qvec16_t)-1:0] qa[ROWS],qb[ROWS];
-    for(int r=0;r<ROWS;r++)begin
-      request_item='0;request_item.token=c.token;request_item.row=6'(r);
-      request_item.position=16'(c.job.position_base+r);request_item.frequency_base=c.rope_frequency_base;
-      rope_req_q.push_back(request_item);
-    end
+    for(int r=0;r<ROWS;r++)
+      rope_req_q.push_back('{token:c.token,row:6'(r),position:16'(c.job.position_base+r),frequency_base:c.rope_frequency_base});
     for(int r=0;r<ROWS;r++)begin
       recv_vbeat(d);
       if(d.index!=r||d.token!=c.token||d.job!=c.job||!d.vector_valid[0])$fatal(1,"RoPE stream identity");
@@ -438,7 +423,7 @@ module tb_v3_pcore_control_v3 #(
   task automatic v_quant(input control_command_t c);
     control_fp_data_t d;
     logic [15:0][31:0] a,b;
-    logic [$bits(qvec16_t)-1:0] qa[V_PACKETS_PER_TILE],qb[V_PACKETS_PER_TILE];
+    qvec16_t qa[V_PACKETS_PER_TILE],qb[V_PACKETS_PER_TILE];
     for(int j=0;j<V_PACKETS_PER_TILE;j++)begin
       recv_vbeat(d);
       for(int i=0;i<TILE;i++)begin
@@ -454,7 +439,7 @@ module tb_v3_pcore_control_v3 #(
   endtask
   task automatic gu_post(input control_command_t c);
     control_fp_data_t d;
-    logic [$bits(qvec16_t)-1:0] qz[ROWS];
+    qvec16_t qz[ROWS];
     for(int r=0;r<ROWS;r++)begin
       recv_vbeat(d);
       if(d.index!=r||d.second[0]!==bits(2.0*aint(r)))$fatal(1,"GU Up pair");
@@ -464,21 +449,15 @@ module tb_v3_pcore_control_v3 #(
     vector_data_ready=0;
     for(int p=0;p<PAIRS;p++)result_pair(c,c.tile,p,qz[2*p],p<25?qz[2*p+1]:'0,0,'1);
   endtask
-  // Statistics use the existing 16-row workspace spans; SCORE stays full-row.
+  // QK_POST per block: 26 FACC reads plus 51 M reads are issued together, then
+  // each row checks the matrix result, writes SCORE/M/AA (51 each) and updates
+  // the online-softmax running max. 204 workspace operations, II=1.
   task automatic qk_post(input control_command_t c);
     logic [15:0][31:0] a,b,stat,wdata;control_memory_rsp_t rsp;
     logic [31:0] v,old_m,nm;
-    logic [31:0] old_max[ROWS],aa_value[ROWS];
     acc_sel_e facc=c.attention_vpu.facc_bank?ACC_FACC_B:ACC_FACC_A;
     for(int p=0;p<PAIRS;p++)acc_rd_issue(facc,p);
-    for(int base=0;base<ROWS;base+=TILE)vm_issue(c,WORK_M,1'b0,base,0,'0);
-    for(int base=0;base<ROWS;base+=TILE)begin
-      vm_collect(rsp);stat=rsp.data;
-      for(int i=0;i<TILE;i++)if(base+i<ROWS)begin
-        old_max[base+i]=stat[i];
-        if(stat[i]!==m[base+i])$fatal(1,"M span readback row=%0d",base+i);
-      end
-    end
+    for(int r=0;r<ROWS;r++)vm_issue(c,WORK_M,1'b0,r,0,'0);
     for(int p=0;p<PAIRS;p++)begin
       acc_collect(a,b);
       for(int r=0;r<2;r++)if(2*p+r<ROWS)begin
@@ -492,41 +471,39 @@ module tb_v3_pcore_control_v3 #(
         wdata='0;
         for(int i=0;i<TILE;i++)wdata[i]=score[c.tile][2*p+r][i];
         vm_issue(c,WORK_SCORE,c.tile[0],2*p+r,1,wdata);
-        old_m=old_max[2*p+r];nm=old_m;
+        vm_collect(rsp);stat=rsp.data;
+        if(stat[0]!==m[2*p+r])$fatal(1,"M readback block=%0d row=%0d got=%h exp=%h",c.tile,2*p+r,stat[0],m[2*p+r]);
+        old_m=m[2*p+r];nm=old_m;
         for(int i=0;i<TILE;i++)
           if(real32(score[c.tile][2*p+r][i])>real32(nm))nm=score[c.tile][2*p+r][i];
         // exp(old-new) is the cross-block scale; equal maxima mean no scale at
         // all, which also keeps an all -inf row free of NaN.
-        aa_value[2*p+r]=(old_m==nm)?32'd0:bits(real32(old_m)-real32(nm));
+        wdata='0;wdata[0]=(old_m==nm)?32'd0:bits(real32(old_m)-real32(nm));
+        vm_issue(c,WORK_AA,1'b0,2*p+r,1,wdata);
+        wdata='0;wdata[0]=nm;vm_issue(c,WORK_M,1'b0,2*p+r,1,wdata);
         m[2*p+r]=nm;
       end
-    end
-    for(int base=0;base<ROWS;base+=TILE)begin
-      wdata='0;for(int i=0;i<TILE;i++)if(base+i<ROWS)wdata[i]=m[base+i];
-      vm_stat_write(c,WORK_M,base,wdata);
-      wdata='0;for(int i=0;i<TILE;i++)if(base+i<ROWS)wdata[i]=aa_value[base+i];
-      vm_stat_write(c,WORK_AA,base,wdata);
     end
   endtask
   // P_POST per block: consume the 26 P beats, read L and ALPHA for every row,
   // fold them into the running denominator and write L back (51 writes).
   task automatic p_post(input control_command_t c);
-    control_fp_data_t d;control_memory_rsp_t lr,ar;
+    control_fp_data_t d,pd[PAIRS];control_memory_rsp_t lr,ar;
     logic [15:0][31:0] x,lstat,astat,wdata;logic [31:0] nl;
-    logic [$bits(qvec16_t)-1:0] qa[PAIRS],qb[PAIRS];
+    qvec16_t qa[PAIRS],qb[PAIRS];
     for(int p=0;p<PAIRS;p++)begin
+      recv_vbeat(d);pd[p]=d;
+      if(d.index!=p||d.tile!=c.tile||d.token!=c.token)$fatal(1,"P stream identity");
       for(int r=0;r<2;r++)if(2*p+r<ROWS)begin
         vm_issue(c,WORK_L,1'b0,2*p+r,0,'0);
         vm_issue(c,WORK_ALPHA,c.tile[0],2*p+r,0,'0);
       end
     end
     for(int p=0;p<PAIRS;p++)begin
-      recv_vbeat(d);
-      if(d.index!=p||d.tile!=c.tile||d.token!=c.token)$fatal(1,"P stream identity");
       for(int r=0;r<2;r++)if(2*p+r<ROWS)begin
         vm_collect(lr);lstat=lr.data;
         vm_collect(ar);astat=ar.data;
-        x=r?d.second:d.first;
+        x=r?pd[p].second:pd[p].first;
         if(lstat[0]!==lsum[2*p+r])$fatal(1,"L readback row=%0d got=%h exp=%h",2*p+r,lstat[0],lsum[2*p+r]);
         if(astat[0]!==alpha[c.tile][2*p+r][0])
           $fatal(1,"ALPHA readback block=%0d row=%0d got=%h exp=%h",c.tile,2*p+r,astat[0],alpha[c.tile][2*p+r][0]);
@@ -542,7 +519,6 @@ module tb_v3_pcore_control_v3 #(
   endtask
   task automatic oacc_scale(input control_command_t c);
     logic [15:0][31:0] a,b,stat,dummy;logic [31:0] v;
-    control_memory_rsp_t rsp;
     for(int t=0;t<QOZ_O_TILES;t++)for(int p=0;p<PAIRS;p++)begin
       acc_rd_issue(ACC_OACC,t*PAIRS+p);
       vm_issue(c,WORK_ALPHA,c.tile[0],2*p,0,'0);
@@ -557,6 +533,7 @@ module tb_v3_pcore_control_v3 #(
     end
     for(int t=0;t<QOZ_O_TILES;t++)for(int p=0;p<PAIRS;p++)begin
       acc_collect(a,b);
+      control_memory_rsp_t rsp;
       vm_collect(rsp);
       for(int i=0;i<TILE;i++)begin
         if(a[i]!==attention_gold[2*p]||(p<25&&b[i]!==attention_gold[2*p+1]))
@@ -621,8 +598,8 @@ module tb_v3_pcore_control_v3 #(
           VECTOR_AFIN_QUANT:afin_quant(c);
           default:$fatal(1,"unexpected vector function");
         endcase
-        @(negedge clk);vector_result_valid=0;vector_data_ready=0;hold_result=0;
         drain_channels();
+        @(negedge clk);vector_result_valid=0;vector_data_ready=0;hold_result=0;
         vstage_end=cycle;
         if(vstage_end-vstage_start>stage_dur_max[c.function_id])stage_dur_max[c.function_id]=vstage_end-vstage_start;
         if(c.function_id==VECTOR_OACC_SCALE)begin
@@ -667,7 +644,6 @@ module tb_v3_pcore_control_v3 #(
             pace_beat(TILE,SFU_LANES);
             @(negedge clk);function_result_valid=1;
             do @(posedge clk);while(!function_result_ready);
-            @(negedge clk);function_result_valid=0;
           end
         end else if(c.function_id==FUNCTION_P_EXP)begin
           for(int p=0;p<PAIRS;p++)begin
@@ -694,7 +670,6 @@ module tb_v3_pcore_control_v3 #(
             pace_beat(2*TILE,SFU_LANES);
             @(negedge clk);function_result_valid=1;
             do @(posedge clk);while(!function_result_ready);
-            @(negedge clk);function_result_valid=0;
           end
         end else if(c.function_id==FUNCTION_RECIP)begin
           for(int r=0;r<ROWS;r++)fm_issue(c,WORK_L,1'b0,r,0,'0);
@@ -713,8 +688,8 @@ module tb_v3_pcore_control_v3 #(
             fm_issue(c,WORK_ALPHA,c.tile[0],r,1,stat);
           end
         end else $fatal(1,"unexpected SFU function");
+        drain_channels();
         @(negedge clk);function_result_valid=0;function_data_ready=0;
-        while(fm_req_q.size()||fm_age.size()||fm_rsp_q.size())@(negedge clk);
         fstage_end=cycle;
         if(fstage_end-fstage_start>stage_dur_max[c.function_id])stage_dur_max[c.function_id]=fstage_end-fstage_start;
         stage_delay(SFU_DONE_LAT,8,31,8);
@@ -726,17 +701,17 @@ module tb_v3_pcore_control_v3 #(
 
   // RoPE service: request accepted II=1, response released ROPE_LAT later.
   task automatic rope_agent;
-    control_rope_req_t req;control_rope_rsp_t answer;real angle;
+    control_rope_req_t req;real angle;
     wait(!reset);
     forever begin
       @(posedge clk);
       if(rope_sfu_valid&&rope_sfu_ready)begin
-        req=rope_sfu_req;answer='0;answer.request=req;
+        req=rope_sfu_req;rope_sfu_out='0;rope_sfu_out.request=req;
         for(int i=0;i<TILE;i++)begin
           angle=req.position*(10000.0**(-2.0*(req.frequency_base+i)/256.0));
-          answer.cosine[i]=bits($cos(angle));answer.sine[i]=bits($sin(angle));
+          rope_sfu_out.cosine[i]=bits($cos(angle));rope_sfu_out.sine[i]=bits($sin(angle));
         end
-        rope_sfu_rsp_q.push_back(answer);
+        rope_sfu_rsp_q.push_back(rope_sfu_out);
       end
     end
   endtask
@@ -753,7 +728,7 @@ module tb_v3_pcore_control_v3 #(
         end else rope_sfu_out_valid=0;
       end
     end
-  end
+  endtask
   initial begin: unit_agents
     forever begin
       wait(agents_enabled&&!reset&&!clear);
@@ -765,12 +740,10 @@ module tb_v3_pcore_control_v3 #(
       join_any
       disable fork;
     end
-  end
+  endtask
 
   // ---------------- channel drivers and per-cycle bookkeeping ----------------
-  always @(negedge clk)begin: channel_present
-    acc_rd_item_t read_item;
-    if(!reset&&agents_enabled)begin
+  always @(negedge clk)if(!reset&&agents_enabled)begin
     if(stress)begin
       kv_out_ready=random_limit(13,4)!=0;
       reduce_out_ready=random_limit(14,4)!=0;
@@ -796,7 +769,7 @@ module tb_v3_pcore_control_v3 #(
     function_mem_out_ready=fm_age.size()>0&&fm_age[0]>=WORK_RD_LAT-1;
     rope_out_ready=rope_age.size()>0&&rope_age[0]>=ROPE_LAT-1;
     // Request presentation, one beat per cycle while the queue is non-empty.
-    if(acc_rd_q.size()>0)begin read_item=acc_rd_q[0];acc_rd_valid=1;acc_rd_sel=read_item.sel;acc_rd_addr=read_item.addr;end
+    if(acc_rd_q.size()>0)begin acc_rd_valid=1;acc_rd_sel=acc_rd_q[0].sel;acc_rd_addr=acc_rd_q[0].addr;end
     else acc_rd_valid=0;
     if(acc_wr_q.size()>0)begin acc_wr_valid=1;acc_wr=acc_wr_q[0];end
     else acc_wr_valid=0;
@@ -806,7 +779,6 @@ module tb_v3_pcore_control_v3 #(
     else function_mem_valid=0;
     if(rope_req_q.size()>0)begin rope_req_valid=1;rope_req=rope_req_q[0];end
     else rope_req_valid=0;
-    end
   end
 
   always @(posedge clk)if(reset||clear)begin
@@ -838,10 +810,10 @@ module tb_v3_pcore_control_v3 #(
       end
       if(rope_req_valid&&rope_req_ready)rope_req_q.pop_front();
       // Response transfer captures the payload for the waiting collector.
-      if(acc_data_valid&&acc_data_ready)begin acc_rsp_q.push_back({acc_odd,acc_even});void'(acc_age.pop_front());end
-      if(vector_mem_out_valid&&vector_mem_out_ready)begin vm_rsp_q.push_back(vector_mem_out);void'(vm_age.pop_front());end
-      if(function_mem_out_valid&&function_mem_out_ready)begin fm_rsp_q.push_back(function_mem_out);void'(fm_age.pop_front());end
-      if(rope_out_valid&&rope_out_ready)begin rope_rsp_q.push_back(rope_out);void'(rope_age.pop_front());end
+      if(acc_data_valid&&acc_data_ready)acc_rsp_q.push_back({acc_odd,acc_even});
+      if(vector_mem_out_valid&&vector_mem_out_ready)vm_rsp_q.push_back(vector_mem_out);
+      if(function_mem_out_valid&&function_mem_out_ready)fm_rsp_q.push_back(function_mem_out);
+      if(rope_out_valid&&rope_out_ready)rope_rsp_q.push_back(rope_out);
       // RoPE hop: the external service answers in request order.
       if(rope_sfu_valid&&rope_sfu_ready)rope_age.push_back(-1-resp_extra(12));
       if(rope_sfu_out_valid&&rope_sfu_out_ready)void'(rope_sfu_rsp_q.pop_front());
@@ -969,8 +941,8 @@ module tb_v3_pcore_control_v3 #(
         $display("JOB_PERF op=%s cycles=%0d matrix_issues=%0d first_issue=%0d last_issue=%0d matrix_span=%0d matrix_util=%0d.%02d%% job_matrix_occupancy=%0d.%02d%% post_tail=%0d egress_tail=%0d commands=%0d",
           op_name(op),
           job_cycles,issues[op],first_issue_cyc[op],last_issue_cyc[op],span,
-          issues[op]*100/span,(issues[op]*10000/span)%100,
-          issues[op]*100/job_cycles,(issues[op]*10000/job_cycles)%100,
+          issues[op]*100/span,(issues[op]*100)%span,
+          issues[op]*100/job_cycles,(issues[op]*100)%job_cycles,
           done_cyc[op]-last_issue_cyc[op],done_cyc[op]-last_egress_cyc[op],commands[op]);
         if(op==OP_ATTENTION)begin
           steady_max=0;steady_sum=0;steady_n=0;

@@ -87,8 +87,11 @@ module dea8_pcore_control_v3 #(
   logic [ROWS-1:0] v_written_q[0:3],f_written_q[0:1];
   logic [9:0] acc_written_q;
   logic v_writes_complete,f_writes_complete,raw_ext_region_ready,raw_ext_write_ready;
-  logic rope_pending_q,rope_legal,rope_response_match;
-  control_rope_req_t rope_held_q;
+  localparam int ROPE_OUTSTANDING=8;
+  logic rope_pending_q,rope_legal,rope_response_match,rope_credit,rope_req_fire,rope_rsp_fire;
+  logic [3:0] rope_count_q;
+  logic [2:0] rope_rd_q,rope_wr_q;
+  control_rope_req_t rope_requests[0:ROPE_OUTSTANDING-1];
   function automatic int v_write_slot(input control_buffer_e id);
     case(id) WORK_SCORE:return 0;WORK_M:return 1;WORK_AA:return 2;default:return 3;endcase
   endfunction
@@ -191,10 +194,14 @@ module dea8_pcore_control_v3 #(
   assign function_done_ready=!flush_q&&!fault_q&&fdmatch;
   assign rope_legal=vb_q&&vheld_q.function_id==VECTOR_ROPE_QUANT&&rope_req.token==vheld_q.token&&
     rope_req.row<ROWS&&rope_req.position==job_q.position_base+rope_req.row&&rope_req.frequency_base==vheld_q.rope_frequency_base;
-  assign rope_sfu_valid=rope_req_valid&&rope_legal&&!rope_pending_q&&!fault_q&&!flush_q;
+  assign rope_pending_q=rope_count_q!=0;
+  assign rope_rsp_fire=rope_out_valid&&rope_out_ready;
+  assign rope_credit=rope_count_q<ROPE_OUTSTANDING||rope_rsp_fire;
+  assign rope_sfu_valid=rope_req_valid&&rope_legal&&rope_credit&&!fault_q&&!flush_q;
   assign rope_sfu_req=rope_req;
-  assign rope_req_ready=rope_sfu_ready&&rope_legal&&!rope_pending_q&&!fault_q&&!flush_q;
-  assign rope_response_match=rope_pending_q&&rope_sfu_out.request==rope_held_q;
+  assign rope_req_ready=rope_sfu_ready&&rope_legal&&rope_credit&&!fault_q&&!flush_q;
+  assign rope_req_fire=rope_req_valid&&rope_req_ready;
+  assign rope_response_match=rope_pending_q&&rope_sfu_out.request==rope_requests[rope_rd_q];
   assign rope_out_valid=rope_sfu_out_valid&&rope_response_match&&!fault_q&&!flush_q;
   assign rope_out=rope_sfu_out;
   assign rope_sfu_out_ready=rope_out_ready&&rope_response_match&&!fault_q&&!flush_q;
@@ -387,7 +394,7 @@ module dea8_pcore_control_v3 #(
       rd_armed_q<=0;rd_done_q<=0;rd_pair_q<=0;rd_tile_q<=0;rd_command_q<='0;
       read_pending_count_q<=0;response_count_q<=0;response_rd_q<=0;response_wr_q<=0;
       acc_written_q<=0;
-      rope_pending_q<=0;rope_held_q<='0;
+      rope_count_q<=0;rope_rd_q<=0;rope_wr_q<=0;
       for(int i=0;i<4;i++)v_written_q[i]<=0;
       for(int i=0;i<2;i++)f_written_q[i]<=0;
     end else if(clear)begin
@@ -396,13 +403,18 @@ module dea8_pcore_control_v3 #(
       vb_q<=0;fb_q<=0;rd_armed_q<=0;rd_done_q<=0;
       read_pending_count_q<=0;response_count_q<=0;response_rd_q<=0;response_wr_q<=0;region_context_q<=0;
       acc_written_q<=0;
-      rope_pending_q<=0;
+      rope_count_q<=0;rope_rd_q<=0;rope_wr_q<=0;
       for(int i=0;i<4;i++)v_written_q[i]<=0;
       for(int i=0;i<2;i++)f_written_q[i]<=0;
     end else begin
       clear_q<=0;
-      if(rope_req_valid&&rope_req_ready)begin rope_pending_q<=1;rope_held_q<=rope_req;end
-      if(rope_out_valid&&rope_out_ready)rope_pending_q<=0;
+      if(rope_req_fire)begin rope_requests[rope_wr_q]<=rope_req;rope_wr_q<=rope_wr_q+1'b1;end
+      if(rope_rsp_fire)rope_rd_q<=rope_rd_q+1'b1;
+      case({rope_req_fire,rope_rsp_fire})
+        2'b10:rope_count_q<=rope_count_q+1'b1;
+        2'b01:rope_count_q<=rope_count_q-1'b1;
+        default:;
+      endcase
       if(flush_q)begin
         flush_acks_q<=flush_acks_q|{sfu_flush_ack,vpu_flush_ack};
         if(&(flush_acks_q|{sfu_flush_ack,vpu_flush_ack}))flush_q<=0;
