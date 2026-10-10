@@ -1,0 +1,9 @@
+../Pcore/rtl/pcore_pkg.sv
+../Pcore/rtl/dea8_tile_link_pkg.sv
+../Pcore/rtl/pcore_control_pkg.sv
+../Pcore/rtl/dea8_fp32_pkg.sv
+rtl/dea8_reduce_fifo.sv
+rtl/dea8_reduce_fp_add.sv
+rtl/dea8_reduce_tree.sv
+rtl/dea8_reduce_top.sv
+tb/tb_reduce.sv
