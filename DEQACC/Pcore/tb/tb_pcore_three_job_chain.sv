@@ -3,6 +3,11 @@ import pcore_pkg::*;
 import pcore_control_pkg::*;
 import fp32_legacy_ref_pkg::*;
 module tb_pcore_three_job_chain;
+  localparam int ATTN_STEADY=ATTN_NOMINAL_SLOT+1;
+  localparam int GU_STEADY=3346-(11-DEQACC_PIPE_STAGES);
+  // Fixed TB SFU_RECIP (26) + VPU_AFIN (408) + command handshakes (5).
+  // This service tail is independent of the Matrix DEQACC pipeline length.
+  localparam int ATTN_SERVICE_TAIL=26+408+5;
   logic clk=0;always #2 clk=~clk;
   logic reset=1,clear=0,job_valid=0,job_ready,done_valid,done_ready=0;
   logic ext_qoz_region_valid=0,ext_qoz_region_ready,ext_qoz_wr_valid=0,ext_qoz_wr_ready;
@@ -165,8 +170,10 @@ module tb_pcore_three_job_chain;
       ext_qoz_wr='0;ext_qoz_wr.header=ext_qoz_region.header;ext_qoz_wr.n=6'(t);
       ext_qoz_wr.pair_data.tile_idx=TILE_BITS'(t);ext_qoz_wr.pair_data.pair_idx=PAIR_BITS'(p);
       ext_qoz_wr.pair_data.row_valid=row_mask(p);
-      ext_qoz_wr.pair_data.row[0]=(owner==QOZ_Z)?qvec16_t'(z_golden[t*ROWS+2*p]):qv(1,128);
-      ext_qoz_wr.pair_data.row[1]=(owner==QOZ_Z&&p<PAIRS-1)?qvec16_t'(z_golden[t*ROWS+2*p+1]):qv(1,128);
+      ext_qoz_wr.pair_data.row[0]=(owner==QOZ_Z)?qvec16_t'(z_golden[t*ROWS+2*p]):
+        owner==QOZ_Q?qv(64,127):qv(1,128);
+      ext_qoz_wr.pair_data.row[1]=(owner==QOZ_Z&&p<PAIRS-1)?qvec16_t'(z_golden[t*ROWS+2*p+1]):
+        owner==QOZ_Q?qv(64,127):qv(1,128);
       ext_qoz_wr.last=p==PAIRS-1;ext_qoz_wr_valid=1;
       do @(posedge clk);while(!ext_qoz_wr_ready);@(negedge clk);ext_qoz_wr_valid=0;
     end
@@ -453,6 +460,23 @@ module tb_pcore_three_job_chain;
       for(int n=0;n<64;n++)proj_first[op][n]=0;
     end
     repeat(35)@(negedge clk);reset=0;
+    if($test$plusargs("V1_ATTN_ONLY"))begin
+      prepare_fixture(QOZ_Q,OP_Q_PROJ,16,10);
+      send_operation(OP_ATTENTION,13);
+      fork
+        begin for(int j=0;j<110;j++)for(int t=0;t<16;t++)for(int g=0;g<8;g++)send_b(j*16+t,g,0,0,1);end
+        finish_operation();
+      join
+      for(int j=0;j<110;j++)begin
+        if(count_attn[j]!=416||last_attn[j]-first_attn[j]!=415)$fatal(1,"V1 Attention body");
+        if(j>0&&j<109&&first_attn[j]-first_attn[j-1]!=ATTN_STEADY)$fatal(1,"V1 Attention steady");
+      end
+      $display("V1_ATTN_TAIL observed_interval=%0d expected=%0d observed_service=%0d expected=%0d",first_attn[109]-first_attn[108],2*ATTN_STEADY-1,attn_final_done-commit_attn[109],ATTN_SERVICE_TAIL);
+      if(first_attn[109]-first_attn[108]!=2*ATTN_STEADY-1||
+        attn_final_done-commit_attn[109]!=ATTN_SERVICE_TAIL)$fatal(1,"V1 Attention tail");
+      if(op_issues[OP_ATTENTION]!=45760||qoz_complete||dut.qactive)$fatal(1,"V1 Attention completion/release");
+      $display("tb_pcore_three_job_chain PASS attention_only=1 issues=45760 body=416 steady=%0d service_tail=%0d",ATTN_STEADY,ATTN_SERVICE_TAIL);$finish;
+    end
     if($test$plusargs("SEVEN_JOBS"))begin
       send_operation(OP_K_PROJ,11);fork feed_projection_xbc(2,64);finish_operation();join
       send_operation(OP_V_PROJ,12);fork feed_projection_xbc(2,64);finish_operation();join
@@ -471,16 +495,16 @@ module tb_pcore_three_job_chain;
       if(!qoz_complete||qoz_region.owner!=QOZ_Z)$fatal(1,"seven GU did not commit Z");
       for(int n=0;n<32;n++)begin
         if(count_gu[n]!=3328||last_gu[n]-first_gu[n]!=3327)$fatal(1,"seven GU issue body");
-        if(n>0&&(first_gu[n]-first_gu[n-1]!=3346||stall_a_n[n]||stall_b_n[n]||stall_slot_n[n]))$fatal(1,"seven GU steady regression");
+        if(n>0&&(first_gu[n]-first_gu[n-1]!=GU_STEADY||stall_a_n[n]||stall_b_n[n]||stall_slot_n[n]))$fatal(1,"seven GU steady regression");
       end
       if(prefetches!=31)$fatal(1,"seven GU prefetch count");
-      $display("SEVEN_GU issues_per_n=3328 last_minus_first=3327 steady=3346 stall_A=0 stall_B=0 stall_slot=0 handoffs=31");
+      $display("SEVEN_GU issues_per_n=3328 last_minus_first=3327 steady=%0d stall_A=0 stall_B=0 stall_slot=0 handoffs=31",GU_STEADY);
       for(int j=0;j<110;j++)begin
         if(count_attn[j]!=416||last_attn[j]-first_attn[j]!=415)$fatal(1,"seven Attention body");
-        if(j>0&&j<109&&first_attn[j]-first_attn[j-1]!=434)$fatal(1,"seven Attention steady");
+        if(j>0&&j<109&&first_attn[j]-first_attn[j-1]!=ATTN_STEADY)$fatal(1,"seven Attention steady");
       end
-      if(first_attn[109]-first_attn[108]!=867||attn_final_done-commit_attn[109]!=439)$fatal(1,"seven Attention tail");
-      $display("SEVEN_ATTENTION jobs=110 body=416 steady=434 PV53_PV54=867 final_tail=439");
+      if(first_attn[109]-first_attn[108]!=2*ATTN_STEADY-1||attn_final_done-commit_attn[109]!=ATTN_SERVICE_TAIL)$fatal(1,"seven Attention tail");
+      $display("SEVEN_ATTENTION jobs=110 body=416 steady=%0d PV53_PV54=%0d final_tail=%0d",ATTN_STEADY,2*ATTN_STEADY-1,ATTN_SERVICE_TAIL);
       send_operation(OP_DOWN_PROJ,16);fork feed_projection_hbm(64,32);finish_operation();join
       if(qoz_complete||dut.qactive)$fatal(1,"seven Down Projection did not release Z");
       begin
@@ -536,17 +560,17 @@ module tb_pcore_three_job_chain;
       if(qoz_complete||dut.qactive)$fatal(1,"Attention did not release Q");
       for(int j=0;j<110;j++)begin
         if(count_attn[j]!=416||last_attn[j]-first_attn[j]!=415)$fatal(1,"Attention body regression");
-        if(j>0&&j<109&&first_attn[j]-first_attn[j-1]!=434)$fatal(1,"Attention steady regression %0d",first_attn[j]-first_attn[j-1]);
+        if(j>0&&j<109&&first_attn[j]-first_attn[j-1]!=ATTN_STEADY)$fatal(1,"Attention steady regression %0d",first_attn[j]-first_attn[j-1]);
       end
-      if(first_attn[109]-first_attn[108]!=867)$fatal(1,"Attention tail regression");
-      if(attn_final_done-commit_attn[109]!=439)$fatal(1,"Attention AFIN tail regression %0d",attn_final_done-commit_attn[109]);
+      if(first_attn[109]-first_attn[108]!=2*ATTN_STEADY-1)$fatal(1,"Attention tail regression");
+      if(attn_final_done-commit_attn[109]!=ATTN_SERVICE_TAIL)$fatal(1,"Attention AFIN tail regression %0d",attn_final_done-commit_attn[109]);
     end
     send_operation(OP_GU,3);fork feed_gu_xbc();finish_operation();join
     if(!qoz_complete||qoz_region.owner!=QOZ_Z||z_pairs!=832||prefetches!=31)$fatal(1,"Z region/prefetch count");
     for(int n=0;n<32;n++)begin
       if(count_gu[n]!=3328)$fatal(1,"GU issue count n=%0d count=%0d",n,count_gu[n]);
       if(!slow_post&&last_gu[n]-first_gu[n]!=3327)$fatal(1,"GU body bubble n=%0d body=%0d",n,last_gu[n]-first_gu[n]+1);
-      if(n>0&&!slow_post&&first_gu[n]-first_gu[n-1]>3347)$fatal(1,"GU interval n=%0d interval=%0d",n,first_gu[n]-first_gu[n-1]);
+      if(n>0&&!slow_post&&first_gu[n]-first_gu[n-1]>GU_STEADY+1)$fatal(1,"GU interval n=%0d interval=%0d",n,first_gu[n]-first_gu[n-1]);
       if(n>0)begin
         handoff_n[n]=first_gu[n]-commit_gu[n-1];stall_matrix_handoff+=handoff_n[n];
         if(stall_a_n[n]||stall_b_n[n])$fatal(1,"GU steady source stall n=%0d A=%0d B=%0d",n,stall_a_n[n],stall_b_n[n]);

@@ -1,5 +1,19 @@
 # DEA8 PCore：单核矩阵计算与七 Job 控制
 
+## DEQACC 开发副本当前状态（2026-10-13）
+
+本副本Matrix默认使用 `DEQACC_V1`，32 lane、4×8分组、七级流水；旧A11和冻结数值golden保留。V1单lane、stream/forwarding、动态M与完整七Job仿真已通过。以下原迁移基线用于历史对照；当前V1结果见 [实现报告](../DEQACC_V1_优化方案.report.md)。没有新的综合或布局布线结果。
+
+从本目录运行短仿真套件：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run_deqacc_v1.ps1
+# 包含当前完整七Job FUNCTIONAL仿真，需要较长时间
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run_deqacc_v1.ps1 -SevenJobs
+```
+
+脚本内部每次工具调用均通过同一cmd先加载settings64.bat，再调用工具bat；只运行仿真。调用方timeout至少300000ms，带七Job建议3600000ms。结果位于 `reports/v1_*`。
+
 进度核对：2026-10-10。
 
 PCore 是 DEA8 的单核计算单元：双行 INT8 矩阵计算、FP32 DEQACC 累加、Q/O/Z 本地存储、后处理调度和 K/V/O/Down 输出。**当前 RTL 与迁移后七 Job 全链路仿真已通过；VPU/SFU 算术和外部供数由 TB 模拟。**

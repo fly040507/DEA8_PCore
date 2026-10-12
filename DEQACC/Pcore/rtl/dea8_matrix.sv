@@ -261,7 +261,17 @@ module dea8_matrix #(parameter bit LOCAL_A=0, parameter bit A_STREAMING=LOCAL_A,
   dea8_mxu_2row mxu(
     .clk,.reset,.clear,.req_valid(req_valid),.req_bank(req_bank),.req(a_head),.req_meta(req_meta),
     .load_valid,.load_bank,.load_column,.load_entry(serializer_out),.rsp_valid(mxu_rsp_valid),.rsp(mxu_rsp));
-  DEQACC_3_3ns deqacc(
+  if(USE_DEQACC_V1)begin: v1_path
+    DEQACC_V1 deqacc(
+      .clk,.reset,.clear,.rsp_valid(mxu_rsp_valid),.rsp(mxu_rsp),.commit_valid,.done,.commit_meta,
+      .commit_write_valid,.commit_write,
+      .result_rd_owner,.result_rd_valid(result_rd_valid&&result_bank_free),
+      .result_rd_ready(store_result_ready),.result_rd_sel,.result_rd_addr,
+      .vpu_wr_valid(vpu_wr_valid&&vpu_bank_free),.vpu_wr_ready(store_vpu_ready),.vpu_wr,
+      .result_rd_data_valid,.result_even_data,.result_odd_data,
+      .dbg_valid,.dbg_sel,.dbg_parity,.dbg_addr,.dbg_lane,.dbg_data);
+  end else begin: a11_path
+    DEQACC_3_3ns deqacc(
     .clk,.reset,.clear,.rsp_valid(mxu_rsp_valid),.rsp(mxu_rsp),.commit_valid,.done,.commit_meta,
     .commit_write_valid,.commit_write,
     .result_rd_owner,.result_rd_valid(result_rd_valid&&result_bank_free),
@@ -269,4 +279,5 @@ module dea8_matrix #(parameter bit LOCAL_A=0, parameter bit A_STREAMING=LOCAL_A,
     .vpu_wr_valid(vpu_wr_valid&&vpu_bank_free),.vpu_wr_ready(store_vpu_ready),.vpu_wr,
     .result_rd_data_valid,.result_even_data,.result_odd_data,
     .dbg_valid,.dbg_sel,.dbg_parity,.dbg_addr,.dbg_lane,.dbg_data);
+  end
 endmodule

@@ -23,7 +23,7 @@ module tb_pcore_control #(
   parameter int ROPE_LAT=8,
   parameter int ACC_RD_LAT=2,
   parameter int WORK_RD_LAT=1,
-  parameter int ATTN_SLOT=434
+  parameter int ATTN_SLOT=ATTN_NOMINAL_SLOT+1
 );
   typedef enum {TB_FUNCTIONAL=0,TB_PERFORMANCE=1,TB_STRESS=2} tb_mode_e;
   logic clk=0;always #2 clk=~clk;

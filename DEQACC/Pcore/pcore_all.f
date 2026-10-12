@@ -14,6 +14,13 @@ rtl/dea8_pcore_output.sv
 rtl/dea8_kv_tile_sender.sv
 rtl/dea8_pcore_workspace.sv
 rtl/dea8_fp32_pkg.sv
+rtl/deqacc_v1_pkg.sv
+rtl/dequant_lane_v1.sv
+rtl/fp32_add_lane_v1.sv
+rtl/acc_slice_v1.sv
+rtl/deqacc_v1_control.sv
+rtl/deqacc_v1_group8.sv
+rtl/DEQACC_V1.sv
 rtl/DEQACC_3.3ns_lane.sv
 rtl/DEQACC_3.3ns_group2.sv
 rtl/DEQACC_3.3ns.sv

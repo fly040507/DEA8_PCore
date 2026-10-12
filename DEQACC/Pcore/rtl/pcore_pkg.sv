@@ -11,10 +11,10 @@ package pcore_pkg;
   parameter int ATTN_K_TILES=16;
   parameter int ATTN_ISSUES=PAIRS*ATTN_K_TILES;
   parameter int MXU_PIPE_STAGES=7;
-  // The external completion point includes the synchronous accumulator RAM
-  // DEQACC_3.3ns D0..D10: split abs/lead and normalize/exponent,
-  // partial pack, synchronous ACC response, lane arithmetic and commit.
-  parameter int DEQACC_PIPE_STAGES=11;
+  // Independent DEQACC development copy defaults to V1. A11 remains available
+  // as the numerical reference / optional integration selection.
+  parameter bit USE_DEQACC_V1=1;
+  parameter int DEQACC_PIPE_STAGES=USE_DEQACC_V1?7:11;
   parameter int MXU_TAIL_EDGES=MXU_PIPE_STAGES-1;
   parameter int DEQACC_COMMIT_CYCLES=DEQACC_PIPE_STAGES;
   parameter int ATTN_NOMINAL_SLOT=ATTN_ISSUES+MXU_TAIL_EDGES+DEQACC_COMMIT_CYCLES;

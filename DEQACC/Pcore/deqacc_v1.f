@@ -1,0 +1,16 @@
+rtl/pcore_pkg.sv
+rtl/dea8_fp32_pkg.sv
+rtl/deqacc_v1_pkg.sv
+rtl/dea8_acc_store.sv
+rtl/DEQACC_3.3ns_lane.sv
+rtl/DEQACC_3.3ns_group2.sv
+rtl/DEQACC_3.3ns.sv
+rtl/dequant_lane_v1.sv
+rtl/fp32_add_lane_v1.sv
+rtl/acc_slice_v1.sv
+rtl/deqacc_v1_control.sv
+rtl/deqacc_v1_group8.sv
+rtl/DEQACC_V1.sv
+tb/fp32_legacy_ref_pkg.sv
+tb/tb_deqacc_v1_arithmetic.sv
+tb/tb_deqacc_v1_stream.sv

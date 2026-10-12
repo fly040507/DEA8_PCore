@@ -68,7 +68,9 @@ module tb_deqacc32;
     @(negedge clk);rsp_valid=0;
     wait(done);#1;
     if(commits!=PAIRS) $fatal(1,"DEQACC commit count=%0d",commits);
-    if(first_commit_cycle-first_rsp_cycle!=DEQACC_PIPE_STAGES-1)
+    // This TB explicitly instantiates the frozen A11, independently of the
+    // Matrix copy's default implementation selection.
+    if(first_commit_cycle-first_rsp_cycle!=11-1)
       $fatal(1,"DEQACC edge latency=%0d, expected D0..D7 edge delta 7",
         first_commit_cycle-first_rsp_cycle);
     dbg_valid=1;dbg_sel=ACC_FACC_A;dbg_parity=0;dbg_addr=0;dbg_lane=0;#1;

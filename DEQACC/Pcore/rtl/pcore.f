@@ -4,6 +4,13 @@ pcore_control_pkg.sv
 dea8_pcore_output.sv
 dea8_kv_tile_sender.sv
 dea8_fp32_pkg.sv
+deqacc_v1_pkg.sv
+dequant_lane_v1.sv
+fp32_add_lane_v1.sv
+acc_slice_v1.sv
+deqacc_v1_control.sv
+deqacc_v1_group8.sv
+DEQACC_V1.sv
 DEQACC_3.3ns_lane.sv
 DEQACC_3.3ns_group2.sv
 DEQACC_3.3ns.sv

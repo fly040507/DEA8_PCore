@@ -1,5 +1,7 @@
 # DEA8：八核 VLA 计算工程
 
+本目录是独立的 DEQACC 开发副本。当前入口：[V1 优化设计方案](DEQACC_V1_优化方案.md)、[V1 实现与仿真报告](DEQACC_V1_优化方案.report.md)。截至2026-10-13，V1七级RTL已实现并默认接入本副本Matrix；单lane、32-lane旁路、动态M、Matrix及完整七Job仿真通过。本轮未做综合/P&R，250MHz物理时序未验证。下文保留复制时的整体工程背景；R11为旧11级基线，不能作为V1物理验证结果。正式 `VLA/DEA8/` 保持冻结。
+
 进度核对：2026-10-10。
 
 DEA8 面向 pi0 Action Expert 的 FPGA 加速。系统目标是组织 **10 步去噪、18 层、8 个 PCore** 的计算；当前已落地的是单核 PCore 与独立八核 FP32 Reduce，系统总控、GCore 和真实 HBM 仍待接入。
