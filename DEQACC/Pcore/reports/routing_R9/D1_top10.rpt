@@ -1,0 +1,655 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.
+-------------------------------------------------------------------------------------------------------------------------
+| Tool Version      : Vivado v.2022.2 (win64) Build 3671981 Fri Oct 14 05:00:03 MDT 2022
+| Date              : Mon Oct 12 17:20:38 2026
+| Host              : FLY running 64-bit major release  (build 9200)
+| Command           : report_timing -to [get_cells -quiet -hier -filter {NAME =~ *s0_reg*}] -max_paths 10 -return_string
+| Design            : DEQACC_3_3ns_timing_shell
+| Device            : xcu50-fsvh2104
+| Speed File        : -2  PRODUCTION 1.30 05-01-2022
+| Temperature Grade : E
+-------------------------------------------------------------------------------------------------------------------------
+
+Timing Report
+
+Slack (MET) :             1.591ns  (required time - arrival time)
+  Source:                 core/groups[3].arithmetic/genblk1[1].lanes[0].magnitude_q_reg[1][0][lead][4]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/groups[3].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][10]/D
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.390ns  (logic 0.743ns (31.094%)  route 1.647ns (68.906%))
+  Logic Levels:           5  (CARRY8=2 LUT4=1 LUT5=1 LUT6=1)
+  Clock Path Skew:        -0.009ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.021ns = ( 4.021 - 4.000 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  clk (IN)
+                         net (fo=29645, unset)        0.030     0.030    core/groups[3].arithmetic/clk
+    SLICE_X156Y77        FDRE                                         r  core/groups[3].arithmetic/genblk1[1].lanes[0].magnitude_q_reg[1][0][lead][4]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X156Y77        FDRE (Prop_BFF_SLICEM_C_Q)
+                                                      0.078     0.108 r  core/groups[3].arithmetic/genblk1[1].lanes[0].magnitude_q_reg[1][0][lead][4]/Q
+                         net (fo=46, routed)          1.290     1.398    core/groups[3].arithmetic/genblk1[1].lanes[0].magnitude_q_reg[1][0][lead][4]
+    SLICE_X140Y75        LUT4 (Prop_C5LUT_SLICEL_I2_O)
+                                                      0.158     1.556 r  core/groups[3].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_18/O
+                         net (fo=2, routed)           0.181     1.737    core/groups[3].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_18_n_0
+    SLICE_X140Y75        LUT5 (Prop_A6LUT_SLICEL_I0_O)
+                                                      0.149     1.886 r  core/groups[3].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_4/O
+                         net (fo=2, routed)           0.103     1.989    core/groups[3].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_4_n_0
+    SLICE_X141Y75        LUT6 (Prop_F6LUT_SLICEM_I0_O)
+                                                      0.123     2.112 r  core/groups[3].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_11/O
+                         net (fo=1, routed)           0.022     2.134    core/groups[3].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_11_n_0
+    SLICE_X141Y75        CARRY8 (Prop_CARRY8_SLICEM_S[5]_CO[7])
+                                                      0.159     2.293 r  core/groups[3].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][7]_i_1/CO[7]
+                         net (fo=1, routed)           0.026     2.319    core/groups[3].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][7]_i_1_n_0
+    SLICE_X141Y76        CARRY8 (Prop_CARRY8_SLICEM_CI_O[1])
+                                                      0.076     2.395 r  core/groups[3].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][10]_i_1/O[1]
+                         net (fo=1, routed)           0.025     2.420    core/groups[3].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][10]_i_1_n_14
+    SLICE_X141Y76        FDRE                                         r  core/groups[3].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][10]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r  
+                                                      0.000     4.000 r  clk (IN)
+                         net (fo=29645, unset)        0.021     4.021    core/groups[3].arithmetic/clk
+    SLICE_X141Y76        FDRE                                         r  core/groups[3].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][10]/C
+                         clock pessimism              0.000     4.021    
+                         clock uncertainty           -0.035     3.986    
+    SLICE_X141Y76        FDRE (Setup_BFF_SLICEM_C_D)
+                                                      0.025     4.011    core/groups[3].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][10]
+  -------------------------------------------------------------------
+                         required time                          4.011    
+                         arrival time                          -2.420    
+  -------------------------------------------------------------------
+                         slack                                  1.591    
+
+Slack (MET) :             1.611ns  (required time - arrival time)
+  Source:                 core/groups[3].arithmetic/genblk1[1].lanes[0].magnitude_q_reg[1][0][lead][4]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/groups[3].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][8]/D
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.370ns  (logic 0.723ns (30.512%)  route 1.647ns (69.488%))
+  Logic Levels:           5  (CARRY8=2 LUT4=1 LUT5=1 LUT6=1)
+  Clock Path Skew:        -0.009ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.021ns = ( 4.021 - 4.000 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  clk (IN)
+                         net (fo=29645, unset)        0.030     0.030    core/groups[3].arithmetic/clk
+    SLICE_X156Y77        FDRE                                         r  core/groups[3].arithmetic/genblk1[1].lanes[0].magnitude_q_reg[1][0][lead][4]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X156Y77        FDRE (Prop_BFF_SLICEM_C_Q)
+                                                      0.078     0.108 r  core/groups[3].arithmetic/genblk1[1].lanes[0].magnitude_q_reg[1][0][lead][4]/Q
+                         net (fo=46, routed)          1.290     1.398    core/groups[3].arithmetic/genblk1[1].lanes[0].magnitude_q_reg[1][0][lead][4]
+    SLICE_X140Y75        LUT4 (Prop_C5LUT_SLICEL_I2_O)
+                                                      0.158     1.556 r  core/groups[3].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_18/O
+                         net (fo=2, routed)           0.181     1.737    core/groups[3].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_18_n_0
+    SLICE_X140Y75        LUT5 (Prop_A6LUT_SLICEL_I0_O)
+                                                      0.149     1.886 r  core/groups[3].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_4/O
+                         net (fo=2, routed)           0.103     1.989    core/groups[3].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_4_n_0
+    SLICE_X141Y75        LUT6 (Prop_F6LUT_SLICEM_I0_O)
+                                                      0.123     2.112 r  core/groups[3].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_11/O
+                         net (fo=1, routed)           0.022     2.134    core/groups[3].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_11_n_0
+    SLICE_X141Y75        CARRY8 (Prop_CARRY8_SLICEM_S[5]_CO[7])
+                                                      0.159     2.293 r  core/groups[3].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][7]_i_1/CO[7]
+                         net (fo=1, routed)           0.026     2.319    core/groups[3].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][7]_i_1_n_0
+    SLICE_X141Y76        CARRY8 (Prop_CARRY8_SLICEM_CI_O[0])
+                                                      0.056     2.375 r  core/groups[3].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][10]_i_1/O[0]
+                         net (fo=1, routed)           0.025     2.400    core/groups[3].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][10]_i_1_n_15
+    SLICE_X141Y76        FDRE                                         r  core/groups[3].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][8]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r  
+                                                      0.000     4.000 r  clk (IN)
+                         net (fo=29645, unset)        0.021     4.021    core/groups[3].arithmetic/clk
+    SLICE_X141Y76        FDRE                                         r  core/groups[3].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][8]/C
+                         clock pessimism              0.000     4.021    
+                         clock uncertainty           -0.035     3.986    
+    SLICE_X141Y76        FDRE (Setup_AFF_SLICEM_C_D)
+                                                      0.025     4.011    core/groups[3].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][8]
+  -------------------------------------------------------------------
+                         required time                          4.011    
+                         arrival time                          -2.400    
+  -------------------------------------------------------------------
+                         slack                                  1.611    
+
+Slack (MET) :             1.686ns  (required time - arrival time)
+  Source:                 core/groups[7].arithmetic/genblk1[1].lanes[0].magnitude_q_reg[1][0][lead][3]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/groups[7].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][10]/D
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.295ns  (logic 0.787ns (34.288%)  route 1.508ns (65.712%))
+  Logic Levels:           6  (CARRY8=2 LUT3=1 LUT5=2 LUT6=1)
+  Clock Path Skew:        -0.008ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.021ns = ( 4.021 - 4.000 ) 
+    Source Clock Delay      (SCD):    0.029ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  clk (IN)
+                         net (fo=29645, unset)        0.029     0.029    core/groups[7].arithmetic/clk
+    SLICE_X131Y6         FDRE                                         r  core/groups[7].arithmetic/genblk1[1].lanes[0].magnitude_q_reg[1][0][lead][3]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X131Y6         FDRE (Prop_EFF_SLICEL_C_Q)
+                                                      0.079     0.108 r  core/groups[7].arithmetic/genblk1[1].lanes[0].magnitude_q_reg[1][0][lead][3]/Q
+                         net (fo=46, routed)          0.818     0.926    core/groups[7].arithmetic/genblk1[1].lanes[0].magnitude_q_reg[1][0][lead][3]
+    SLICE_X122Y14        LUT3 (Prop_D5LUT_SLICEM_I0_O)
+                                                      0.158     1.084 r  core/groups[7].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_21/O
+                         net (fo=3, routed)           0.197     1.281    core/groups[7].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_21_n_0
+    SLICE_X121Y15        LUT6 (Prop_F6LUT_SLICEM_I5_O)
+                                                      0.123     1.404 r  core/groups[7].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_19/O
+                         net (fo=2, routed)           0.285     1.689    core/groups[7].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_19_n_0
+    SLICE_X122Y14        LUT5 (Prop_B5LUT_SLICEM_I0_O)
+                                                      0.143     1.832 r  core/groups[7].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_5/O
+                         net (fo=2, routed)           0.143     1.975    core/groups[7].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_5_n_0
+    SLICE_X121Y14        LUT5 (Prop_E6LUT_SLICEM_I0_O)
+                                                      0.052     2.027 r  core/groups[7].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_12/O
+                         net (fo=1, routed)           0.014     2.041    core/groups[7].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_12_n_0
+    SLICE_X121Y14        CARRY8 (Prop_CARRY8_SLICEM_S[4]_CO[7])
+                                                      0.156     2.197 r  core/groups[7].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][7]_i_1/CO[7]
+                         net (fo=1, routed)           0.026     2.223    core/groups[7].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][7]_i_1_n_0
+    SLICE_X121Y15        CARRY8 (Prop_CARRY8_SLICEM_CI_O[1])
+                                                      0.076     2.299 r  core/groups[7].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][10]_i_1/O[1]
+                         net (fo=1, routed)           0.025     2.324    core/groups[7].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][10]_i_1_n_14
+    SLICE_X121Y15        FDRE                                         r  core/groups[7].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][10]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r  
+                                                      0.000     4.000 r  clk (IN)
+                         net (fo=29645, unset)        0.021     4.021    core/groups[7].arithmetic/clk
+    SLICE_X121Y15        FDRE                                         r  core/groups[7].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][10]/C
+                         clock pessimism              0.000     4.021    
+                         clock uncertainty           -0.035     3.986    
+    SLICE_X121Y15        FDRE (Setup_BFF_SLICEM_C_D)
+                                                      0.025     4.011    core/groups[7].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][10]
+  -------------------------------------------------------------------
+                         required time                          4.011    
+                         arrival time                          -2.324    
+  -------------------------------------------------------------------
+                         slack                                  1.686    
+
+Slack (MET) :             1.706ns  (required time - arrival time)
+  Source:                 core/groups[7].arithmetic/genblk1[1].lanes[0].magnitude_q_reg[1][0][lead][3]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/groups[7].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][8]/D
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.275ns  (logic 0.767ns (33.710%)  route 1.508ns (66.290%))
+  Logic Levels:           6  (CARRY8=2 LUT3=1 LUT5=2 LUT6=1)
+  Clock Path Skew:        -0.008ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.021ns = ( 4.021 - 4.000 ) 
+    Source Clock Delay      (SCD):    0.029ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  clk (IN)
+                         net (fo=29645, unset)        0.029     0.029    core/groups[7].arithmetic/clk
+    SLICE_X131Y6         FDRE                                         r  core/groups[7].arithmetic/genblk1[1].lanes[0].magnitude_q_reg[1][0][lead][3]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X131Y6         FDRE (Prop_EFF_SLICEL_C_Q)
+                                                      0.079     0.108 r  core/groups[7].arithmetic/genblk1[1].lanes[0].magnitude_q_reg[1][0][lead][3]/Q
+                         net (fo=46, routed)          0.818     0.926    core/groups[7].arithmetic/genblk1[1].lanes[0].magnitude_q_reg[1][0][lead][3]
+    SLICE_X122Y14        LUT3 (Prop_D5LUT_SLICEM_I0_O)
+                                                      0.158     1.084 r  core/groups[7].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_21/O
+                         net (fo=3, routed)           0.197     1.281    core/groups[7].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_21_n_0
+    SLICE_X121Y15        LUT6 (Prop_F6LUT_SLICEM_I5_O)
+                                                      0.123     1.404 r  core/groups[7].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_19/O
+                         net (fo=2, routed)           0.285     1.689    core/groups[7].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_19_n_0
+    SLICE_X122Y14        LUT5 (Prop_B5LUT_SLICEM_I0_O)
+                                                      0.143     1.832 r  core/groups[7].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_5/O
+                         net (fo=2, routed)           0.143     1.975    core/groups[7].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_5_n_0
+    SLICE_X121Y14        LUT5 (Prop_E6LUT_SLICEM_I0_O)
+                                                      0.052     2.027 r  core/groups[7].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_12/O
+                         net (fo=1, routed)           0.014     2.041    core/groups[7].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_12_n_0
+    SLICE_X121Y14        CARRY8 (Prop_CARRY8_SLICEM_S[4]_CO[7])
+                                                      0.156     2.197 r  core/groups[7].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][7]_i_1/CO[7]
+                         net (fo=1, routed)           0.026     2.223    core/groups[7].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][7]_i_1_n_0
+    SLICE_X121Y15        CARRY8 (Prop_CARRY8_SLICEM_CI_O[0])
+                                                      0.056     2.279 r  core/groups[7].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][10]_i_1/O[0]
+                         net (fo=1, routed)           0.025     2.304    core/groups[7].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][10]_i_1_n_15
+    SLICE_X121Y15        FDRE                                         r  core/groups[7].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][8]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r  
+                                                      0.000     4.000 r  clk (IN)
+                         net (fo=29645, unset)        0.021     4.021    core/groups[7].arithmetic/clk
+    SLICE_X121Y15        FDRE                                         r  core/groups[7].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][8]/C
+                         clock pessimism              0.000     4.021    
+                         clock uncertainty           -0.035     3.986    
+    SLICE_X121Y15        FDRE (Setup_AFF_SLICEM_C_D)
+                                                      0.025     4.011    core/groups[7].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][8]
+  -------------------------------------------------------------------
+                         required time                          4.011    
+                         arrival time                          -2.304    
+  -------------------------------------------------------------------
+                         slack                                  1.706    
+
+Slack (MET) :             1.713ns  (required time - arrival time)
+  Source:                 core/groups[3].arithmetic/genblk1[1].lanes[0].magnitude_q_reg[1][0][lead][4]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/groups[3].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][7]/D
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.268ns  (logic 0.634ns (27.959%)  route 1.634ns (72.041%))
+  Logic Levels:           4  (CARRY8=1 LUT4=1 LUT5=2)
+  Clock Path Skew:        -0.009ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.021ns = ( 4.021 - 4.000 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  clk (IN)
+                         net (fo=29645, unset)        0.030     0.030    core/groups[3].arithmetic/clk
+    SLICE_X156Y77        FDRE                                         r  core/groups[3].arithmetic/genblk1[1].lanes[0].magnitude_q_reg[1][0][lead][4]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X156Y77        FDRE (Prop_BFF_SLICEM_C_Q)
+                                                      0.078     0.108 r  core/groups[3].arithmetic/genblk1[1].lanes[0].magnitude_q_reg[1][0][lead][4]/Q
+                         net (fo=46, routed)          1.290     1.398    core/groups[3].arithmetic/genblk1[1].lanes[0].magnitude_q_reg[1][0][lead][4]
+    SLICE_X140Y75        LUT4 (Prop_C5LUT_SLICEL_I2_O)
+                                                      0.158     1.556 r  core/groups[3].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_18/O
+                         net (fo=2, routed)           0.181     1.737    core/groups[3].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_18_n_0
+    SLICE_X140Y75        LUT5 (Prop_A5LUT_SLICEL_I4_O)
+                                                      0.161     1.898 r  core/groups[3].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_5/O
+                         net (fo=2, routed)           0.123     2.021    core/groups[3].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_5_n_0
+    SLICE_X141Y75        LUT5 (Prop_E6LUT_SLICEM_I0_O)
+                                                      0.100     2.121 r  core/groups[3].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_12/O
+                         net (fo=1, routed)           0.014     2.135    core/groups[3].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_12_n_0
+    SLICE_X141Y75        CARRY8 (Prop_CARRY8_SLICEM_S[4]_O[7])
+                                                      0.137     2.272 r  core/groups[3].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][7]_i_1/O[7]
+                         net (fo=1, routed)           0.026     2.298    core/groups[3].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][7]_i_1_n_8
+    SLICE_X141Y75        FDRE                                         r  core/groups[3].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][7]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r  
+                                                      0.000     4.000 r  clk (IN)
+                         net (fo=29645, unset)        0.021     4.021    core/groups[3].arithmetic/clk
+    SLICE_X141Y75        FDRE                                         r  core/groups[3].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][7]/C
+                         clock pessimism              0.000     4.021    
+                         clock uncertainty           -0.035     3.986    
+    SLICE_X141Y75        FDRE (Setup_HFF_SLICEM_C_D)
+                                                      0.025     4.011    core/groups[3].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][7]
+  -------------------------------------------------------------------
+                         required time                          4.011    
+                         arrival time                          -2.298    
+  -------------------------------------------------------------------
+                         slack                                  1.713    
+
+Slack (MET) :             1.720ns  (required time - arrival time)
+  Source:                 core/groups[3].arithmetic/genblk1[1].lanes[0].magnitude_q_reg[1][0][lead][4]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/groups[3].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][6]/D
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.261ns  (logic 0.639ns (28.268%)  route 1.622ns (71.732%))
+  Logic Levels:           4  (CARRY8=1 LUT4=1 LUT5=1 LUT6=1)
+  Clock Path Skew:        -0.009ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.021ns = ( 4.021 - 4.000 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  clk (IN)
+                         net (fo=29645, unset)        0.030     0.030    core/groups[3].arithmetic/clk
+    SLICE_X156Y77        FDRE                                         r  core/groups[3].arithmetic/genblk1[1].lanes[0].magnitude_q_reg[1][0][lead][4]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X156Y77        FDRE (Prop_BFF_SLICEM_C_Q)
+                                                      0.078     0.108 r  core/groups[3].arithmetic/genblk1[1].lanes[0].magnitude_q_reg[1][0][lead][4]/Q
+                         net (fo=46, routed)          1.290     1.398    core/groups[3].arithmetic/genblk1[1].lanes[0].magnitude_q_reg[1][0][lead][4]
+    SLICE_X140Y75        LUT4 (Prop_C5LUT_SLICEL_I2_O)
+                                                      0.158     1.556 r  core/groups[3].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_18/O
+                         net (fo=2, routed)           0.181     1.737    core/groups[3].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_18_n_0
+    SLICE_X140Y75        LUT5 (Prop_A6LUT_SLICEL_I0_O)
+                                                      0.149     1.886 r  core/groups[3].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_4/O
+                         net (fo=2, routed)           0.103     1.989    core/groups[3].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_4_n_0
+    SLICE_X141Y75        LUT6 (Prop_F6LUT_SLICEM_I0_O)
+                                                      0.123     2.112 r  core/groups[3].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_11/O
+                         net (fo=1, routed)           0.022     2.134    core/groups[3].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_11_n_0
+    SLICE_X141Y75        CARRY8 (Prop_CARRY8_SLICEM_S[5]_O[6])
+                                                      0.131     2.265 r  core/groups[3].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][7]_i_1/O[6]
+                         net (fo=1, routed)           0.026     2.291    core/groups[3].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][7]_i_1_n_9
+    SLICE_X141Y75        FDRE                                         r  core/groups[3].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][6]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r  
+                                                      0.000     4.000 r  clk (IN)
+                         net (fo=29645, unset)        0.021     4.021    core/groups[3].arithmetic/clk
+    SLICE_X141Y75        FDRE                                         r  core/groups[3].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][6]/C
+                         clock pessimism              0.000     4.021    
+                         clock uncertainty           -0.035     3.986    
+    SLICE_X141Y75        FDRE (Setup_GFF_SLICEM_C_D)
+                                                      0.025     4.011    core/groups[3].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][6]
+  -------------------------------------------------------------------
+                         required time                          4.011    
+                         arrival time                          -2.291    
+  -------------------------------------------------------------------
+                         slack                                  1.720    
+
+Slack (MET) :             1.756ns  (required time - arrival time)
+  Source:                 core/groups[3].arithmetic/genblk1[1].lanes[0].magnitude_q_reg[1][0][lead][4]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/groups[3].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][5]/D
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.225ns  (logic 0.592ns (26.611%)  route 1.633ns (73.389%))
+  Logic Levels:           4  (CARRY8=1 LUT4=1 LUT5=2)
+  Clock Path Skew:        -0.009ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.021ns = ( 4.021 - 4.000 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  clk (IN)
+                         net (fo=29645, unset)        0.030     0.030    core/groups[3].arithmetic/clk
+    SLICE_X156Y77        FDRE                                         r  core/groups[3].arithmetic/genblk1[1].lanes[0].magnitude_q_reg[1][0][lead][4]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X156Y77        FDRE (Prop_BFF_SLICEM_C_Q)
+                                                      0.078     0.108 r  core/groups[3].arithmetic/genblk1[1].lanes[0].magnitude_q_reg[1][0][lead][4]/Q
+                         net (fo=46, routed)          1.290     1.398    core/groups[3].arithmetic/genblk1[1].lanes[0].magnitude_q_reg[1][0][lead][4]
+    SLICE_X140Y75        LUT4 (Prop_C5LUT_SLICEL_I2_O)
+                                                      0.158     1.556 r  core/groups[3].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_18/O
+                         net (fo=2, routed)           0.181     1.737    core/groups[3].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_18_n_0
+    SLICE_X140Y75        LUT5 (Prop_A5LUT_SLICEL_I4_O)
+                                                      0.161     1.898 r  core/groups[3].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_5/O
+                         net (fo=2, routed)           0.123     2.021    core/groups[3].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_5_n_0
+    SLICE_X141Y75        LUT5 (Prop_E6LUT_SLICEM_I0_O)
+                                                      0.100     2.121 r  core/groups[3].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_12/O
+                         net (fo=1, routed)           0.014     2.135    core/groups[3].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_12_n_0
+    SLICE_X141Y75        CARRY8 (Prop_CARRY8_SLICEM_S[4]_O[5])
+                                                      0.095     2.230 r  core/groups[3].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][7]_i_1/O[5]
+                         net (fo=1, routed)           0.025     2.255    core/groups[3].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][7]_i_1_n_10
+    SLICE_X141Y75        FDRE                                         r  core/groups[3].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][5]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r  
+                                                      0.000     4.000 r  clk (IN)
+                         net (fo=29645, unset)        0.021     4.021    core/groups[3].arithmetic/clk
+    SLICE_X141Y75        FDRE                                         r  core/groups[3].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][5]/C
+                         clock pessimism              0.000     4.021    
+                         clock uncertainty           -0.035     3.986    
+    SLICE_X141Y75        FDRE (Setup_FFF_SLICEM_C_D)
+                                                      0.025     4.011    core/groups[3].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][5]
+  -------------------------------------------------------------------
+                         required time                          4.011    
+                         arrival time                          -2.255    
+  -------------------------------------------------------------------
+                         slack                                  1.756    
+
+Slack (MET) :             1.788ns  (required time - arrival time)
+  Source:                 core/groups[3].arithmetic/genblk1[1].lanes[0].magnitude_q_reg[1][0][lead][4]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/groups[3].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][4]/D
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.193ns  (logic 0.560ns (25.540%)  route 1.633ns (74.460%))
+  Logic Levels:           4  (CARRY8=1 LUT4=1 LUT5=2)
+  Clock Path Skew:        -0.009ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.021ns = ( 4.021 - 4.000 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  clk (IN)
+                         net (fo=29645, unset)        0.030     0.030    core/groups[3].arithmetic/clk
+    SLICE_X156Y77        FDRE                                         r  core/groups[3].arithmetic/genblk1[1].lanes[0].magnitude_q_reg[1][0][lead][4]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X156Y77        FDRE (Prop_BFF_SLICEM_C_Q)
+                                                      0.078     0.108 r  core/groups[3].arithmetic/genblk1[1].lanes[0].magnitude_q_reg[1][0][lead][4]/Q
+                         net (fo=46, routed)          1.290     1.398    core/groups[3].arithmetic/genblk1[1].lanes[0].magnitude_q_reg[1][0][lead][4]
+    SLICE_X140Y75        LUT4 (Prop_C5LUT_SLICEL_I2_O)
+                                                      0.158     1.556 r  core/groups[3].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_18/O
+                         net (fo=2, routed)           0.181     1.737    core/groups[3].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_18_n_0
+    SLICE_X140Y75        LUT5 (Prop_A5LUT_SLICEL_I4_O)
+                                                      0.161     1.898 r  core/groups[3].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_5/O
+                         net (fo=2, routed)           0.123     2.021    core/groups[3].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_5_n_0
+    SLICE_X141Y75        LUT5 (Prop_E6LUT_SLICEM_I0_O)
+                                                      0.100     2.121 r  core/groups[3].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_12/O
+                         net (fo=1, routed)           0.014     2.135    core/groups[3].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_12_n_0
+    SLICE_X141Y75        CARRY8 (Prop_CARRY8_SLICEM_S[4]_O[4])
+                                                      0.063     2.198 r  core/groups[3].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][7]_i_1/O[4]
+                         net (fo=1, routed)           0.025     2.223    core/groups[3].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][7]_i_1_n_11
+    SLICE_X141Y75        FDRE                                         r  core/groups[3].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][4]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r  
+                                                      0.000     4.000 r  clk (IN)
+                         net (fo=29645, unset)        0.021     4.021    core/groups[3].arithmetic/clk
+    SLICE_X141Y75        FDRE                                         r  core/groups[3].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][4]/C
+                         clock pessimism              0.000     4.021    
+                         clock uncertainty           -0.035     3.986    
+    SLICE_X141Y75        FDRE (Setup_EFF_SLICEM_C_D)
+                                                      0.025     4.011    core/groups[3].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][4]
+  -------------------------------------------------------------------
+                         required time                          4.011    
+                         arrival time                          -2.223    
+  -------------------------------------------------------------------
+                         slack                                  1.788    
+
+Slack (MET) :             1.800ns  (required time - arrival time)
+  Source:                 core/groups[3].arithmetic/genblk1[1].lanes[1].magnitude_q_reg[1][1][lead][3]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/groups[3].arithmetic/genblk1[1].lanes[1].s0_reg[1][1][exponent][10]/D
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.180ns  (logic 0.777ns (35.641%)  route 1.403ns (64.359%))
+  Logic Levels:           6  (CARRY8=2 LUT3=1 LUT5=2 LUT6=1)
+  Clock Path Skew:        -0.010ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.020ns = ( 4.020 - 4.000 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  clk (IN)
+                         net (fo=29645, unset)        0.030     0.030    core/groups[3].arithmetic/clk
+    SLICE_X126Y75        FDRE                                         r  core/groups[3].arithmetic/genblk1[1].lanes[1].magnitude_q_reg[1][1][lead][3]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X126Y75        FDRE (Prop_EFF_SLICEM_C_Q)
+                                                      0.076     0.106 r  core/groups[3].arithmetic/genblk1[1].lanes[1].magnitude_q_reg[1][1][lead][3]/Q
+                         net (fo=46, routed)          0.844     0.950    core/groups[3].arithmetic/genblk1[1].lanes[1].magnitude_q_reg[1][1][lead][3]
+    SLICE_X138Y76        LUT3 (Prop_C5LUT_SLICEL_I0_O)
+                                                      0.068     1.018 r  core/groups[3].arithmetic/genblk1[1].lanes[1].s0[1][1][exponent][7]_i_21/O
+                         net (fo=3, routed)           0.195     1.213    core/groups[3].arithmetic/genblk1[1].lanes[1].s0[1][1][exponent][7]_i_21_n_0
+    SLICE_X139Y77        LUT6 (Prop_F6LUT_SLICEM_I5_O)
+                                                      0.148     1.361 r  core/groups[3].arithmetic/genblk1[1].lanes[1].s0[1][1][exponent][7]_i_19/O
+                         net (fo=2, routed)           0.178     1.539    core/groups[3].arithmetic/genblk1[1].lanes[1].s0[1][1][exponent][7]_i_19_n_0
+    SLICE_X138Y76        LUT5 (Prop_H5LUT_SLICEL_I0_O)
+                                                      0.133     1.672 r  core/groups[3].arithmetic/genblk1[1].lanes[1].s0[1][1][exponent][7]_i_5/O
+                         net (fo=2, routed)           0.128     1.800    core/groups[3].arithmetic/genblk1[1].lanes[1].s0[1][1][exponent][7]_i_5_n_0
+    SLICE_X140Y76        LUT5 (Prop_E6LUT_SLICEL_I0_O)
+                                                      0.123     1.923 r  core/groups[3].arithmetic/genblk1[1].lanes[1].s0[1][1][exponent][7]_i_12/O
+                         net (fo=1, routed)           0.007     1.930    core/groups[3].arithmetic/genblk1[1].lanes[1].s0[1][1][exponent][7]_i_12_n_0
+    SLICE_X140Y76        CARRY8 (Prop_CARRY8_SLICEL_S[4]_CO[7])
+                                                      0.153     2.083 r  core/groups[3].arithmetic/genblk1[1].lanes[1].s0_reg[1][1][exponent][7]_i_1/CO[7]
+                         net (fo=1, routed)           0.026     2.109    core/groups[3].arithmetic/genblk1[1].lanes[1].s0_reg[1][1][exponent][7]_i_1_n_0
+    SLICE_X140Y77        CARRY8 (Prop_CARRY8_SLICEL_CI_O[1])
+                                                      0.076     2.185 r  core/groups[3].arithmetic/genblk1[1].lanes[1].s0_reg[1][1][exponent][10]_i_1/O[1]
+                         net (fo=1, routed)           0.025     2.210    core/groups[3].arithmetic/genblk1[1].lanes[1].s0_reg[1][1][exponent][10]_i_1_n_14
+    SLICE_X140Y77        FDRE                                         r  core/groups[3].arithmetic/genblk1[1].lanes[1].s0_reg[1][1][exponent][10]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r  
+                                                      0.000     4.000 r  clk (IN)
+                         net (fo=29645, unset)        0.020     4.020    core/groups[3].arithmetic/clk
+    SLICE_X140Y77        FDRE                                         r  core/groups[3].arithmetic/genblk1[1].lanes[1].s0_reg[1][1][exponent][10]/C
+                         clock pessimism              0.000     4.020    
+                         clock uncertainty           -0.035     3.985    
+    SLICE_X140Y77        FDRE (Setup_BFF_SLICEL_C_D)
+                                                      0.025     4.010    core/groups[3].arithmetic/genblk1[1].lanes[1].s0_reg[1][1][exponent][10]
+  -------------------------------------------------------------------
+                         required time                          4.010    
+                         arrival time                          -2.210    
+  -------------------------------------------------------------------
+                         slack                                  1.800    
+
+Slack (MET) :             1.806ns  (required time - arrival time)
+  Source:                 core/groups[7].arithmetic/genblk1[1].lanes[0].magnitude_q_reg[1][0][lead][3]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/groups[7].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][7]/D
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.175ns  (logic 0.692ns (31.812%)  route 1.483ns (68.188%))
+  Logic Levels:           5  (CARRY8=1 LUT3=1 LUT5=2 LUT6=1)
+  Clock Path Skew:        -0.008ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.021ns = ( 4.021 - 4.000 ) 
+    Source Clock Delay      (SCD):    0.029ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  clk (IN)
+                         net (fo=29645, unset)        0.029     0.029    core/groups[7].arithmetic/clk
+    SLICE_X131Y6         FDRE                                         r  core/groups[7].arithmetic/genblk1[1].lanes[0].magnitude_q_reg[1][0][lead][3]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X131Y6         FDRE (Prop_EFF_SLICEL_C_Q)
+                                                      0.079     0.108 r  core/groups[7].arithmetic/genblk1[1].lanes[0].magnitude_q_reg[1][0][lead][3]/Q
+                         net (fo=46, routed)          0.818     0.926    core/groups[7].arithmetic/genblk1[1].lanes[0].magnitude_q_reg[1][0][lead][3]
+    SLICE_X122Y14        LUT3 (Prop_D5LUT_SLICEM_I0_O)
+                                                      0.158     1.084 r  core/groups[7].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_21/O
+                         net (fo=3, routed)           0.197     1.281    core/groups[7].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_21_n_0
+    SLICE_X121Y15        LUT6 (Prop_F6LUT_SLICEM_I5_O)
+                                                      0.123     1.404 r  core/groups[7].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_19/O
+                         net (fo=2, routed)           0.285     1.689    core/groups[7].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_19_n_0
+    SLICE_X122Y14        LUT5 (Prop_B5LUT_SLICEM_I0_O)
+                                                      0.143     1.832 r  core/groups[7].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_5/O
+                         net (fo=2, routed)           0.143     1.975    core/groups[7].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_5_n_0
+    SLICE_X121Y14        LUT5 (Prop_E6LUT_SLICEM_I0_O)
+                                                      0.052     2.027 r  core/groups[7].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_12/O
+                         net (fo=1, routed)           0.014     2.041    core/groups[7].arithmetic/genblk1[1].lanes[0].s0[1][0][exponent][7]_i_12_n_0
+    SLICE_X121Y14        CARRY8 (Prop_CARRY8_SLICEM_S[4]_O[7])
+                                                      0.137     2.178 r  core/groups[7].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][7]_i_1/O[7]
+                         net (fo=1, routed)           0.026     2.204    core/groups[7].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][7]_i_1_n_8
+    SLICE_X121Y14        FDRE                                         r  core/groups[7].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][7]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r  
+                                                      0.000     4.000 r  clk (IN)
+                         net (fo=29645, unset)        0.021     4.021    core/groups[7].arithmetic/clk
+    SLICE_X121Y14        FDRE                                         r  core/groups[7].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][7]/C
+                         clock pessimism              0.000     4.021    
+                         clock uncertainty           -0.035     3.986    
+    SLICE_X121Y14        FDRE (Setup_HFF_SLICEM_C_D)
+                                                      0.025     4.011    core/groups[7].arithmetic/genblk1[1].lanes[0].s0_reg[1][0][exponent][7]
+  -------------------------------------------------------------------
+                         required time                          4.011    
+                         arrival time                          -2.204    
+  -------------------------------------------------------------------
+                         slack                                  1.806    
+
+
+
+
+

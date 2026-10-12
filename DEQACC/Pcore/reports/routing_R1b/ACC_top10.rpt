@@ -1,0 +1,622 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.
+----------------------------------------------------------------------------------------------------------------------------------
+| Tool Version      : Vivado v.2022.2 (win64) Build 3671981 Fri Oct 14 05:00:03 MDT 2022
+| Date              : Mon Oct 12 12:10:07 2026
+| Host              : FLY running 64-bit major release  (build 9200)
+| Command           : report_timing -to [get_cells -quiet -hier -filter {NAME =~ *acc_store*banks*}] -max_paths 10 -return_string
+| Design            : DEQACC_3_3ns_timing_shell
+| Device            : xcu50-fsvh2104
+| Speed File        : -2  PRODUCTION 1.30 05-01-2022
+| Temperature Grade : E
+----------------------------------------------------------------------------------------------------------------------------------
+
+Timing Report
+
+Slack (MET) :             0.821ns  (required time - arrival time)
+  Source:                 core/context_q_reg[9][valid]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/acc_store/banks[2].parity[0].ram/mem_reg_0/WEBWE[6]
+                            (rising edge-triggered cell RAMB36E2 clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.760ns  (logic 0.454ns (16.452%)  route 2.306ns (83.548%))
+  Logic Levels:           3  (LUT3=2 LUT6=1)
+  Clock Path Skew:        0.010ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.040ns = ( 4.040 - 4.000 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  clk (IN)
+                         net (fo=28979, unset)        0.030     0.030    core/clk
+    SLICE_X142Y332       FDRE                                         r  core/context_q_reg[9][valid]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X142Y332       FDRE (Prop_AFF2_SLICEM_C_Q)
+                                                      0.080     0.110 r  core/context_q_reg[9][valid]/Q
+                         net (fo=16, routed)          0.450     0.560    core/acc_store/banks[2].parity[0].ram/context_q_reg[9][valid]
+    SLICE_X137Y322       LUT3 (Prop_C5LUT_SLICEM_I0_O)
+                                                      0.099     0.659 r  core/acc_store/banks[2].parity[0].ram/mem_reg_0_i_107/O
+                         net (fo=46, routed)          0.368     1.027    core/acc_store/banks[2].parity[1].ram/banks[2].mw
+    SLICE_X139Y332       LUT3 (Prop_C6LUT_SLICEM_I2_O)
+                                                      0.123     1.150 f  core/acc_store/banks[2].parity[1].ram/mem_reg_0_i_12__0/O
+                         net (fo=22, routed)          0.400     1.551    core/acc_store/banks[2].parity[0].ram/mem_reg_7_2[1]
+    SLICE_X139Y345       LUT6 (Prop_H6LUT_SLICEM_I4_O)
+                                                      0.152     1.703 r  core/acc_store/banks[2].parity[0].ram/mem_reg_0_i_93/O
+                         net (fo=66, routed)          1.087     2.790    core/acc_store/banks[2].parity[0].ram/mem_reg_0_i_93_n_0
+    RAMB36_X9Y55         RAMB36E2                                     r  core/acc_store/banks[2].parity[0].ram/mem_reg_0/WEBWE[6]
+  -------------------------------------------------------------------    -------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r  
+                                                      0.000     4.000 r  clk (IN)
+                         net (fo=28979, unset)        0.040     4.040    core/acc_store/banks[2].parity[0].ram/clk
+    RAMB36_X9Y55         RAMB36E2                                     r  core/acc_store/banks[2].parity[0].ram/mem_reg_0/CLKBWRCLK
+                         clock pessimism              0.000     4.040    
+                         clock uncertainty           -0.035     4.005    
+    RAMB36_X9Y55         RAMB36E2 (Setup_RAMB36E2_RAMB36_CLKBWRCLK_WEBWE[6])
+                                                     -0.394     3.611    core/acc_store/banks[2].parity[0].ram/mem_reg_0
+  -------------------------------------------------------------------
+                         required time                          3.611    
+                         arrival time                          -2.790    
+  -------------------------------------------------------------------
+                         slack                                  0.821    
+
+Slack (MET) :             0.825ns  (required time - arrival time)
+  Source:                 core/context_q_reg[9][valid]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/acc_store/banks[2].parity[0].ram/mem_reg_0/WEBWE[5]
+                            (rising edge-triggered cell RAMB36E2 clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.755ns  (logic 0.454ns (16.476%)  route 2.301ns (83.524%))
+  Logic Levels:           3  (LUT3=2 LUT6=1)
+  Clock Path Skew:        0.010ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.040ns = ( 4.040 - 4.000 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  clk (IN)
+                         net (fo=28979, unset)        0.030     0.030    core/clk
+    SLICE_X142Y332       FDRE                                         r  core/context_q_reg[9][valid]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X142Y332       FDRE (Prop_AFF2_SLICEM_C_Q)
+                                                      0.080     0.110 r  core/context_q_reg[9][valid]/Q
+                         net (fo=16, routed)          0.450     0.560    core/acc_store/banks[2].parity[0].ram/context_q_reg[9][valid]
+    SLICE_X137Y322       LUT3 (Prop_C5LUT_SLICEM_I0_O)
+                                                      0.099     0.659 r  core/acc_store/banks[2].parity[0].ram/mem_reg_0_i_107/O
+                         net (fo=46, routed)          0.368     1.027    core/acc_store/banks[2].parity[1].ram/banks[2].mw
+    SLICE_X139Y332       LUT3 (Prop_C6LUT_SLICEM_I2_O)
+                                                      0.123     1.150 f  core/acc_store/banks[2].parity[1].ram/mem_reg_0_i_12__0/O
+                         net (fo=22, routed)          0.400     1.551    core/acc_store/banks[2].parity[0].ram/mem_reg_7_2[1]
+    SLICE_X139Y345       LUT6 (Prop_H6LUT_SLICEM_I4_O)
+                                                      0.152     1.703 r  core/acc_store/banks[2].parity[0].ram/mem_reg_0_i_93/O
+                         net (fo=66, routed)          1.083     2.785    core/acc_store/banks[2].parity[0].ram/mem_reg_0_i_93_n_0
+    RAMB36_X9Y55         RAMB36E2                                     r  core/acc_store/banks[2].parity[0].ram/mem_reg_0/WEBWE[5]
+  -------------------------------------------------------------------    -------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r  
+                                                      0.000     4.000 r  clk (IN)
+                         net (fo=28979, unset)        0.040     4.040    core/acc_store/banks[2].parity[0].ram/clk
+    RAMB36_X9Y55         RAMB36E2                                     r  core/acc_store/banks[2].parity[0].ram/mem_reg_0/CLKBWRCLK
+                         clock pessimism              0.000     4.040    
+                         clock uncertainty           -0.035     4.005    
+    RAMB36_X9Y55         RAMB36E2 (Setup_RAMB36E2_RAMB36_CLKBWRCLK_WEBWE[5])
+                                                     -0.394     3.611    core/acc_store/banks[2].parity[0].ram/mem_reg_0
+  -------------------------------------------------------------------
+                         required time                          3.611    
+                         arrival time                          -2.785    
+  -------------------------------------------------------------------
+                         slack                                  0.825    
+
+Slack (MET) :             0.831ns  (required time - arrival time)
+  Source:                 core/context_q_reg[9][valid]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/RAMA/WE
+                            (rising edge-triggered cell RAMD32 clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.967ns  (logic 0.371ns (12.505%)  route 2.596ns (87.495%))
+  Logic Levels:           4  (LUT3=2 LUT6=2)
+  Clock Path Skew:        0.013ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.043ns = ( 4.043 - 4.000 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  clk (IN)
+                         net (fo=28979, unset)        0.030     0.030    core/clk
+    SLICE_X142Y332       FDRE                                         r  core/context_q_reg[9][valid]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X142Y332       FDRE (Prop_AFF2_SLICEM_C_Q)
+                                                      0.080     0.110 r  core/context_q_reg[9][valid]/Q
+                         net (fo=16, routed)          0.359     0.469    core/acc_store/banks[1].parity[1].ram/context_q_reg[9][valid]
+    SLICE_X138Y319       LUT3 (Prop_H6LUT_SLICEL_I0_O)
+                                                      0.090     0.559 r  core/acc_store/banks[1].parity[1].ram/mem_reg_0_31_0_13_i_26/O
+                         net (fo=1052, routed)        0.765     1.324    core/acc_store/banks[1].parity[0].ram/banks[1].mw
+    SLICE_X139Y309       LUT3 (Prop_C5LUT_SLICEM_I2_O)
+                                                      0.111     1.435 f  core/acc_store/banks[1].parity[0].ram/valid_q[25]_i_7__0/O
+                         net (fo=1, routed)           0.257     1.692    core/acc_store/banks[1].parity[0].ram/banks[1].wa[8]
+    SLICE_X139Y318       LUT6 (Prop_G6LUT_SLICEM_I3_O)
+                                                      0.037     1.729 f  core/acc_store/banks[1].parity[0].ram/valid_q[25]_i_3__0/O
+                         net (fo=4, routed)           0.206     1.935    core/acc_store/banks[1].parity[0].ram/valid_q[25]_i_3__0_n_0
+    SLICE_X137Y321       LUT6 (Prop_H6LUT_SLICEM_I3_O)
+                                                      0.053     1.988 r  core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_0_13_i_1__1/O
+                         net (fo=592, routed)         1.009     2.997    core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/WE
+    SLICE_X162Y332       RAMD32                                       r  core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/RAMA/WE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r  
+                                                      0.000     4.000 r  clk (IN)
+                         net (fo=28979, unset)        0.043     4.043    core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/WCLK
+    SLICE_X162Y332       RAMD32                                       r  core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/RAMA/CLK
+                         clock pessimism              0.000     4.043    
+                         clock uncertainty           -0.035     4.008    
+    SLICE_X162Y332       RAMD32 (Setup_A5LUT_SLICEM_CLK_WE)
+                                                     -0.180     3.828    core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/RAMA
+  -------------------------------------------------------------------
+                         required time                          3.828    
+                         arrival time                          -2.997    
+  -------------------------------------------------------------------
+                         slack                                  0.831    
+
+Slack (MET) :             0.831ns  (required time - arrival time)
+  Source:                 core/context_q_reg[9][valid]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/RAMA_D1/WE
+                            (rising edge-triggered cell RAMD32 clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.967ns  (logic 0.371ns (12.505%)  route 2.596ns (87.495%))
+  Logic Levels:           4  (LUT3=2 LUT6=2)
+  Clock Path Skew:        0.013ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.043ns = ( 4.043 - 4.000 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  clk (IN)
+                         net (fo=28979, unset)        0.030     0.030    core/clk
+    SLICE_X142Y332       FDRE                                         r  core/context_q_reg[9][valid]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X142Y332       FDRE (Prop_AFF2_SLICEM_C_Q)
+                                                      0.080     0.110 r  core/context_q_reg[9][valid]/Q
+                         net (fo=16, routed)          0.359     0.469    core/acc_store/banks[1].parity[1].ram/context_q_reg[9][valid]
+    SLICE_X138Y319       LUT3 (Prop_H6LUT_SLICEL_I0_O)
+                                                      0.090     0.559 r  core/acc_store/banks[1].parity[1].ram/mem_reg_0_31_0_13_i_26/O
+                         net (fo=1052, routed)        0.765     1.324    core/acc_store/banks[1].parity[0].ram/banks[1].mw
+    SLICE_X139Y309       LUT3 (Prop_C5LUT_SLICEM_I2_O)
+                                                      0.111     1.435 f  core/acc_store/banks[1].parity[0].ram/valid_q[25]_i_7__0/O
+                         net (fo=1, routed)           0.257     1.692    core/acc_store/banks[1].parity[0].ram/banks[1].wa[8]
+    SLICE_X139Y318       LUT6 (Prop_G6LUT_SLICEM_I3_O)
+                                                      0.037     1.729 f  core/acc_store/banks[1].parity[0].ram/valid_q[25]_i_3__0/O
+                         net (fo=4, routed)           0.206     1.935    core/acc_store/banks[1].parity[0].ram/valid_q[25]_i_3__0_n_0
+    SLICE_X137Y321       LUT6 (Prop_H6LUT_SLICEM_I3_O)
+                                                      0.053     1.988 r  core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_0_13_i_1__1/O
+                         net (fo=592, routed)         1.009     2.997    core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/WE
+    SLICE_X162Y332       RAMD32                                       r  core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/RAMA_D1/WE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r  
+                                                      0.000     4.000 r  clk (IN)
+                         net (fo=28979, unset)        0.043     4.043    core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/WCLK
+    SLICE_X162Y332       RAMD32                                       r  core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/RAMA_D1/CLK
+                         clock pessimism              0.000     4.043    
+                         clock uncertainty           -0.035     4.008    
+    SLICE_X162Y332       RAMD32 (Setup_A6LUT_SLICEM_CLK_WE)
+                                                     -0.180     3.828    core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/RAMA_D1
+  -------------------------------------------------------------------
+                         required time                          3.828    
+                         arrival time                          -2.997    
+  -------------------------------------------------------------------
+                         slack                                  0.831    
+
+Slack (MET) :             0.831ns  (required time - arrival time)
+  Source:                 core/context_q_reg[9][valid]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/RAMB/WE
+                            (rising edge-triggered cell RAMD32 clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.967ns  (logic 0.371ns (12.505%)  route 2.596ns (87.495%))
+  Logic Levels:           4  (LUT3=2 LUT6=2)
+  Clock Path Skew:        0.013ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.043ns = ( 4.043 - 4.000 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  clk (IN)
+                         net (fo=28979, unset)        0.030     0.030    core/clk
+    SLICE_X142Y332       FDRE                                         r  core/context_q_reg[9][valid]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X142Y332       FDRE (Prop_AFF2_SLICEM_C_Q)
+                                                      0.080     0.110 r  core/context_q_reg[9][valid]/Q
+                         net (fo=16, routed)          0.359     0.469    core/acc_store/banks[1].parity[1].ram/context_q_reg[9][valid]
+    SLICE_X138Y319       LUT3 (Prop_H6LUT_SLICEL_I0_O)
+                                                      0.090     0.559 r  core/acc_store/banks[1].parity[1].ram/mem_reg_0_31_0_13_i_26/O
+                         net (fo=1052, routed)        0.765     1.324    core/acc_store/banks[1].parity[0].ram/banks[1].mw
+    SLICE_X139Y309       LUT3 (Prop_C5LUT_SLICEM_I2_O)
+                                                      0.111     1.435 f  core/acc_store/banks[1].parity[0].ram/valid_q[25]_i_7__0/O
+                         net (fo=1, routed)           0.257     1.692    core/acc_store/banks[1].parity[0].ram/banks[1].wa[8]
+    SLICE_X139Y318       LUT6 (Prop_G6LUT_SLICEM_I3_O)
+                                                      0.037     1.729 f  core/acc_store/banks[1].parity[0].ram/valid_q[25]_i_3__0/O
+                         net (fo=4, routed)           0.206     1.935    core/acc_store/banks[1].parity[0].ram/valid_q[25]_i_3__0_n_0
+    SLICE_X137Y321       LUT6 (Prop_H6LUT_SLICEM_I3_O)
+                                                      0.053     1.988 r  core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_0_13_i_1__1/O
+                         net (fo=592, routed)         1.009     2.997    core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/WE
+    SLICE_X162Y332       RAMD32                                       r  core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/RAMB/WE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r  
+                                                      0.000     4.000 r  clk (IN)
+                         net (fo=28979, unset)        0.043     4.043    core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/WCLK
+    SLICE_X162Y332       RAMD32                                       r  core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/RAMB/CLK
+                         clock pessimism              0.000     4.043    
+                         clock uncertainty           -0.035     4.008    
+    SLICE_X162Y332       RAMD32 (Setup_B5LUT_SLICEM_CLK_WE)
+                                                     -0.180     3.828    core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/RAMB
+  -------------------------------------------------------------------
+                         required time                          3.828    
+                         arrival time                          -2.997    
+  -------------------------------------------------------------------
+                         slack                                  0.831    
+
+Slack (MET) :             0.831ns  (required time - arrival time)
+  Source:                 core/context_q_reg[9][valid]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/RAMB_D1/WE
+                            (rising edge-triggered cell RAMD32 clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.967ns  (logic 0.371ns (12.505%)  route 2.596ns (87.495%))
+  Logic Levels:           4  (LUT3=2 LUT6=2)
+  Clock Path Skew:        0.013ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.043ns = ( 4.043 - 4.000 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  clk (IN)
+                         net (fo=28979, unset)        0.030     0.030    core/clk
+    SLICE_X142Y332       FDRE                                         r  core/context_q_reg[9][valid]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X142Y332       FDRE (Prop_AFF2_SLICEM_C_Q)
+                                                      0.080     0.110 r  core/context_q_reg[9][valid]/Q
+                         net (fo=16, routed)          0.359     0.469    core/acc_store/banks[1].parity[1].ram/context_q_reg[9][valid]
+    SLICE_X138Y319       LUT3 (Prop_H6LUT_SLICEL_I0_O)
+                                                      0.090     0.559 r  core/acc_store/banks[1].parity[1].ram/mem_reg_0_31_0_13_i_26/O
+                         net (fo=1052, routed)        0.765     1.324    core/acc_store/banks[1].parity[0].ram/banks[1].mw
+    SLICE_X139Y309       LUT3 (Prop_C5LUT_SLICEM_I2_O)
+                                                      0.111     1.435 f  core/acc_store/banks[1].parity[0].ram/valid_q[25]_i_7__0/O
+                         net (fo=1, routed)           0.257     1.692    core/acc_store/banks[1].parity[0].ram/banks[1].wa[8]
+    SLICE_X139Y318       LUT6 (Prop_G6LUT_SLICEM_I3_O)
+                                                      0.037     1.729 f  core/acc_store/banks[1].parity[0].ram/valid_q[25]_i_3__0/O
+                         net (fo=4, routed)           0.206     1.935    core/acc_store/banks[1].parity[0].ram/valid_q[25]_i_3__0_n_0
+    SLICE_X137Y321       LUT6 (Prop_H6LUT_SLICEM_I3_O)
+                                                      0.053     1.988 r  core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_0_13_i_1__1/O
+                         net (fo=592, routed)         1.009     2.997    core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/WE
+    SLICE_X162Y332       RAMD32                                       r  core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/RAMB_D1/WE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r  
+                                                      0.000     4.000 r  clk (IN)
+                         net (fo=28979, unset)        0.043     4.043    core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/WCLK
+    SLICE_X162Y332       RAMD32                                       r  core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/RAMB_D1/CLK
+                         clock pessimism              0.000     4.043    
+                         clock uncertainty           -0.035     4.008    
+    SLICE_X162Y332       RAMD32 (Setup_B6LUT_SLICEM_CLK_WE)
+                                                     -0.180     3.828    core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/RAMB_D1
+  -------------------------------------------------------------------
+                         required time                          3.828    
+                         arrival time                          -2.997    
+  -------------------------------------------------------------------
+                         slack                                  0.831    
+
+Slack (MET) :             0.831ns  (required time - arrival time)
+  Source:                 core/context_q_reg[9][valid]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/RAMC/WE
+                            (rising edge-triggered cell RAMD32 clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.967ns  (logic 0.371ns (12.505%)  route 2.596ns (87.495%))
+  Logic Levels:           4  (LUT3=2 LUT6=2)
+  Clock Path Skew:        0.013ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.043ns = ( 4.043 - 4.000 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  clk (IN)
+                         net (fo=28979, unset)        0.030     0.030    core/clk
+    SLICE_X142Y332       FDRE                                         r  core/context_q_reg[9][valid]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X142Y332       FDRE (Prop_AFF2_SLICEM_C_Q)
+                                                      0.080     0.110 r  core/context_q_reg[9][valid]/Q
+                         net (fo=16, routed)          0.359     0.469    core/acc_store/banks[1].parity[1].ram/context_q_reg[9][valid]
+    SLICE_X138Y319       LUT3 (Prop_H6LUT_SLICEL_I0_O)
+                                                      0.090     0.559 r  core/acc_store/banks[1].parity[1].ram/mem_reg_0_31_0_13_i_26/O
+                         net (fo=1052, routed)        0.765     1.324    core/acc_store/banks[1].parity[0].ram/banks[1].mw
+    SLICE_X139Y309       LUT3 (Prop_C5LUT_SLICEM_I2_O)
+                                                      0.111     1.435 f  core/acc_store/banks[1].parity[0].ram/valid_q[25]_i_7__0/O
+                         net (fo=1, routed)           0.257     1.692    core/acc_store/banks[1].parity[0].ram/banks[1].wa[8]
+    SLICE_X139Y318       LUT6 (Prop_G6LUT_SLICEM_I3_O)
+                                                      0.037     1.729 f  core/acc_store/banks[1].parity[0].ram/valid_q[25]_i_3__0/O
+                         net (fo=4, routed)           0.206     1.935    core/acc_store/banks[1].parity[0].ram/valid_q[25]_i_3__0_n_0
+    SLICE_X137Y321       LUT6 (Prop_H6LUT_SLICEM_I3_O)
+                                                      0.053     1.988 r  core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_0_13_i_1__1/O
+                         net (fo=592, routed)         1.009     2.997    core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/WE
+    SLICE_X162Y332       RAMD32                                       r  core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/RAMC/WE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r  
+                                                      0.000     4.000 r  clk (IN)
+                         net (fo=28979, unset)        0.043     4.043    core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/WCLK
+    SLICE_X162Y332       RAMD32                                       r  core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/RAMC/CLK
+                         clock pessimism              0.000     4.043    
+                         clock uncertainty           -0.035     4.008    
+    SLICE_X162Y332       RAMD32 (Setup_C5LUT_SLICEM_CLK_WE)
+                                                     -0.180     3.828    core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/RAMC
+  -------------------------------------------------------------------
+                         required time                          3.828    
+                         arrival time                          -2.997    
+  -------------------------------------------------------------------
+                         slack                                  0.831    
+
+Slack (MET) :             0.831ns  (required time - arrival time)
+  Source:                 core/context_q_reg[9][valid]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/RAMC_D1/WE
+                            (rising edge-triggered cell RAMD32 clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.967ns  (logic 0.371ns (12.505%)  route 2.596ns (87.495%))
+  Logic Levels:           4  (LUT3=2 LUT6=2)
+  Clock Path Skew:        0.013ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.043ns = ( 4.043 - 4.000 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  clk (IN)
+                         net (fo=28979, unset)        0.030     0.030    core/clk
+    SLICE_X142Y332       FDRE                                         r  core/context_q_reg[9][valid]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X142Y332       FDRE (Prop_AFF2_SLICEM_C_Q)
+                                                      0.080     0.110 r  core/context_q_reg[9][valid]/Q
+                         net (fo=16, routed)          0.359     0.469    core/acc_store/banks[1].parity[1].ram/context_q_reg[9][valid]
+    SLICE_X138Y319       LUT3 (Prop_H6LUT_SLICEL_I0_O)
+                                                      0.090     0.559 r  core/acc_store/banks[1].parity[1].ram/mem_reg_0_31_0_13_i_26/O
+                         net (fo=1052, routed)        0.765     1.324    core/acc_store/banks[1].parity[0].ram/banks[1].mw
+    SLICE_X139Y309       LUT3 (Prop_C5LUT_SLICEM_I2_O)
+                                                      0.111     1.435 f  core/acc_store/banks[1].parity[0].ram/valid_q[25]_i_7__0/O
+                         net (fo=1, routed)           0.257     1.692    core/acc_store/banks[1].parity[0].ram/banks[1].wa[8]
+    SLICE_X139Y318       LUT6 (Prop_G6LUT_SLICEM_I3_O)
+                                                      0.037     1.729 f  core/acc_store/banks[1].parity[0].ram/valid_q[25]_i_3__0/O
+                         net (fo=4, routed)           0.206     1.935    core/acc_store/banks[1].parity[0].ram/valid_q[25]_i_3__0_n_0
+    SLICE_X137Y321       LUT6 (Prop_H6LUT_SLICEM_I3_O)
+                                                      0.053     1.988 r  core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_0_13_i_1__1/O
+                         net (fo=592, routed)         1.009     2.997    core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/WE
+    SLICE_X162Y332       RAMD32                                       r  core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/RAMC_D1/WE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r  
+                                                      0.000     4.000 r  clk (IN)
+                         net (fo=28979, unset)        0.043     4.043    core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/WCLK
+    SLICE_X162Y332       RAMD32                                       r  core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/RAMC_D1/CLK
+                         clock pessimism              0.000     4.043    
+                         clock uncertainty           -0.035     4.008    
+    SLICE_X162Y332       RAMD32 (Setup_C6LUT_SLICEM_CLK_WE)
+                                                     -0.180     3.828    core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/RAMC_D1
+  -------------------------------------------------------------------
+                         required time                          3.828    
+                         arrival time                          -2.997    
+  -------------------------------------------------------------------
+                         slack                                  0.831    
+
+Slack (MET) :             0.831ns  (required time - arrival time)
+  Source:                 core/context_q_reg[9][valid]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/RAMD/WE
+                            (rising edge-triggered cell RAMD32 clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.967ns  (logic 0.371ns (12.505%)  route 2.596ns (87.495%))
+  Logic Levels:           4  (LUT3=2 LUT6=2)
+  Clock Path Skew:        0.013ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.043ns = ( 4.043 - 4.000 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  clk (IN)
+                         net (fo=28979, unset)        0.030     0.030    core/clk
+    SLICE_X142Y332       FDRE                                         r  core/context_q_reg[9][valid]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X142Y332       FDRE (Prop_AFF2_SLICEM_C_Q)
+                                                      0.080     0.110 r  core/context_q_reg[9][valid]/Q
+                         net (fo=16, routed)          0.359     0.469    core/acc_store/banks[1].parity[1].ram/context_q_reg[9][valid]
+    SLICE_X138Y319       LUT3 (Prop_H6LUT_SLICEL_I0_O)
+                                                      0.090     0.559 r  core/acc_store/banks[1].parity[1].ram/mem_reg_0_31_0_13_i_26/O
+                         net (fo=1052, routed)        0.765     1.324    core/acc_store/banks[1].parity[0].ram/banks[1].mw
+    SLICE_X139Y309       LUT3 (Prop_C5LUT_SLICEM_I2_O)
+                                                      0.111     1.435 f  core/acc_store/banks[1].parity[0].ram/valid_q[25]_i_7__0/O
+                         net (fo=1, routed)           0.257     1.692    core/acc_store/banks[1].parity[0].ram/banks[1].wa[8]
+    SLICE_X139Y318       LUT6 (Prop_G6LUT_SLICEM_I3_O)
+                                                      0.037     1.729 f  core/acc_store/banks[1].parity[0].ram/valid_q[25]_i_3__0/O
+                         net (fo=4, routed)           0.206     1.935    core/acc_store/banks[1].parity[0].ram/valid_q[25]_i_3__0_n_0
+    SLICE_X137Y321       LUT6 (Prop_H6LUT_SLICEM_I3_O)
+                                                      0.053     1.988 r  core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_0_13_i_1__1/O
+                         net (fo=592, routed)         1.009     2.997    core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/WE
+    SLICE_X162Y332       RAMD32                                       r  core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/RAMD/WE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r  
+                                                      0.000     4.000 r  clk (IN)
+                         net (fo=28979, unset)        0.043     4.043    core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/WCLK
+    SLICE_X162Y332       RAMD32                                       r  core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/RAMD/CLK
+                         clock pessimism              0.000     4.043    
+                         clock uncertainty           -0.035     4.008    
+    SLICE_X162Y332       RAMD32 (Setup_D5LUT_SLICEM_CLK_WE)
+                                                     -0.180     3.828    core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/RAMD
+  -------------------------------------------------------------------
+                         required time                          3.828    
+                         arrival time                          -2.997    
+  -------------------------------------------------------------------
+                         slack                                  0.831    
+
+Slack (MET) :             0.831ns  (required time - arrival time)
+  Source:                 core/context_q_reg[9][valid]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/RAMD_D1/WE
+                            (rising edge-triggered cell RAMD32 clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.967ns  (logic 0.371ns (12.505%)  route 2.596ns (87.495%))
+  Logic Levels:           4  (LUT3=2 LUT6=2)
+  Clock Path Skew:        0.013ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.043ns = ( 4.043 - 4.000 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  clk (IN)
+                         net (fo=28979, unset)        0.030     0.030    core/clk
+    SLICE_X142Y332       FDRE                                         r  core/context_q_reg[9][valid]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X142Y332       FDRE (Prop_AFF2_SLICEM_C_Q)
+                                                      0.080     0.110 r  core/context_q_reg[9][valid]/Q
+                         net (fo=16, routed)          0.359     0.469    core/acc_store/banks[1].parity[1].ram/context_q_reg[9][valid]
+    SLICE_X138Y319       LUT3 (Prop_H6LUT_SLICEL_I0_O)
+                                                      0.090     0.559 r  core/acc_store/banks[1].parity[1].ram/mem_reg_0_31_0_13_i_26/O
+                         net (fo=1052, routed)        0.765     1.324    core/acc_store/banks[1].parity[0].ram/banks[1].mw
+    SLICE_X139Y309       LUT3 (Prop_C5LUT_SLICEM_I2_O)
+                                                      0.111     1.435 f  core/acc_store/banks[1].parity[0].ram/valid_q[25]_i_7__0/O
+                         net (fo=1, routed)           0.257     1.692    core/acc_store/banks[1].parity[0].ram/banks[1].wa[8]
+    SLICE_X139Y318       LUT6 (Prop_G6LUT_SLICEM_I3_O)
+                                                      0.037     1.729 f  core/acc_store/banks[1].parity[0].ram/valid_q[25]_i_3__0/O
+                         net (fo=4, routed)           0.206     1.935    core/acc_store/banks[1].parity[0].ram/valid_q[25]_i_3__0_n_0
+    SLICE_X137Y321       LUT6 (Prop_H6LUT_SLICEM_I3_O)
+                                                      0.053     1.988 r  core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_0_13_i_1__1/O
+                         net (fo=592, routed)         1.009     2.997    core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/WE
+    SLICE_X162Y332       RAMD32                                       r  core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/RAMD_D1/WE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r  
+                                                      0.000     4.000 r  clk (IN)
+                         net (fo=28979, unset)        0.043     4.043    core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/WCLK
+    SLICE_X162Y332       RAMD32                                       r  core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/RAMD_D1/CLK
+                         clock pessimism              0.000     4.043    
+                         clock uncertainty           -0.035     4.008    
+    SLICE_X162Y332       RAMD32 (Setup_D6LUT_SLICEM_CLK_WE)
+                                                     -0.180     3.828    core/acc_store/banks[1].parity[0].ram/mem_reg_0_31_196_209/RAMD_D1
+  -------------------------------------------------------------------
+                         required time                          3.828    
+                         arrival time                          -2.997    
+  -------------------------------------------------------------------
+                         slack                                  0.831    
+
+
+
+
+

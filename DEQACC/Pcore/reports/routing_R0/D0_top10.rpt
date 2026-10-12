@@ -1,0 +1,682 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.
+----------------------------------------------------------------------------------------------------------------------------------
+| Tool Version      : Vivado v.2022.2 (win64) Build 3671981 Fri Oct 14 05:00:03 MDT 2022
+| Date              : Mon Oct 12 11:41:43 2026
+| Host              : FLY running 64-bit major release  (build 9200)
+| Command           : report_timing -to [get_cells -quiet -hier -filter {NAME =~ *magnitude_q_reg*}] -max_paths 10 -return_string
+| Design            : DEQACC_3_3ns_timing_shell
+| Device            : xcu50-fsvh2104
+| Speed File        : -2  PRODUCTION 1.30 05-01-2022
+| Temperature Grade : E
+----------------------------------------------------------------------------------------------------------------------------------
+
+Timing Report
+
+Slack (MET) :             1.158ns  (required time - arrival time)
+  Source:                 rsp_q_reg[e_stream][1][7]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/magnitude_q_reg[1][15][bad]/S
+                            (rising edge-triggered cell FDSE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.723ns  (logic 0.241ns (8.850%)  route 2.482ns (91.150%))
+  Logic Levels:           2  (LUT4=1 LUT5=1)
+  Clock Path Skew:        -0.009ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.021ns = ( 4.021 - 4.000 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  clk (IN)
+                         net (fo=28875, unset)        0.030     0.030    clk
+    SLICE_X157Y46        FDRE                                         r  rsp_q_reg[e_stream][1][7]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X157Y46        FDRE (Prop_FFF2_SLICEM_C_Q)
+                                                      0.079     0.109 r  rsp_q_reg[e_stream][1][7]/Q
+                         net (fo=2, routed)           0.176     0.285    core/magnitude_q_reg[1][0][a][7]_0[7]
+    SLICE_X157Y46        LUT4 (Prop_F6LUT_SLICEM_I2_O)
+                                                      0.123     0.408 f  core/magnitude_q[1][12][bad]_i_3/O
+                         net (fo=1, routed)           0.101     0.509    core/magnitude_q[1][12][bad]_i_3_n_0
+    SLICE_X156Y46        LUT5 (Prop_H6LUT_SLICEM_I4_O)
+                                                      0.039     0.548 r  core/magnitude_q[1][12][bad]_i_1/O
+                         net (fo=16, routed)          2.205     2.753    core/p_1_in
+    SLICE_X145Y144       FDSE                                         r  core/magnitude_q_reg[1][15][bad]/S
+  -------------------------------------------------------------------    -------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r  
+                                                      0.000     4.000 r  clk (IN)
+                         net (fo=28875, unset)        0.021     4.021    core/clk
+    SLICE_X145Y144       FDSE                                         r  core/magnitude_q_reg[1][15][bad]/C
+                         clock pessimism              0.000     4.021    
+                         clock uncertainty           -0.035     3.986    
+    SLICE_X145Y144       FDSE (Setup_EFF_SLICEM_C_S)
+                                                     -0.074     3.912    core/magnitude_q_reg[1][15][bad]
+  -------------------------------------------------------------------
+                         required time                          3.912    
+                         arrival time                          -2.753    
+  -------------------------------------------------------------------
+                         slack                                  1.158    
+
+Slack (MET) :             1.222ns  (required time - arrival time)
+  Source:                 rsp_q_reg[e_stream][0][6]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/magnitude_q_reg[0][14][bad]/S
+                            (rising edge-triggered cell FDSE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.661ns  (logic 0.262ns (9.847%)  route 2.399ns (90.153%))
+  Logic Levels:           2  (LUT4=1 LUT5=1)
+  Clock Path Skew:        -0.008ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.021ns = ( 4.021 - 4.000 ) 
+    Source Clock Delay      (SCD):    0.029ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  clk (IN)
+                         net (fo=28875, unset)        0.029     0.029    clk
+    SLICE_X136Y43        FDRE                                         r  rsp_q_reg[e_stream][0][6]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X136Y43        FDRE (Prop_HFF2_SLICEL_C_Q)
+                                                      0.080     0.109 r  rsp_q_reg[e_stream][0][6]/Q
+                         net (fo=2, routed)           0.175     0.284    core/magnitude_q_reg[0][0][a][7]_0[6]
+    SLICE_X136Y43        LUT4 (Prop_C6LUT_SLICEL_I3_O)
+                                                      0.146     0.430 f  core/magnitude_q[0][2][bad]_i_3/O
+                         net (fo=1, routed)           0.041     0.471    core/magnitude_q[0][2][bad]_i_3_n_0
+    SLICE_X136Y43        LUT5 (Prop_D6LUT_SLICEL_I4_O)
+                                                      0.036     0.507 r  core/magnitude_q[0][2][bad]_i_1/O
+                         net (fo=16, routed)          2.183     2.690    core/p_32_in
+    SLICE_X141Y136       FDSE                                         r  core/magnitude_q_reg[0][14][bad]/S
+  -------------------------------------------------------------------    -------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r  
+                                                      0.000     4.000 r  clk (IN)
+                         net (fo=28875, unset)        0.021     4.021    core/clk
+    SLICE_X141Y136       FDSE                                         r  core/magnitude_q_reg[0][14][bad]/C
+                         clock pessimism              0.000     4.021    
+                         clock uncertainty           -0.035     3.986    
+    SLICE_X141Y136       FDSE (Setup_EFF_SLICEM_C_S)
+                                                     -0.074     3.912    core/magnitude_q_reg[0][14][bad]
+  -------------------------------------------------------------------
+                         required time                          3.912    
+                         arrival time                          -2.690    
+  -------------------------------------------------------------------
+                         slack                                  1.222    
+
+Slack (MET) :             1.261ns  (required time - arrival time)
+  Source:                 rsp_q_reg[e_stream][0][6]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/magnitude_q_reg[0][15][bad]/S
+                            (rising edge-triggered cell FDSE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.621ns  (logic 0.262ns (9.997%)  route 2.359ns (90.003%))
+  Logic Levels:           2  (LUT4=1 LUT5=1)
+  Clock Path Skew:        -0.009ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.020ns = ( 4.020 - 4.000 ) 
+    Source Clock Delay      (SCD):    0.029ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  clk (IN)
+                         net (fo=28875, unset)        0.029     0.029    clk
+    SLICE_X136Y43        FDRE                                         r  rsp_q_reg[e_stream][0][6]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X136Y43        FDRE (Prop_HFF2_SLICEL_C_Q)
+                                                      0.080     0.109 r  rsp_q_reg[e_stream][0][6]/Q
+                         net (fo=2, routed)           0.175     0.284    core/magnitude_q_reg[0][0][a][7]_0[6]
+    SLICE_X136Y43        LUT4 (Prop_C6LUT_SLICEL_I3_O)
+                                                      0.146     0.430 f  core/magnitude_q[0][2][bad]_i_3/O
+                         net (fo=1, routed)           0.041     0.471    core/magnitude_q[0][2][bad]_i_3_n_0
+    SLICE_X136Y43        LUT5 (Prop_D6LUT_SLICEL_I4_O)
+                                                      0.036     0.507 r  core/magnitude_q[0][2][bad]_i_1/O
+                         net (fo=16, routed)          2.143     2.650    core/p_32_in
+    SLICE_X143Y145       FDSE                                         r  core/magnitude_q_reg[0][15][bad]/S
+  -------------------------------------------------------------------    -------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r  
+                                                      0.000     4.000 r  clk (IN)
+                         net (fo=28875, unset)        0.020     4.020    core/clk
+    SLICE_X143Y145       FDSE                                         r  core/magnitude_q_reg[0][15][bad]/C
+                         clock pessimism              0.000     4.020    
+                         clock uncertainty           -0.035     3.985    
+    SLICE_X143Y145       FDSE (Setup_EFF_SLICEL_C_S)
+                                                     -0.074     3.911    core/magnitude_q_reg[0][15][bad]
+  -------------------------------------------------------------------
+                         required time                          3.911    
+                         arrival time                          -2.650    
+  -------------------------------------------------------------------
+                         slack                                  1.261    
+
+Slack (MET) :             1.282ns  (required time - arrival time)
+  Source:                 rsp_q_reg[psum][1][7][0]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/magnitude_q_reg[1][7][lead][2]/D
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.699ns  (logic 0.911ns (33.753%)  route 1.788ns (66.247%))
+  Logic Levels:           8  (CARRY8=2 LUT1=1 LUT3=1 LUT4=1 LUT5=1 LUT6=2)
+  Clock Path Skew:        -0.009ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.021ns = ( 4.021 - 4.000 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  clk (IN)
+                         net (fo=28875, unset)        0.030     0.030    clk
+    SLICE_X176Y89        FDRE                                         r  rsp_q_reg[psum][1][7][0]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X176Y89        FDRE (Prop_BFF_SLICEM_C_Q)
+                                                      0.078     0.108 f  rsp_q_reg[psum][1][7][0]/Q
+                         net (fo=3, routed)           0.124     0.232    rsp_q_reg[psum_n_0_][1][7][0]
+    SLICE_X176Y89        LUT1 (Prop_H6LUT_SLICEM_I0_O)
+                                                      0.152     0.384 r  magnitude_q[1][7][mag][8]_i_3/O
+                         net (fo=1, routed)           0.331     0.715    magnitude_q[1][7][mag][8]_i_3_n_0
+    SLICE_X174Y89        CARRY8 (Prop_CARRY8_SLICEL_CI_CO[7])
+                                                      0.151     0.866 r  magnitude_q_reg[1][7][mag][8]_i_2/CO[7]
+                         net (fo=1, routed)           0.052     0.918    magnitude_q_reg[1][7][mag][8]_i_2_n_0
+    SLICE_X174Y90        CARRY8 (Prop_CARRY8_SLICEL_CI_O[3])
+                                                      0.082     1.000 r  magnitude_q_reg[1][7][mag][16]_i_2/O[3]
+                         net (fo=1, routed)           0.253     1.253    core/magnitude_q_reg[1][7][mag][16]_0[3]
+    SLICE_X175Y89        LUT3 (Prop_C6LUT_SLICEM_I0_O)
+                                                      0.051     1.304 r  core/magnitude_q[1][7][mag][12]_i_1/O
+                         net (fo=4, routed)           0.274     1.578    core/magnitude_q[1][7][mag][12]_i_1_n_0
+    SLICE_X176Y89        LUT4 (Prop_D5LUT_SLICEM_I1_O)
+                                                      0.135     1.713 r  core/magnitude_q[1][7][lead][3]_i_6/O
+                         net (fo=2, routed)           0.224     1.937    core/magnitude_q[1][7][lead][3]_i_6_n_0
+    SLICE_X176Y90        LUT6 (Prop_G6LUT_SLICEM_I3_O)
+                                                      0.090     2.027 r  core/magnitude_q[1][7][lead][2]_i_4/O
+                         net (fo=1, routed)           0.094     2.121    core/magnitude_q[1][7][lead][2]_i_4_n_0
+    SLICE_X176Y92        LUT6 (Prop_F6LUT_SLICEM_I5_O)
+                                                      0.037     2.158 r  core/magnitude_q[1][7][lead][2]_i_2/O
+                         net (fo=1, routed)           0.099     2.257    core/magnitude_q[1][7][lead][2]_i_2_n_0
+    SLICE_X176Y92        LUT5 (Prop_D5LUT_SLICEM_I2_O)
+                                                      0.135     2.392 r  core/magnitude_q[1][7][lead][2]_i_1/O
+                         net (fo=1, routed)           0.337     2.729    core/magnitude_q[1][7][lead][2]_i_1_n_0
+    SLICE_X176Y92        FDRE                                         r  core/magnitude_q_reg[1][7][lead][2]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r  
+                                                      0.000     4.000 r  clk (IN)
+                         net (fo=28875, unset)        0.021     4.021    core/clk
+    SLICE_X176Y92        FDRE                                         r  core/magnitude_q_reg[1][7][lead][2]/C
+                         clock pessimism              0.000     4.021    
+                         clock uncertainty           -0.035     3.986    
+    SLICE_X176Y92        FDRE (Setup_EFF_SLICEM_C_D)
+                                                      0.025     4.011    core/magnitude_q_reg[1][7][lead][2]
+  -------------------------------------------------------------------
+                         required time                          4.011    
+                         arrival time                          -2.729    
+  -------------------------------------------------------------------
+                         slack                                  1.282    
+
+Slack (MET) :             1.298ns  (required time - arrival time)
+  Source:                 rsp_q_reg[psum][0][8][0]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/magnitude_q_reg[0][8][lead][2]/D
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.682ns  (logic 1.113ns (41.495%)  route 1.569ns (58.505%))
+  Logic Levels:           8  (CARRY8=2 LUT1=1 LUT3=1 LUT4=1 LUT5=1 LUT6=2)
+  Clock Path Skew:        -0.009ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.020ns = ( 4.020 - 4.000 ) 
+    Source Clock Delay      (SCD):    0.029ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  clk (IN)
+                         net (fo=28875, unset)        0.029     0.029    clk
+    SLICE_X136Y92        FDRE                                         r  rsp_q_reg[psum][0][8][0]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X136Y92        FDRE (Prop_GFF2_SLICEL_C_Q)
+                                                      0.081     0.110 f  rsp_q_reg[psum][0][8][0]/Q
+                         net (fo=3, routed)           0.224     0.334    rsp_q_reg[psum_n_0_][0][8][0]
+    SLICE_X136Y92        LUT1 (Prop_F6LUT_SLICEL_I0_O)
+                                                      0.148     0.482 r  magnitude_q[0][8][mag][8]_i_3/O
+                         net (fo=1, routed)           0.279     0.761    magnitude_q[0][8][mag][8]_i_3_n_0
+    SLICE_X131Y91        CARRY8 (Prop_CARRY8_SLICEL_CI_CO[7])
+                                                      0.151     0.912 r  magnitude_q_reg[0][8][mag][8]_i_2/CO[7]
+                         net (fo=1, routed)           0.026     0.938    magnitude_q_reg[0][8][mag][8]_i_2_n_0
+    SLICE_X131Y92        CARRY8 (Prop_CARRY8_SLICEL_CI_O[5])
+                                                      0.116     1.054 r  magnitude_q_reg[0][8][mag][16]_i_2/O[5]
+                         net (fo=1, routed)           0.172     1.226    core/magnitude_q_reg[0][8][mag][16]_0[5]
+    SLICE_X132Y93        LUT3 (Prop_D6LUT_SLICEL_I0_O)
+                                                      0.099     1.325 r  core/magnitude_q[0][8][mag][14]_i_1/O
+                         net (fo=4, routed)           0.248     1.573    core/magnitude_q[0][8][mag][14]_i_1_n_0
+    SLICE_X135Y92        LUT4 (Prop_H5LUT_SLICEL_I3_O)
+                                                      0.109     1.682 r  core/magnitude_q[0][8][lead][3]_i_6/O
+                         net (fo=2, routed)           0.182     1.864    core/magnitude_q[0][8][lead][3]_i_6_n_0
+    SLICE_X134Y92        LUT6 (Prop_H6LUT_SLICEL_I3_O)
+                                                      0.150     2.014 r  core/magnitude_q[0][8][lead][2]_i_4/O
+                         net (fo=1, routed)           0.137     2.151    core/magnitude_q[0][8][lead][2]_i_4_n_0
+    SLICE_X135Y93        LUT6 (Prop_G6LUT_SLICEL_I5_O)
+                                                      0.123     2.274 r  core/magnitude_q[0][8][lead][2]_i_2/O
+                         net (fo=1, routed)           0.053     2.327    core/magnitude_q[0][8][lead][2]_i_2_n_0
+    SLICE_X135Y93        LUT5 (Prop_C5LUT_SLICEL_I2_O)
+                                                      0.136     2.463 r  core/magnitude_q[0][8][lead][2]_i_1/O
+                         net (fo=1, routed)           0.248     2.711    core/magnitude_q[0][8][lead][2]_i_1_n_0
+    SLICE_X135Y93        FDRE                                         r  core/magnitude_q_reg[0][8][lead][2]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r  
+                                                      0.000     4.000 r  clk (IN)
+                         net (fo=28875, unset)        0.020     4.020    core/clk
+    SLICE_X135Y93        FDRE                                         r  core/magnitude_q_reg[0][8][lead][2]/C
+                         clock pessimism              0.000     4.020    
+                         clock uncertainty           -0.035     3.985    
+    SLICE_X135Y93        FDRE (Setup_EFF_SLICEL_C_D)
+                                                      0.025     4.010    core/magnitude_q_reg[0][8][lead][2]
+  -------------------------------------------------------------------
+                         required time                          4.010    
+                         arrival time                          -2.711    
+  -------------------------------------------------------------------
+                         slack                                  1.298    
+
+Slack (MET) :             1.331ns  (required time - arrival time)
+  Source:                 rsp_q_reg[e_stream][1][7]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/magnitude_q_reg[1][14][bad]/S
+                            (rising edge-triggered cell FDSE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.549ns  (logic 0.241ns (9.454%)  route 2.308ns (90.546%))
+  Logic Levels:           2  (LUT4=1 LUT5=1)
+  Clock Path Skew:        -0.010ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.020ns = ( 4.020 - 4.000 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  clk (IN)
+                         net (fo=28875, unset)        0.030     0.030    clk
+    SLICE_X157Y46        FDRE                                         r  rsp_q_reg[e_stream][1][7]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X157Y46        FDRE (Prop_FFF2_SLICEM_C_Q)
+                                                      0.079     0.109 r  rsp_q_reg[e_stream][1][7]/Q
+                         net (fo=2, routed)           0.176     0.285    core/magnitude_q_reg[1][0][a][7]_0[7]
+    SLICE_X157Y46        LUT4 (Prop_F6LUT_SLICEM_I2_O)
+                                                      0.123     0.408 f  core/magnitude_q[1][12][bad]_i_3/O
+                         net (fo=1, routed)           0.101     0.509    core/magnitude_q[1][12][bad]_i_3_n_0
+    SLICE_X156Y46        LUT5 (Prop_H6LUT_SLICEM_I4_O)
+                                                      0.039     0.548 r  core/magnitude_q[1][12][bad]_i_1/O
+                         net (fo=16, routed)          2.031     2.579    core/p_1_in
+    SLICE_X147Y141       FDSE                                         r  core/magnitude_q_reg[1][14][bad]/S
+  -------------------------------------------------------------------    -------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r  
+                                                      0.000     4.000 r  clk (IN)
+                         net (fo=28875, unset)        0.020     4.020    core/clk
+    SLICE_X147Y141       FDSE                                         r  core/magnitude_q_reg[1][14][bad]/C
+                         clock pessimism              0.000     4.020    
+                         clock uncertainty           -0.035     3.985    
+    SLICE_X147Y141       FDSE (Setup_EFF_SLICEL_C_S)
+                                                     -0.074     3.911    core/magnitude_q_reg[1][14][bad]
+  -------------------------------------------------------------------
+                         required time                          3.911    
+                         arrival time                          -2.579    
+  -------------------------------------------------------------------
+                         slack                                  1.331    
+
+Slack (MET) :             1.364ns  (required time - arrival time)
+  Source:                 rsp_q_reg[psum][1][9][0]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/magnitude_q_reg[1][9][lead][0]/D
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.616ns  (logic 1.154ns (44.114%)  route 1.462ns (55.886%))
+  Logic Levels:           11  (CARRY8=4 LUT1=1 LUT3=2 LUT5=1 LUT6=3)
+  Clock Path Skew:        -0.010ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.020ns = ( 4.020 - 4.000 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  clk (IN)
+                         net (fo=28875, unset)        0.030     0.030    clk
+    SLICE_X175Y132       FDRE                                         r  rsp_q_reg[psum][1][9][0]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X175Y132       FDRE (Prop_EFF_SLICEM_C_Q)
+                                                      0.076     0.106 f  rsp_q_reg[psum][1][9][0]/Q
+                         net (fo=3, routed)           0.104     0.210    core/magnitude_q_reg[1][9][mag][1]_0[0]
+    SLICE_X175Y132       LUT1 (Prop_D5LUT_SLICEM_I0_O)
+                                                      0.110     0.320 r  core/magnitude_q[1][9][mag][8]_i_3/O
+                         net (fo=1, routed)           0.178     0.498    core/magnitude_q[1][9][mag][8]_i_3_n_0
+    SLICE_X174Y132       CARRY8 (Prop_CARRY8_SLICEL_CI_CO[7])
+                                                      0.151     0.649 r  core/magnitude_q_reg[1][9][mag][8]_i_2/CO[7]
+                         net (fo=1, routed)           0.026     0.675    core/magnitude_q_reg[1][9][mag][8]_i_2_n_0
+    SLICE_X174Y133       CARRY8 (Prop_CARRY8_SLICEL_CI_CO[7])
+                                                      0.015     0.690 r  core/magnitude_q_reg[1][9][mag][16]_i_2/CO[7]
+                         net (fo=1, routed)           0.026     0.716    core/magnitude_q_reg[1][9][mag][16]_i_2_n_0
+    SLICE_X174Y134       CARRY8 (Prop_CARRY8_SLICEL_CI_CO[7])
+                                                      0.015     0.731 r  core/magnitude_q_reg[1][9][mag][24]_i_2/CO[7]
+                         net (fo=1, routed)           0.026     0.757    core/magnitude_q_reg[1][9][mag][24]_i_2_n_0
+    SLICE_X174Y135       CARRY8 (Prop_CARRY8_SLICEL_CI_O[5])
+                                                      0.116     0.873 f  core/magnitude_q_reg[1][9][mag][31]_i_2/O[5]
+                         net (fo=2, routed)           0.129     1.002    core/magnitude_q_reg[1][9][mag][31]_i_2_n_10
+    SLICE_X174Y136       LUT3 (Prop_B5LUT_SLICEL_I0_O)
+                                                      0.104     1.106 f  core/magnitude_q[1][9][mag][30]_i_1/O
+                         net (fo=8, routed)           0.286     1.392    core/magnitude_q[1][9][mag][30]_i_1_n_0
+    SLICE_X174Y136       LUT6 (Prop_H6LUT_SLICEL_I3_O)
+                                                      0.124     1.516 r  core/magnitude_q[1][9][lead][3]_i_8/O
+                         net (fo=4, routed)           0.225     1.741    core/magnitude_q[1][9][lead][3]_i_8_n_0
+    SLICE_X172Y135       LUT6 (Prop_F6LUT_SLICEL_I4_O)
+                                                      0.148     1.889 f  core/magnitude_q[1][9][lead][2]_i_9/O
+                         net (fo=5, routed)           0.137     2.026    core/magnitude_q[1][9][lead][2]_i_9_n_0
+    SLICE_X173Y136       LUT6 (Prop_F6LUT_SLICEL_I2_O)
+                                                      0.049     2.075 f  core/magnitude_q[1][9][lead][2]_i_6/O
+                         net (fo=4, routed)           0.185     2.260    core/magnitude_q[1][9][lead][2]_i_6_n_0
+    SLICE_X173Y135       LUT5 (Prop_E6LUT_SLICEL_I1_O)
+                                                      0.147     2.407 r  core/magnitude_q[1][9][lead][1]_i_3/O
+                         net (fo=2, routed)           0.091     2.498    core/magnitude_q[1][9][lead][1]_i_3_n_0
+    SLICE_X172Y135       LUT3 (Prop_D6LUT_SLICEL_I1_O)
+                                                      0.099     2.597 r  core/magnitude_q[1][9][lead][0]_i_1/O
+                         net (fo=1, routed)           0.049     2.646    core/magnitude_q[1][9][lead][0]_i_1_n_0
+    SLICE_X172Y135       FDRE                                         r  core/magnitude_q_reg[1][9][lead][0]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r  
+                                                      0.000     4.000 r  clk (IN)
+                         net (fo=28875, unset)        0.020     4.020    core/clk
+    SLICE_X172Y135       FDRE                                         r  core/magnitude_q_reg[1][9][lead][0]/C
+                         clock pessimism              0.000     4.020    
+                         clock uncertainty           -0.035     3.985    
+    SLICE_X172Y135       FDRE (Setup_DFF_SLICEL_C_D)
+                                                      0.025     4.010    core/magnitude_q_reg[1][9][lead][0]
+  -------------------------------------------------------------------
+                         required time                          4.010    
+                         arrival time                          -2.646    
+  -------------------------------------------------------------------
+                         slack                                  1.364    
+
+Slack (MET) :             1.387ns  (required time - arrival time)
+  Source:                 rsp_q_reg[psum][1][9][0]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/magnitude_q_reg[1][9][lead][1]/D
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.593ns  (logic 1.165ns (44.930%)  route 1.428ns (55.070%))
+  Logic Levels:           11  (CARRY8=4 LUT1=1 LUT2=1 LUT3=1 LUT5=1 LUT6=3)
+  Clock Path Skew:        -0.010ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.020ns = ( 4.020 - 4.000 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  clk (IN)
+                         net (fo=28875, unset)        0.030     0.030    clk
+    SLICE_X175Y132       FDRE                                         r  rsp_q_reg[psum][1][9][0]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X175Y132       FDRE (Prop_EFF_SLICEM_C_Q)
+                                                      0.076     0.106 f  rsp_q_reg[psum][1][9][0]/Q
+                         net (fo=3, routed)           0.104     0.210    core/magnitude_q_reg[1][9][mag][1]_0[0]
+    SLICE_X175Y132       LUT1 (Prop_D5LUT_SLICEM_I0_O)
+                                                      0.110     0.320 r  core/magnitude_q[1][9][mag][8]_i_3/O
+                         net (fo=1, routed)           0.178     0.498    core/magnitude_q[1][9][mag][8]_i_3_n_0
+    SLICE_X174Y132       CARRY8 (Prop_CARRY8_SLICEL_CI_CO[7])
+                                                      0.151     0.649 r  core/magnitude_q_reg[1][9][mag][8]_i_2/CO[7]
+                         net (fo=1, routed)           0.026     0.675    core/magnitude_q_reg[1][9][mag][8]_i_2_n_0
+    SLICE_X174Y133       CARRY8 (Prop_CARRY8_SLICEL_CI_CO[7])
+                                                      0.015     0.690 r  core/magnitude_q_reg[1][9][mag][16]_i_2/CO[7]
+                         net (fo=1, routed)           0.026     0.716    core/magnitude_q_reg[1][9][mag][16]_i_2_n_0
+    SLICE_X174Y134       CARRY8 (Prop_CARRY8_SLICEL_CI_CO[7])
+                                                      0.015     0.731 r  core/magnitude_q_reg[1][9][mag][24]_i_2/CO[7]
+                         net (fo=1, routed)           0.026     0.757    core/magnitude_q_reg[1][9][mag][24]_i_2_n_0
+    SLICE_X174Y135       CARRY8 (Prop_CARRY8_SLICEL_CI_O[5])
+                                                      0.116     0.873 f  core/magnitude_q_reg[1][9][mag][31]_i_2/O[5]
+                         net (fo=2, routed)           0.129     1.002    core/magnitude_q_reg[1][9][mag][31]_i_2_n_10
+    SLICE_X174Y136       LUT3 (Prop_B5LUT_SLICEL_I0_O)
+                                                      0.104     1.106 f  core/magnitude_q[1][9][mag][30]_i_1/O
+                         net (fo=8, routed)           0.286     1.392    core/magnitude_q[1][9][mag][30]_i_1_n_0
+    SLICE_X174Y136       LUT6 (Prop_H6LUT_SLICEL_I3_O)
+                                                      0.124     1.516 r  core/magnitude_q[1][9][lead][3]_i_8/O
+                         net (fo=4, routed)           0.225     1.741    core/magnitude_q[1][9][lead][3]_i_8_n_0
+    SLICE_X172Y135       LUT6 (Prop_F6LUT_SLICEL_I4_O)
+                                                      0.148     1.889 f  core/magnitude_q[1][9][lead][2]_i_9/O
+                         net (fo=5, routed)           0.137     2.026    core/magnitude_q[1][9][lead][2]_i_9_n_0
+    SLICE_X173Y136       LUT6 (Prop_F6LUT_SLICEL_I2_O)
+                                                      0.049     2.075 f  core/magnitude_q[1][9][lead][2]_i_6/O
+                         net (fo=4, routed)           0.185     2.260    core/magnitude_q[1][9][lead][2]_i_6_n_0
+    SLICE_X173Y135       LUT5 (Prop_E6LUT_SLICEL_I1_O)
+                                                      0.147     2.407 r  core/magnitude_q[1][9][lead][1]_i_3/O
+                         net (fo=2, routed)           0.091     2.498    core/magnitude_q[1][9][lead][1]_i_3_n_0
+    SLICE_X172Y135       LUT2 (Prop_D5LUT_SLICEL_I1_O)
+                                                      0.110     2.608 r  core/magnitude_q[1][9][lead][1]_i_1/O
+                         net (fo=1, routed)           0.015     2.623    core/magnitude_q[1][9][lead][1]_i_1_n_0
+    SLICE_X172Y135       FDRE                                         r  core/magnitude_q_reg[1][9][lead][1]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r  
+                                                      0.000     4.000 r  clk (IN)
+                         net (fo=28875, unset)        0.020     4.020    core/clk
+    SLICE_X172Y135       FDRE                                         r  core/magnitude_q_reg[1][9][lead][1]/C
+                         clock pessimism              0.000     4.020    
+                         clock uncertainty           -0.035     3.985    
+    SLICE_X172Y135       FDRE (Setup_DFF2_SLICEL_C_D)
+                                                      0.025     4.010    core/magnitude_q_reg[1][9][lead][1]
+  -------------------------------------------------------------------
+                         required time                          4.010    
+                         arrival time                          -2.623    
+  -------------------------------------------------------------------
+                         slack                                  1.387    
+
+Slack (MET) :             1.438ns  (required time - arrival time)
+  Source:                 rsp_q_reg[e_stream][1][7]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/magnitude_q_reg[1][11][bad]/S
+                            (rising edge-triggered cell FDSE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.444ns  (logic 0.241ns (9.861%)  route 2.203ns (90.139%))
+  Logic Levels:           2  (LUT4=1 LUT5=1)
+  Clock Path Skew:        -0.009ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.021ns = ( 4.021 - 4.000 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  clk (IN)
+                         net (fo=28875, unset)        0.030     0.030    clk
+    SLICE_X157Y46        FDRE                                         r  rsp_q_reg[e_stream][1][7]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X157Y46        FDRE (Prop_FFF2_SLICEM_C_Q)
+                                                      0.079     0.109 r  rsp_q_reg[e_stream][1][7]/Q
+                         net (fo=2, routed)           0.176     0.285    core/magnitude_q_reg[1][0][a][7]_0[7]
+    SLICE_X157Y46        LUT4 (Prop_F6LUT_SLICEM_I2_O)
+                                                      0.123     0.408 f  core/magnitude_q[1][12][bad]_i_3/O
+                         net (fo=1, routed)           0.101     0.509    core/magnitude_q[1][12][bad]_i_3_n_0
+    SLICE_X156Y46        LUT5 (Prop_H6LUT_SLICEM_I4_O)
+                                                      0.039     0.548 r  core/magnitude_q[1][12][bad]_i_1/O
+                         net (fo=16, routed)          1.926     2.474    core/p_1_in
+    SLICE_X142Y127       FDSE                                         r  core/magnitude_q_reg[1][11][bad]/S
+  -------------------------------------------------------------------    -------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r  
+                                                      0.000     4.000 r  clk (IN)
+                         net (fo=28875, unset)        0.021     4.021    core/clk
+    SLICE_X142Y127       FDSE                                         r  core/magnitude_q_reg[1][11][bad]/C
+                         clock pessimism              0.000     4.021    
+                         clock uncertainty           -0.035     3.986    
+    SLICE_X142Y127       FDSE (Setup_AFF_SLICEM_C_S)
+                                                     -0.074     3.912    core/magnitude_q_reg[1][11][bad]
+  -------------------------------------------------------------------
+                         required time                          3.912    
+                         arrival time                          -2.474    
+  -------------------------------------------------------------------
+                         slack                                  1.438    
+
+Slack (MET) :             1.438ns  (required time - arrival time)
+  Source:                 rsp_q_reg[psum][1][7][0]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/magnitude_q_reg[1][7][lead][0]/D
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.541ns  (logic 0.999ns (39.313%)  route 1.542ns (60.687%))
+  Logic Levels:           10  (CARRY8=4 LUT1=1 LUT3=1 LUT4=2 LUT5=1 LUT6=1)
+  Clock Path Skew:        -0.010ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.020ns = ( 4.020 - 4.000 ) 
+    Source Clock Delay      (SCD):    0.030ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  clk (IN)
+                         net (fo=28875, unset)        0.030     0.030    clk
+    SLICE_X176Y89        FDRE                                         r  rsp_q_reg[psum][1][7][0]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X176Y89        FDRE (Prop_BFF_SLICEM_C_Q)
+                                                      0.078     0.108 f  rsp_q_reg[psum][1][7][0]/Q
+                         net (fo=3, routed)           0.124     0.232    rsp_q_reg[psum_n_0_][1][7][0]
+    SLICE_X176Y89        LUT1 (Prop_H6LUT_SLICEM_I0_O)
+                                                      0.152     0.384 r  magnitude_q[1][7][mag][8]_i_3/O
+                         net (fo=1, routed)           0.331     0.715    magnitude_q[1][7][mag][8]_i_3_n_0
+    SLICE_X174Y89        CARRY8 (Prop_CARRY8_SLICEL_CI_CO[7])
+                                                      0.151     0.866 r  magnitude_q_reg[1][7][mag][8]_i_2/CO[7]
+                         net (fo=1, routed)           0.052     0.918    magnitude_q_reg[1][7][mag][8]_i_2_n_0
+    SLICE_X174Y90        CARRY8 (Prop_CARRY8_SLICEL_CI_CO[7])
+                                                      0.015     0.933 r  magnitude_q_reg[1][7][mag][16]_i_2/CO[7]
+                         net (fo=1, routed)           0.026     0.959    magnitude_q_reg[1][7][mag][16]_i_2_n_0
+    SLICE_X174Y91        CARRY8 (Prop_CARRY8_SLICEL_CI_CO[7])
+                                                      0.015     0.974 r  magnitude_q_reg[1][7][mag][24]_i_2/CO[7]
+                         net (fo=1, routed)           0.026     1.000    magnitude_q_reg[1][7][mag][24]_i_2_n_0
+    SLICE_X174Y92        CARRY8 (Prop_CARRY8_SLICEL_CI_O[5])
+                                                      0.116     1.116 f  magnitude_q_reg[1][7][mag][31]_i_2/O[5]
+                         net (fo=1, routed)           0.267     1.383    core/magnitude_q_reg[1][7][mag][31]_1[5]
+    SLICE_X176Y92        LUT3 (Prop_G5LUT_SLICEM_I0_O)
+                                                      0.099     1.482 f  core/magnitude_q[1][7][mag][30]_i_1/O
+                         net (fo=5, routed)           0.256     1.738    core/magnitude_q[1][7][mag][30]_i_1_n_0
+    SLICE_X176Y92        LUT4 (Prop_C6LUT_SLICEM_I0_O)
+                                                      0.098     1.836 f  core/magnitude_q[1][7][lead][3]_i_2/O
+                         net (fo=3, routed)           0.179     2.015    core/magnitude_q[1][7][lead][3]_i_2_n_0
+    SLICE_X176Y91        LUT5 (Prop_F5LUT_SLICEM_I4_O)
+                                                      0.117     2.132 f  core/magnitude_q[1][7][lead][4]_i_2/O
+                         net (fo=3, routed)           0.138     2.270    core/magnitude_q[1][7][lead][4]_i_2_n_0
+    SLICE_X177Y90        LUT6 (Prop_H6LUT_SLICEL_I4_O)
+                                                      0.036     2.306 r  core/magnitude_q[1][7][lead][0]_i_3/O
+                         net (fo=1, routed)           0.094     2.400    core/magnitude_q[1][7][lead][0]_i_3_n_0
+    SLICE_X177Y90        LUT4 (Prop_D6LUT_SLICEL_I2_O)
+                                                      0.122     2.522 r  core/magnitude_q[1][7][lead][0]_i_1/O
+                         net (fo=1, routed)           0.049     2.571    core/magnitude_q[1][7][lead][0]_i_1_n_0
+    SLICE_X177Y90        FDRE                                         r  core/magnitude_q_reg[1][7][lead][0]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r  
+                                                      0.000     4.000 r  clk (IN)
+                         net (fo=28875, unset)        0.020     4.020    core/clk
+    SLICE_X177Y90        FDRE                                         r  core/magnitude_q_reg[1][7][lead][0]/C
+                         clock pessimism              0.000     4.020    
+                         clock uncertainty           -0.035     3.985    
+    SLICE_X177Y90        FDRE (Setup_DFF_SLICEL_C_D)
+                                                      0.025     4.010    core/magnitude_q_reg[1][7][lead][0]
+  -------------------------------------------------------------------
+                         required time                          4.010    
+                         arrival time                          -2.571    
+  -------------------------------------------------------------------
+                         slack                                  1.438    
+
+
+
+
+
