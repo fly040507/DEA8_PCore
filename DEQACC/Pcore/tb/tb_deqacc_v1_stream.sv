@@ -24,6 +24,66 @@ module tb_deqacc_v1_stream;
   logic [10:0] old_valids=0;logic [1:0][15:0][31:0] old_expected[0:10];
   pair_meta_t old_expected_meta[0:10];logic [1:0] old_expected_rows[0:10];int old_checked=0;
   DEQACC_V1 dut(.*,.result_rd_owner(ACC_READ_RESULT));
+`ifdef V2_LOCKSTEP
+  // Published V1 with renamed module identifiers, stored under tb/reference.
+  logic ref_commit,ref_done,ref_write_valid,ref_read_ready,ref_wr_ready,ref_read_valid;
+  pair_meta_t ref_meta;acc_write_t ref_write;
+  logic [15:0][31:0] ref_even,ref_odd;logic [31:0] ref_debug;
+  int lockstep_commits=0;
+  published_v1_top v1_bridge(.clk,.reset,.clear,.rsp_valid,.rsp,.result_rd_owner(ACC_READ_RESULT),
+    .result_rd_valid,.result_rd_ready(ref_read_ready),.result_rd_sel,.result_rd_addr,
+    .vpu_wr_valid,.vpu_wr_ready(ref_wr_ready),.vpu_wr,
+    .result_rd_data_valid(ref_read_valid),.result_even_data(ref_even),.result_odd_data(ref_odd),
+    .commit_valid(ref_commit),.done(ref_done),.commit_meta(ref_meta),
+    .commit_write_valid(ref_write_valid),.commit_write(ref_write),
+    .dbg_valid,.dbg_sel,.dbg_parity,.dbg_addr,.dbg_lane,.dbg_data(ref_debug));
+  always @(posedge clk)begin
+    if(!reset&&!clear&&(result_rd_ready!==ref_read_ready||vpu_wr_ready!==ref_wr_ready))
+      $fatal(1,"V1/V2 ready mismatch");
+    #1;
+    if({commit_valid,done,commit_write_valid,result_rd_data_valid}!==
+      {ref_commit,ref_done,ref_write_valid,ref_read_valid})$fatal(1,"V1/V2 valid/done mismatch");
+    if(commit_valid)begin
+      if(commit_meta!==ref_meta||commit_write.sel!==ref_write.sel||commit_write.addr!==ref_write.addr||
+        commit_write.row_valid!==ref_write.row_valid)$fatal(1,"V1/V2 commit identity mismatch");
+      for(int r=0;r<2;r++)if(commit_write.row_valid[r])
+        if(commit_write.data[r]!==ref_write.data[r])$fatal(1,"V1/V2 commit data mismatch");
+      lockstep_commits++;
+    end
+    if(result_rd_data_valid&&{result_odd_data,result_even_data}!=={ref_odd,ref_even})
+      $fatal(1,"V1/V2 external response mismatch");
+  end
+  for(genvar g=0;g<4;g++)begin: compare_clusters
+    always @(posedge clk)begin
+      #1;
+      if(dut.groups[g].compute.keys[1].valid)begin
+        if(dut.groups[g].compute.use_a3!==v1_bridge.groups[g].compute.use_a3||
+          dut.groups[g].compute.use_c!==v1_bridge.groups[g].compute.use_c)
+          $fatal(1,"V1/V2 forwarding selector mismatch");
+        for(int r=0;r<2;r++)if(dut.groups[g].compute.keys[1].rows[r])
+          if(dut.groups[g].compute.old_issue[r]!==v1_bridge.groups[g].compute.old_issue[r])
+            $fatal(1,"V1/V2 selected old bundle mismatch");
+      end
+    end
+    always @(posedge clk)begin
+      #1;
+      for(int s=0;s<7;s++)begin
+        if(dut.groups[g].compute.keys[s].valid!==v1_bridge.groups[g].compute.keys[s].valid)
+          $fatal(1,"V1/V2 stage valid mismatch");
+        if(dut.groups[g].compute.keys[s].valid&&
+          dut.groups[g].compute.keys[s]!==v1_bridge.groups[g].compute.keys[s])
+          $fatal(1,"V1/V2 stage key mismatch");
+      end
+      if(dut.groups[g].compute.keys[1].valid&&
+        dut.groups[g].compute.partial_values!==v1_bridge.groups[g].compute.partial_values)
+        $fatal(1,"V1/V2 Q1 bundle mismatch");
+      if(dut.groups[g].compute.keys[5].valid)
+        for(int r=0;r<2;r++)if(dut.groups[g].compute.keys[5].rows[r]&&
+          dut.groups[g].compute.a3_values[r]!==v1_bridge.groups[g].compute.a3_values[r])
+          $fatal(1,"V1/V2 A3 bundle mismatch");
+    end
+  end
+`endif
   DEQACC_3_3ns old_dut(.clk,.reset,.clear,.rsp_valid(rsp_valid&&compare_old),.rsp,
     .result_rd_owner(ACC_READ_RESULT),.result_rd_valid(1'b0),.result_rd_ready(),
     .result_rd_sel(ACC_OACC),.result_rd_addr(10'b0),.result_rd_data_valid(),.result_even_data(),.result_odd_data(),
@@ -137,6 +197,9 @@ module tb_deqacc_v1_stream;
           dbg_sel=acc_sel_e'(bank);dbg_addr=10'(addr);dbg_parity=1'(r);dbg_lane=4'(n);#0.01;
           if(dbg_data!==model[bank][addr][r][n])
             $fatal(1,"V1 complete ACC model mismatch bank=%0d addr=%0d parity=%0d col=%0d",bank,addr,r,n);
+`ifdef V2_LOCKSTEP
+          if(dbg_data!==ref_debug)$fatal(1,"V1/V2 full ACC debug mismatch");
+`endif
         end
     dbg_valid=0;
     @(negedge clk);
@@ -209,7 +272,12 @@ module tb_deqacc_v1_stream;
     if(checked!=accepted-flushed||old_checked!=5000||a3_hits==0||c_hits==0||external_reads<4||external_writes<2)
       $fatal(1,"V1 stream coverage/count mismatch accepted=%0d checked=%0d flushed=%0d",accepted,checked,flushed);
     $display("tb_deqacc_v1_stream PASS checked=%0d A11_compared=%0d latency=7 II=1 delta=4,5,6,7 A3_hits=%0d C_hits=%0d external_reads=%0d external_writes=%0d clear=1 final_ACC=1",
-      checked,old_checked,a3_hits,c_hits,external_reads,external_writes);$finish;
+      checked,old_checked,a3_hits,c_hits,external_reads,external_writes);
+`ifdef V2_LOCKSTEP
+    if(lockstep_commits!=checked)$fatal(1,"V1/V2 lockstep count mismatch");
+    $display("tb_deqacc_v2_lockstep PASS commits=%0d Q1_A3_C=1 stage_keys=7 forwarding=1 full_ACC=1 published_V1=af62635",lockstep_commits);
+`endif
+    $finish;
   end
   initial begin #1000000;$fatal(1,"V1 stream watchdog");end
 endmodule

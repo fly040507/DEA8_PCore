@@ -20,6 +20,17 @@ module DEQACC_V1(
   v1_key_t input_key;
   logic [3:0] group_commit;
   logic [31:0] group_debug[0:3];
+  logic [3:0] group_wr_valid;
+  acc_sel_e group_wr_sel[0:3];
+  logic [9:0] group_wr_addr[0:3];
+  logic [1:0] group_wr_rows[0:3];
+  logic [1:0][3:0][31:0] group_wr_data[0:3];
+  logic [1:0][15:0][31:0] acc_old_data,acc_external_data,acc_wr_data;
+  logic acc_wr_valid;
+  acc_sel_e acc_wr_sel;
+  logic [9:0] acc_wr_addr;
+  logic [1:0] acc_wr_rows;
+  logic [31:0] acc_dbg_data;
   logic result_free,vpu_free;
   always_comb begin
     input_key='0;input_key.valid=rsp_valid;input_key.generation=generation;
@@ -37,6 +48,18 @@ module DEQACC_V1(
   deqacc_v1_control control(.clk,.reset,.clear,.in_valid(rsp_valid),.rsp,.generation,.valid_pipe,.meta_pipe,.rows_pipe,
     .commit_valid,.done,.commit_meta);
   assign commit_write_valid=commit_valid;
+  always_comb begin
+    acc_wr_data='0;
+    for(int g=0;g<4;g++) begin
+      for(int r=0;r<2;r++)
+        for(int n=0;n<4;n++)
+          acc_wr_data[r][g*4+n]=group_wr_data[g][r][n];
+    end
+    acc_wr_valid=group_wr_valid[0];
+    acc_wr_sel=group_wr_sel[0];
+    acc_wr_addr=group_wr_addr[0];
+    acc_wr_rows=group_wr_rows[0];
+  end
   always_ff @(posedge clk)begin
     if(reset||clear)begin
       result_rd_data_valid<=0;commit_write.sel<=ACC_FACC_A;commit_write.addr<=0;commit_write.row_valid<=0;
@@ -47,28 +70,52 @@ module DEQACC_V1(
       commit_write.row_valid<=rows_pipe[5];
     end
   end
+  acc_slice_v1 memory(
+    .clk,.reset,.clear,
+    // Execute the synchronous read from Q0's registered key. Its response
+    // aligns with Q1 at the A0 boundary; an input-edge read can be stale at
+    // Delta=6 (read-first collision with the producer's C write).
+    .rd_valid(valid_pipe[0]&&meta_pipe[0].add_old),.rd_sel(meta_pipe[0].acc_sel),
+    .rd_addr(v1_address(meta_pipe[0])),
+    .old_data(acc_old_data),
+    .wr_valid(acc_wr_valid),.wr_sel(acc_wr_sel),.wr_addr(acc_wr_addr),
+    .wr_rows(acc_wr_rows),.wr_data(acc_wr_data),
+    .external_rd_fire(result_rd_valid&&result_rd_ready),.external_rd_sel(result_rd_sel),
+    .external_rd_addr(result_rd_addr),.external_data(acc_external_data),
+    .external_wr_fire(vpu_wr_valid&&vpu_wr_ready),.external_wr_sel(vpu_wr.sel),
+    .external_wr_addr(vpu_wr.addr),.external_wr_rows(vpu_wr.row_valid),
+    .external_wr_data(vpu_wr.data),
+    .dbg_sel,.dbg_parity,.dbg_addr,.dbg_column(dbg_lane),.dbg_data(acc_dbg_data));
+  assign result_even_data=acc_external_data[0];
+  assign result_odd_data=acc_external_data[1];
+  assign dbg_data=dbg_valid?acc_dbg_data:0;
   for(genvar g=0;g<4;g++)begin: groups
     logic signed [1:0][3:0][31:0] sums;
-    logic [1:0][3:0][31:0] cdata,edata,wdata;
+    logic [1:0][3:0][31:0] cdata,old_data;
     for(genvar r=0;r<2;r++)for(genvar n=0;n<4;n++)begin: columns
       assign sums[r][n]=rsp.psum[r][g*4+n];
-      assign wdata[r][n]=vpu_wr.data[r][g*4+n];
       assign commit_write.data[r][g*4+n]=cdata[r][n];
-      if(r==0)assign result_even_data[g*4+n]=edata[r][n];
-      else assign result_odd_data[g*4+n]=edata[r][n];
+      assign old_data[r][n]=acc_old_data[r][g*4+n];
     end
     deqacc_v1_group8 compute(.clk,.reset,.clear,.input_key,.psum(sums),.ea(rsp.e_stream),
-      .eb(rsp.e_stat[g*4+:4]),.fold(rsp.meta.exp_fold),.commit_valid(group_commit[g]),.commit_data(cdata),
-      .external_rd_fire(result_rd_valid&&result_rd_ready),.external_rd_sel(result_rd_sel),
-      .external_rd_addr(result_rd_addr),.external_data(edata),
-      .external_wr_fire(vpu_wr_valid&&vpu_wr_ready),.external_wr_sel(vpu_wr.sel),.external_wr_addr(vpu_wr.addr),
-      .external_wr_rows(vpu_wr.row_valid),.external_wr_data(wdata),
+      .eb(rsp.e_stat[g*4+:4]),.fold(rsp.meta.exp_fold),.acc_old_data(old_data),
+      .commit_valid(group_commit[g]),.commit_data(cdata),
+      .acc_wr_valid(group_wr_valid[g]),.acc_wr_sel(group_wr_sel[g]),.acc_wr_addr(group_wr_addr[g]),
+      .acc_wr_rows(group_wr_rows[g]),.acc_wr_data(group_wr_data[g]),
       .dbg_sel,.dbg_parity,.dbg_addr,.dbg_column(dbg_lane[1:0]),.dbg_data(group_debug[g]));
   end
-  assign dbg_data=dbg_valid?group_debug[dbg_lane[3:2]]:0;
   // synthesis translate_off
   always @(posedge clk)if(!reset&&!clear)begin
     if(group_commit!=={4{commit_valid}})$fatal(1,"V1 group commit alignment mismatch");
+    if(group_wr_valid!=={4{group_wr_valid[0]}})$fatal(1,"V2 ACC write bundle valid mismatch");
+    for(int g=1;g<4;g++)begin
+      if(group_wr_valid[g]&&group_wr_sel[g]!==group_wr_sel[0])
+        $fatal(1,"V2 ACC write bundle select mismatch");
+      if(group_wr_valid[g]&&group_wr_addr[g]!==group_wr_addr[0])
+        $fatal(1,"V2 ACC write bundle address mismatch");
+      if(group_wr_valid[g]&&group_wr_rows[g]!==group_wr_rows[0])
+        $fatal(1,"V2 ACC write bundle row mask mismatch");
+    end
     if(rsp_valid&&(rsp.meta.acc_sel>ACC_OACC||rsp.meta.pair_idx>=PAIRS||
        (rsp.meta.acc_sel==ACC_OACC&&rsp.meta.nt>=TILE)||
        ((rsp.row_valid&~row_mask(rsp.meta.pair_idx))!=0)))$fatal(1,"V1 illegal accumulator input");

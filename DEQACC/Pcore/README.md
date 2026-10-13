@@ -1,8 +1,8 @@
-# DEA8 PCore：单核矩阵计算与七 Job 控制
+# DEA8 PCore：DEQACC V2 单核矩阵计算与七 Job 控制
 
 ## DEQACC 开发副本当前状态（2026-10-13）
 
-本副本Matrix默认使用 `DEQACC_V1`，32 lane、4×8分组、七级流水；旧A11和冻结数值golden保留。V1单lane、stream/forwarding、动态M与完整七Job仿真已通过。以下原迁移基线用于历史对照；当前V1结果见 [实现报告](../DEQACC_V1_优化方案.report.md)。没有新的综合或布局布线结果。
+本副本在 V1 RTL 上原地重构为 DEQACC V2：32 lane、4 个算术 bundle、**一个完整 16 列 FACC/OACC**、七级流水。ACC 没有拆成四份；四个 bundle 只作为算术侧与完整 ACC 的固定接口。Q1 已改为固定宽度 barrel/jam 与 RNE，算术流水和 `Delta=4` 协议保持不变。V1 报告仅作历史对照；没有新的综合或布局布线结果。
 
 从本目录运行短仿真套件：
 
@@ -12,9 +12,11 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run_deqacc_v1.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run_deqacc_v1.ps1 -SevenJobs
 ```
 
-脚本内部每次工具调用均通过同一cmd先加载settings64.bat，再调用工具bat；只运行仿真。调用方timeout至少300000ms，带七Job建议3600000ms。结果位于 `reports/v1_*`。
+脚本名保留`v1`以兼容原入口，内部使用V2库与报告名。所有工具经同一cmd先call settings64.bat再call工具bat，不使用shadow环境或直接unwrapped入口。短套件包含发布版V1/V2 lockstep，timeout至少300000ms；带七Job建议3600000ms。
 
-进度核对：2026-10-10。
+当前验证结论：**V2剩余功能仿真已完成，全部PASS**。211,978笔算术、10,486笔完整流水/同拍对照、动态M、三个RAW负例及七Job265,408issues通过；当前系统DLL阻塞未复现。新证据见 [V2验证结果](reports/v2_verification_status.md)、`reports/v2_simulation_summary.txt` 和 `reports/v2_sources_sha256.csv`。下面的迁移日志仅作为历史工程对照。
+
+当前FPADD仍是精确LZD实现，方案中的局部LZA与其他物理优化尚未落地；仿真PASS不等于完整V2优化清单或4ns时序签核完成。
 
 PCore 是 DEA8 的单核计算单元：双行 INT8 矩阵计算、FP32 DEQACC 累加、Q/O/Z 本地存储、后处理调度和 K/V/O/Down 输出。**当前 RTL 与迁移后七 Job 全链路仿真已通过；VPU/SFU 算术和外部供数由 TB 模拟。**
 
@@ -51,7 +53,7 @@ K/V 完成需等待 sender 清空及目标 commit；O/Down 的 PCore 输出完�
 
 PCore 不承担十步去噪/18 层总控，也不承担全 hidden 维度的 RMSNorm、Residual 或 KV 全局管理。
 
-## 3. 已完成的实现与仿真工作
+## 3. 已完成的实现与历史工程记录
 
 - 三类矩阵路径共享执行核心；QOZ 管理 Q → O → Z 生命周期
 - PCore 控制中心组织矩阵子任务、VPU/SFU 后处理和完整 Job 完成
@@ -59,9 +61,9 @@ PCore 不承担十步去噪/18 层总控，也不承担全 hidden 维度的 RMSN
 - 七 Job TB 支持 FUNCTIONAL / PERFORMANCE / STRESS 三模式
 - TB 非矩阵模型：VPU32/SFU4 并行运行，请求/响应流水化；QK_POST 使用 16 行统计访问，P_POST 流式处理
 - VPU/SFU 完成等待独立排空各自通道，避免人为串行化
-- 迁移后的源文件清单编译、完整七 Job 和控制协议仿真通过
+- 迁移后的源文件清单、完整七 Job 和控制协议曾在旧工程路径仿真通过；当前 V2 仍需在可用的 XSim 环境中重新执行
 
-## 4. 当前验证结果
+## 4. 历史验证结果（不作为 V2 结果）
 
 证据：[迁移后七 Job 日志](reports/pcore_control_after_migration.log)，2026-10-10 新路径运行，**FUNCTIONAL 模式**，时钟周期 4 ns。
 

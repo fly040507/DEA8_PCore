@@ -15,6 +15,19 @@ module tb_deqacc_v1_arithmetic;
     .out_valid(qout),.partial_value(qresult));
   fp32_add_lane_v1 adder(.clk,.reset,.clear,.in_valid(avalid),.add_old,
     .old_value(a),.partial_value(b),.out_valid(aout),.result_value(aresult));
+`ifdef V2_LOCKSTEP
+  logic ref_qout;logic [31:0] ref_qresult;
+  published_v1_dequant q_reference(.clk,.reset,.clear,.in_valid(qvalid),.psum,.ea,.eb,.fold,
+    .out_valid(ref_qout),.partial_value(ref_qresult));
+  always @(posedge clk)begin
+    #1;
+    if(ref_qout!==qout)$fatal(1,"V1/V2 dequant valid mismatch");
+    if(qout&&ref_qresult!==qresult)$fatal(1,"V1/V2 dequant bit mismatch");
+    if(q.valid_q&&{q.mag_q,q.lead_q,q.base_q,q.sign_q,q.zero_q,q.bad_q}!==
+      {q_reference.mag_q,q_reference.lead_q,q_reference.base_q,q_reference.sign_q,q_reference.zero_q,q_reference.bad_q})
+      $fatal(1,"V1/V2 Q0 field mismatch");
+  end
+`endif
   function automatic logic [31:0] random_bits;
     rng=rng^(rng<<13);rng=rng^(rng>>17);rng=rng^(rng<<5);return rng;
   endfunction
@@ -68,6 +81,10 @@ module tb_deqacc_v1_arithmetic;
     input_pair(16777217,133,133,0,32'h4b800000,32'h3f800000,1);
     input_pair(0,0,0,0,32'h7fc12345,32'h80000000,0);
     input_pair(1,254,254,31,32'h7f7fffff,32'h7f7fffff,1);
+    // Exact half-min-subnormal at shift=32 must tie to signed zero, not
+    // include the guard bit in sticky and round up to min-subnormal.
+    input_pair(32'h80000000,42,43,0,32'h80000000,32'h00000000,1);
+    input_pair(32'h80000000,42,42,0,32'h00000000,32'h80000000,1);
     for(int i=0;i<65536;i++)begin
       logic [31:0] x,aa,bb;
       x=random_bits();aa=random_bits();bb=random_bits();
@@ -85,18 +102,26 @@ module tb_deqacc_v1_arithmetic;
     for(int lead=0;lead<32;lead++)for(int tail=0;tail<8;tail++)begin
       logic [31:0] x;
       x=(32'd1<<lead)|32'(tail);
-      for(int base=-153;base<=129;base++)
-        input_pair(tail[0]?-x:x,(base+266)/2,(base+266)-(base+266)/2,0,random_bits(),random_bits(),1);
+      for(int base=-298;base<=273;base++)begin
+        int scale_sum,fold_value;
+        fold_value=base<-266?-32:base>242?31:0;
+        scale_sum=base+266-fold_value;
+        input_pair(tail[0]?-x:x,scale_sum/2,scale_sum-scale_sum/2,fold_value,random_bits(),random_bits(),1);
+      end
     end
     @(negedge clk);qvalid=0;avalid=0;repeat(5)@(negedge clk);
     // Flush busy lanes and ensure old valids never emerge after clear.
     input_pair(1,133,133,0,32'h3f800000,32'h3f800000,1);
     @(negedge clk);clear=1;qvalid=0;avalid=0;
     @(negedge clk);clear=0;repeat(5)@(negedge clk);
-    if(qcount!=8+65536+32*8*283||acount!=qcount||close_count==0||far_sub_count==0||bypass_count==0)
+    if(qcount!=10+65536+32*8*572||acount!=qcount||close_count==0||far_sub_count==0||bypass_count==0)
       $fatal(1,"V1 arithmetic coverage/count mismatch q=%0d a=%0d",qcount,acount);
     $display("tb_deqacc_v1_arithmetic PASS dequant=%0d fpadd=%0d q_latency=2 add_latency=4 II=1 close=%0d far_sub=%0d bypass=%0d",
-      qcount,acount,close_count,far_sub_count,bypass_count);$finish;
+      qcount,acount,close_count,far_sub_count,bypass_count);
+`ifdef V2_LOCKSTEP
+    $display("tb_deqacc_v2_dequant_lockstep PASS transactions=%0d Q0_fields=1 Q1_bits=1 base_min=-298 base_max=273 shift32_tie=1",qcount);
+`endif
+    $finish;
   end
   initial begin #5000000;$fatal(1,"V1 arithmetic watchdog");end
 endmodule

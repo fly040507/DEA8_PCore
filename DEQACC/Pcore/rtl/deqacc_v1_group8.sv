@@ -1,17 +1,16 @@
 import pcore_pkg::*;
 import deqacc_v1_pkg::*;
 
-(* keep_hierarchy="yes" *)
+(* keep_hierarchy="soft" *)
 module deqacc_v1_group8(
   input logic clk,reset,clear,input v1_key_t input_key,
   input logic signed [1:0][3:0][31:0] psum,
   input logic [1:0][7:0] ea,input logic [3:0][7:0] eb,
   input logic signed [EXP_FOLD_BITS-1:0] fold,
+  input logic [1:0][3:0][31:0] acc_old_data,
   output logic commit_valid,output logic [1:0][3:0][31:0] commit_data,
-  input logic external_rd_fire,input acc_sel_e external_rd_sel,input logic [9:0] external_rd_addr,
-  output logic [1:0][3:0][31:0] external_data,
-  input logic external_wr_fire,input acc_sel_e external_wr_sel,input logic [9:0] external_wr_addr,
-  input logic [1:0] external_wr_rows,input logic [1:0][3:0][31:0] external_wr_data,
+  output logic acc_wr_valid,output acc_sel_e acc_wr_sel,output logic [9:0] acc_wr_addr,
+  output logic [1:0] acc_wr_rows,output logic [1:0][3:0][31:0] acc_wr_data,
   input acc_sel_e dbg_sel,input logic dbg_parity,input logic [9:0] dbg_addr,
   input logic [1:0] dbg_column,output logic [31:0] dbg_data
 );
@@ -20,6 +19,13 @@ module deqacc_v1_group8(
   logic [1:0][3:0][31:0] old_fetch,old_issue,partial_values,a3_values;
   logic [1:0][3:0] partial_valid,a3_valid;
   logic [1:0] use_a3,use_c;
+  assign old_fetch=acc_old_data;
+  assign acc_wr_valid=keys[5].valid;
+  assign acc_wr_sel=keys[5].sel;
+  assign acc_wr_addr=keys[5].addr;
+  assign acc_wr_rows=keys[5].rows;
+  assign acc_wr_data=a3_values;
+  assign dbg_data='0;
   function automatic bit key_match(input v1_key_t producer,consumer,input int parity);
     return producer.valid&&producer.rows[parity]&&producer.generation==consumer.generation&&
       producer.sel==consumer.sel&&producer.addr==consumer.addr;
@@ -39,13 +45,6 @@ module deqacc_v1_group8(
     if(reset||clear)for(int s=0;s<7;s++)keys[s].valid<=0;
   end
   assign commit_valid=keys[6].valid;
-  acc_slice_v1 memory(
-    .clk,.reset,.clear,.rd_valid(keys[0].valid&&keys[0].add_old),.rd_sel(keys[0].sel),.rd_addr(keys[0].addr),
-    .old_data(old_fetch),.wr_valid(keys[5].valid),.wr_sel(keys[5].sel),.wr_addr(keys[5].addr),
-    .wr_rows(keys[5].rows),.wr_data(a3_values),
-    .external_rd_fire,.external_rd_sel,.external_rd_addr,.external_data,
-    .external_wr_fire,.external_wr_sel,.external_wr_addr,.external_wr_rows,.external_wr_data,
-    .dbg_sel,.dbg_parity,.dbg_addr,.dbg_column,.dbg_data);
   for(genvar micro=0;micro<2;micro++)begin: micro_clusters
     for(genvar r=0;r<2;r++)for(genvar c=0;c<2;c++)begin: lanes
       localparam int N=micro*2+c;
