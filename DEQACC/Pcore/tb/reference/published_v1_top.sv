@@ -34,7 +34,7 @@ module published_v1_top(
   end
   assign result_rd_ready=!reset&&!clear&&result_rd_owner==ACC_READ_RESULT&&result_rd_sel<=ACC_OACC&&result_free;
   assign vpu_wr_ready=!reset&&!clear&&vpu_wr.sel<=ACC_OACC&&vpu_free;
-  deqacc_v1_control control(.clk,.reset,.clear,.in_valid(rsp_valid),.rsp,.generation,.valid_pipe,.meta_pipe,.rows_pipe,
+  published_v1_control control(.clk,.reset,.clear,.in_valid(rsp_valid),.rsp,.generation,.valid_pipe,.meta_pipe,.rows_pipe,
     .commit_valid,.done,.commit_meta);
   assign commit_write_valid=commit_valid;
   always_ff @(posedge clk)begin

@@ -1,13 +1,13 @@
 # DEQACC V2 优化方案
 
 **版本**：DEQACC V2 优化方案  
-**状态**：2026-10-13，当前 V2 RTL 功能仿真及 V1/V2 lockstep 已完成并 PASS；ACC读对齐和shift=32舍入边界已修复。FPADD当前为精确LZD，LZA等尚待实现；综合/布局布线未执行  
+**状态**：2026-10-13，scale ingress、中心前递控制和 Full dual-path FPADD 已实现；本轮短套件、独立 V1/V2 同拍对照和完整七 Job 均 PASS。未执行综合/布局布线  
 **适用范围**：`DEQACC/` 独立设计  
 **明确不修改**：`DEA8/`、V1 历史报告和既有发布快照；V2 直接在 `DEQACC/Pcore` 的原 V1 文件名基础上原地实现，保留旧接口命名以降低迁移风险
 
 ## 1. 方案结论
 
-当前实现与方案的边界：文件/模块名仍沿用V1；一个完整ACC和固定宽度Q1已实现。当前接口的Ea/Eb/fold随每笔MXU response变化，不是固定Job常量，必须逐事务捕获。ACC同步读由已寄存Q0控制驱动，在Q1边界返回；直接在输入接受沿读取会使Delta=6场景失效。FPADD仍为旧精确LZD，不宣称已实现USE_LZA选择。以下内容中的LZA、进一步scale分层及物理指标属于后续设计目标，实测功能范围见 [V2验证状态](Pcore/reports/v2_verification_status.md)。
+当前实现：一个完整 ACC、32 个逻辑 lane、4 个仅含数据通路的 physical cluster。Ea/Eb/fold 随每笔 MXU response 变化，不是 Job 常量；每笔在 Q0 边界捕获本地 base。ACC 同步读仍由已寄存 Q0 控制驱动，在 Q1 边界返回。Full dual-path FPADD 包含 operand-only LZA、精确一位修正和并行舍入候选，并提供 USE_LZA=0 对照。实测功能范围见 [V2验证结果](Pcore/reports/v2_verification_status.md)；物理时序和真实放置邻近性未签核。
 
 V2 的目标不是继续堆加流水级数，也不是一开始就拆分 ACC，而是在保持 V1 功能和时序接口的前提下，先优化反量化、FPADD、控制扇出和 ACC 外围的长距离通路。
 
@@ -18,7 +18,7 @@ V2 的目标不是继续堆加流水级数，也不是一开始就拆分 ACC，�
    `cluster[c] -> row[0:1] x col[4c:4c+3]`。
 3. 保留 **7 个有效流水阶段**：`Q0 -> Q1 -> A0 -> A1 -> A2 -> A3 -> C`。
 4. 保留 `II=1`，保留 V1 的 `Delta=4` 前递约束，保持累加顺序和位精确结果不变。
-5. scale 使用分层输入：全局只传作业级上下文，arithmetic cluster 内生成本地 `base`，不把 `Ea/Eb/fold` 作为长距离逐 lane 广播信号。
+5. scale 使用逐事务分层输入：`rsp` 的 Ea/fold 只送四个 cluster；每个 cluster 生成两份 row_bias，各自供四列形成 base。Qlane 不接 Ea/Eb/fold。
 6. Q0/Q1 使用固定宽度、固定级数的直接反量化逻辑，删除动态整数循环和运行时可变深度移位。
 7. FP32 加法保留 4 个 A 阶段，但采用“FAR/CLOSE 受控双路径”，只在 CLOSE 路径使用局部 LZA，并保留精确修正。
 8. **FACC/OACC 先保持为一个完整的 ACC 存储与控制模块**，不在本版方案中拆成四份，也不复制完整 ACC。
@@ -49,34 +49,36 @@ V2 的目标不是继续堆加流水级数，也不是一开始就拆分 ACC，�
 ## 3. 总体数据通路
 
 ```text
-                 job context / key / fold / Ea / Eb
-                              |
-                      central control spine
-                              |
-                         complete ACC
-                    FACC/OACC / bank / parity
-                              |
-              +---------------+---------------+
-              |               |               |
-        Arithmetic0     Arithmetic1     Arithmetic2     Arithmetic3
-          col 0..3        col 4..7        col 8..11       col 12..15
-        2 rows x 4 col   2 rows x 4 col   2 rows x 4 col   2 rows x 4 col
-              |               |               |
-          local Q0/Q1     local Q0/Q1     local Q0/Q1     local Q0/Q1
-              |               |               |
-        local A0-A3     local A0-A3     local A0-A3     local A0-A3
-              |               |               |
-           256 bit WB      256 bit WB      256 bit WB      256 bit WB
-              +---------------+---------------+
-                              |
-                  complete ACC write-back / commit
+MXU rsp
+  +-- meta/row_valid --> central control spine (one set of keys/source compare)
+  |                       +--> Q0/Q1/A0/A3/C valid and use_a3/use_c to clusters
+  |                       +--> complete ACC read/write bank/address/row mask
+  |
+  +-- Psum/Ea/Eb/fold --> four physical clusters (fixed column mapping)
+                            cluster0: col 0..3,   rows 0/1
+                            cluster1: col 4..7,   rows 0/1
+                            cluster2: col 8..11,  rows 0/1
+                            cluster3: col 12..15, rows 0/1
+
+Per cluster:
+  Ea/fold --> two row_bias --> + local Eb --> eight base/bad_scale
+  Psum + base/bad_scale --> Q0/Q1 --> A0 --> A1 --> A2 --> A3 --> local C data
+                                 ^                       |         |
+                                 +-- local old mux <-----+---------+
+                                        ^
+                              256-bit ACC old bundle
+
+Four A3 256-bit write bundles -- static concatenation --> complete ACC
+Four local C data bundles     -- static concatenation --> external commit data
+
+Only one complete ACC: FACC_A/FACC_B/OACC, bank/parity/address/valid
 ```
 
 其中：
 
 - 计算数据 `Psum` 不经过全局 32 路大交叉开关。
-- arithmetic cluster 只接收属于自己四列的 `Psum`、`Eb` 和元数据。
-- `Ea`、`fold`、作业 key 等小宽度控制信号可以走中心 spine，再在 cluster 边界寄存/复制。
+- arithmetic cluster 只接收本地四列 Psum/Eb、两行 Ea/fold 和中心 valid/forward 选择位，不存元数据或 key pipeline。
+- Ea/fold 来自每笔 rsp，base 在本地 Q0 捕获；key 比较由中心唯一一套 spine 完成。
 - FACC/OACC 的实际读写统一发生在一个完整 `acc_store_v2` 内。
 - 4 个 cluster 的 write-back bundle 进入完整 ACC；不能把它们误认为 4 份独立 FACC/OACC。
 - 若上层仍需要逻辑结果总线，commit 由完整 ACC 统一产生，顶层不增加额外的全局数据寄存器级。
@@ -98,7 +100,7 @@ lane 0..3 : row 0, col local 0..3
 lane 4..7 : row 1, col local 0..3
 ```
 
-所有 arithmetic cluster 使用相同的 RTL 结构，只通过 `cluster_id` 和列基址区分。这样有利于：
+四个 cluster 使用相同数据通路结构，由顶层静态切片确定列归属；它们不是四套逻辑控制 group。key/valid/meta 流水及 RAW/forward 比较只存在于中心 control spine。这样有利于：
 
 - 生成四个相同的算术时序岛；
 - 让综合器在 arithmetic cluster 内优化，避免算术逻辑全部跨越到控制中心；
@@ -117,11 +119,11 @@ lane 4..7 : row 1, col local 0..3
 
 ```text
 cluster_commit_data[4][255:0]
-cluster_commit_valid[4]
-cluster_commit_meta[4]
+central_write_valid
+central_write_key
 ```
 
-`cluster_commit_meta` 只携带 bank、地址、key、row_valid、dest、last 等紧凑信息。这里的 `cluster_commit` 是送入完整 ACC 的 write-back，不是 cluster 自己提交到独立 ACC。若上层仍需要逻辑结果总线，由完整 ACC 统一输出，不再增加一级全局寄存器。
+四个 bundle 只有数据，写回 valid/bank/address/row_valid 由中心 keys[5] 统一提供；不再复制四套 write-back metadata。每个 cluster 本地保存 C 数据供 Delta=5 前递，C valid/meta 仍来自中心；没有额外全局数据流水级。
 
 ## 5. scale 输入和 base 生成
 
@@ -137,30 +139,30 @@ base[r][n] = Ea[r] + Eb[n] + fold - 266
 
 - `Ea[r]`：两行的行级 scale 指数；
 - `Eb[n]`：16 列的列级 scale 指数；
-- `fold`：作业级折叠/偏置项；
+- `fold`：本笔 MXU response 的有符号折叠/偏置项，不得假设整个 Job 恒定；
 - `base`：送入反量化 lane 的有效基指数。
 
-`base` 使用有符号 10 bit 保存，覆盖当前 scale 参数范围，并在生成时保留 `bad_scale` 标志。若未来冻结的 scale 范围扩大，只调整 package 参数和边界证明，不修改 lane 的数据通路结构。
+RTL 中 `base` 和 `row_bias` 使用 signed 12 bit，保持原 Q0 内部精度；当前合法 base 范围为 -298 到 273。`bad_scale` 为 Ea/Eb 任一等于 255，仍随本笔事务传递。
 
 ### 5.2 物理分发
 
 scale 不采用“所有信号广播给 32 lane”的方式：
 
-1. `Ea[0:1]` 在作业开始时写入控制上下文寄存器，并复制到四个 cluster。
-2. `fold` 同样只在 cluster 边界复制一次。
+1. 每笔 `rsp_valid` 的 Ea[0:1]/fold 扇入四个 physical cluster，不增加 ingress 流水级。
+2. 各 cluster 的 `scale_ingress` 组合生成两份 `row_bias[r]=Ea[r]+fold-266`，每份只供本地四列。
 3. `Eb[n]` 只送到拥有该列的 cluster，在 cluster 内供两行 lane 使用。
-4. `base[r][n]` 在 Q0 捕获边界局部生成并寄存。
-5. Q1 只读取 `base`、`Psum`、`bad_scale` 和 `valid`，不再跨模块读取 `Ea/Eb/fold`。
+4. `base[r][n]=row_bias[r]+Eb[n]` 和 bad_scale 在 Q0 边界由对应 Qlane 捕获，与 Psum 同拍。
+5. Qlane 的事务输入仅为 Psum/base/bad_scale/valid；时钟、reset、clear 是控制端口。Q1 读取 Q0 的 mag/lead/base/sign/zero/bad，不能读取实时 scale。
 
 这使得 Q1 的输入变成固定格式：
 
 ```text
-{ psum, base, bad_scale, valid, zero, sign_context }
+{ psum, base, bad_scale, valid }
 ```
 
 ### 5.3 是否需要额外 scale 流水级
 
-**默认不增加。** `Ea/Eb/fold` 是作业上下文，不是独立的 lane 结果流；应在 Q0 数据寄存器前完成本地 base 形成。这样仍保持：
+**不增加。** Ea/Eb/fold 与每笔 Psum 同属一个 response；base 在 Q0 前组合形成并同拍捕获。不能复用前一笔或按 Job 保存不变 scale。这样仍保持：
 
 ```text
 Q0 -> Q1 -> A0 -> A1 -> A2 -> A3 -> C
@@ -200,8 +202,8 @@ Q0 对每个 lane 做：
 2. 处理 `INT_MIN` 的绝对值，不能用有符号取负后再截断。
 3. 产生固定宽度 `mag` 和 `lead`。
 4. 读取或形成 `base`。
-5. 锁存 `zero`、`bad_scale`、`row_valid` 和 `key`。
-6. 发起本地 FACC/OACC 读取。
+5. Qlane 锁存 zero/bad_scale；中心 control spine 锁存 row_valid/key，不把 tag 或 key 放进 Qlane。
+6. 已寄存 Q0 key 驱动完整 ACC 同步读，在 Q1 边界返回。不能改为输入接受沿提前读取。
 
 Q0 不保存任意精度的动态整数，也不使用仿真专用的 `integer` 作为硬件数据通路。
 
@@ -242,7 +244,7 @@ round_up = guard && (sticky || lsb)
 |---|---:|---|
 | `mag` | 32 bit | 覆盖 32 bit Psum 的无符号幅值 |
 | `lead` | 5 bit | 0 到 31 的前导信息 |
-| `base` | signed 10 bit | 保存 scale 合成后的基指数 |
+| `base` | signed 12 bit | 当前 RTL 精度，保存 scale 合成后的基指数 |
 | `exponent` | signed 10/11 bit | 预留 normal/subnormal 和进位余量 |
 | `shift` | 6 bit | 普通 barrel shift；大于 32 单独归类 |
 | `sub_shift` | 9 bit | 仅用于 subnormal 分类/边界，不直接驱动大循环 |
@@ -276,6 +278,20 @@ A3: 精确 RNE 选择、指数修正、特殊值和 bypass、打包
 - LZA 结果必须经过精确修正，允许 `-1/0/+1` 的边界校正。
 - 若 LZA 的综合面积或布线不如预期，保留 `USE_LZA=0` 参数，切换到精确 leading-zero detector；功能结果必须一致。
 - A3 再统一处理 rounding、指数溢出/下溢、NaN、Inf、signed zero 和 `old=0` bypass。
+
+### 8.3 当前 Full dual-path 实现
+
+FAR/CLOSE 在 A1 保存独立 raw result，在 A2 保存独立 rounding candidate；仅在 A3 选择路径。共享 A0 解码和最终特殊值处理，不把完整 ACC 或顶层总线复制两份。
+
+- FAR：right-jam 后加/减，A2 只允许 carry-right、原位或左移一位规格化
+- CLOSE：0/1 对阶后按大小顺序执行 X-Y，LZA 与减法器并行，不读取 raw subtract 结果
+- LZA：`T=X XOR NOT(Y)`，`Z=NOT(X OR NOT(Y))`；数值位索引下 indicator 为 `{1,T[27:1]} XOR NOT(Z)`。预测 leading position 为 indicator leading position + 1
+- 精确修正：预测位置等于真实位置或高一位。A2 先按预测左移，若 bit26 仍为 0 且指数允许，再左移一位；先限制到 exponent-1，保留 gradual underflow
+- `USE_LZA=0`：用精确 LZD 产生位移，数值和延迟与 LZA 模式一致；默认 USE_LZA=1
+- 并行舍入：A2 独立产生 mantissa+0/mantissa+1 及各自指数，同时产生 RNE predicate；A3 只选已寄存候选，不再串接 `+round_up` 加法器
+- wanted/amount 使用固定 5 bit，指数使用 9 bit；FPADD 硬件数据通路无 integer
+
+预测方法参考 [Schmookler/Nowka, Leading Zero Anticipation and Detection](https://www.acsel-lab.com/arithmetic/arith15/papers/ARITH15_Schmookler.pdf)。具体位序、边界和修正规则由本项目 directed/random、LZA/LZD 同拍对照和 V1 参考验证，不能用论文代替当前 RTL 验证。
 
 ## 9. 完整 ACC 组织
 
@@ -323,7 +339,7 @@ V2 继续沿用 V1 已验证的 bank/parity 语义和深度参数：
 ```text
 Q0: acc_read_req from complete ACC
 Q1: old_rsp[4 x 256 bit] from complete ACC
-A0: key compare + forwarding source select in arithmetic cluster
+A0: central key compare + cluster-local forwarding data select
 A1-A3: arithmetic
 C: 4 x 256 bit write-back into complete ACC / commit
 ```
@@ -356,7 +372,7 @@ C: 4 x 256 bit write-back into complete ACC / commit
 ### 9.5 前递规则
 
 - `Delta=4` 是协议约束，V2 保留。
-- `A3` 和 `C` 的 key 在对应 arithmetic cluster 内比较当前输入 key。
+- A3/C key 与 A0 消费 key 只在中心 control spine 比较一次；每个 parity 各有 use_a3/use_c，四个 cluster 只做本地数据 mux。
 - `use_a3`、`use_c` 是紧凑选择位，数据不回流中心控制。
 - 同一 key 过早重用时，由 assertion 报错；不让它依赖综合后随机的 RAM 读写优先级。
 - 四个 write-back bundle 对同一事务必须在同一 C 周期有效；任何 bundle 缺失都视为事务错误。
@@ -369,7 +385,7 @@ C: 4 x 256 bit write-back into complete ACC / commit
 
 - job / generation / key；
 - bank、parity、地址基址；
-- `Ea`、`fold` 等作业级 scale 上下文；
+- Ea/fold 为逐事务 scale，由 ingress 送至四个 cluster，并与对应 Psum 在 Q0 同拍捕获；不是作业常量；
 - row_valid、zero、bad_scale、last、dest；
 - 每个 cluster 的 `use_a3/use_c` 和 commit valid。
 
@@ -383,7 +399,7 @@ C: 4 x 256 bit write-back into complete ACC / commit
 
 ### 10.2 复位和清除
 
-reset/clear 仍由完整 ACC 统一管理其 valid map；允许在 ACC 的 bank/decode 边界复制小宽度控制寄存器，再由 arithmetic cluster 各自管理 pipeline valid 和 forwarding。不要由一个中心 LUT 同时扇出到所有 lane 的算术逻辑、ACC RAM、valid、forwarding 和结果寄存器。
+reset/clear 由完整 ACC 清除 valid map，由唯一 control spine 清除事务 valid；cluster 仅清除 Q/FPADD 的本地 valid，不拥有独立 key pipeline、RAW comparator 或 forwarding 控制器。真实扇出与放置效果需后续物理报告验证，不能仅凭层次名断言已解决 routing。
 
 建议先用自然层次实现并测量，再针对真正的高扇出网使用局部 `MAX_FANOUT`。不使用全局 blanket `DONT_TOUCH`，也不把所有层次锁死。
 
@@ -410,24 +426,22 @@ arithmetic cluster wrapper 可使用软层次约束，便于工具保留四个�
 V2 按下面的边界直接重构原 V1 文件；文件名暂不整体改名，避免现有仿真文件列表和上层调用入口同时发生无关变化。
 
 ```text
-deqacc_v2_top.sv
-  ├─ deqacc_v2_control.sv
-  ├─ deqacc_v2_scale_ctx.sv
-  ├─ deqacc_v2_arith_cluster.sv x4
-  │    ├─ deqacc_v2_q0_q1.sv
-  │    ├─ deqacc_v2_fpadd.sv
-  │    └─ deqacc_v2_forward.sv
-  ├─ deqacc_v2_acc_store.sv      x1
-  ├─ deqacc_v2_acc_if.sv
-  └─ deqacc_v2_commit.sv
+DEQACC_V1.sv (V2 implementation, compatibility name)
+  ├─ deqacc_v1_control.sv             x1 (metadata spine + key views + RAW/forward compare)
+  ├─ deqacc_v2_cluster.sv             x4 (physical hierarchy, no logical group controller)
+  │    ├─ deqacc_v2_scale_ingress.sv  x1 per cluster
+  │    ├─ dequant_lane_v1.sv          x8 per cluster
+  │    ├─ fp32_add_lane_v1.sv         x8 per cluster
+  │    └─ local old mux + C data register
+  └─ acc_slice_v1.sv                 x1 (complete FACC_A/FACC_B/OACC)
 ```
 
-### 11.1 `deqacc_v2_control`
+### 11.1 `deqacc_v1_control`（中心 control spine）
 
 负责：
 
-- 接收 job 和事务 valid；
-- 锁存 job 级 scale/context；
+- 接收 MXU response/meta/rows 和事务 valid，不新增 Job 级 scale 装载协议；
+- 锁存逐事务 key/meta/rows；scale 由四个 ingress 局部处理，不当作 Job 常量；
 - 生成 `valid_pipe[0:6]`；
 - 广播紧凑 key/address/control；
 - 汇总四个 arithmetic cluster 的 aligned write-back；
@@ -439,16 +453,16 @@ deqacc_v2_top.sv
 - 直接实现 FACC/OACC 的 RAM 数据选择；
 - 实现 FP32 加法。
 
-### 11.2 `deqacc_v2_scale_ctx`
+### 11.2 `deqacc_v2_scale_ingress`
 
 负责：
 
-- 捕获 `Ea[2]`、`Eb[16]`、`fold`；
-- 按 cluster 提供本地 scale context；
-- 在 Q0 边界生成 `base`；
-- 保存 `bad_scale` 和参数版本。
+- 每个 cluster 接收 Ea[2]/Eb[4]/fold，均来自同一笔 response；
+- 组合生成两份 row_bias，形成八份 base/bad_scale；
+- 不单独增加 ingress 寄存级，base/bad_scale 由 Qlane 在 Q0 捕获；
+- 不存 Job 常量，不复制 key/valid 流水。
 
-### 11.3 `deqacc_v2_arith_cluster`
+### 11.3 `deqacc_v2_cluster`（物理数据通路层次）
 
 负责本 arithmetic cluster 的算术闭环，但不拥有独立 ACC：
 
@@ -456,10 +470,10 @@ deqacc_v2_top.sv
 - 生成两行四列 dequant；
 - 完成 8 lane 的 FPADD；
 - 接收完整 ACC 返回的 256 bit old bundle；
-- 完成本 cluster 内的 A3/C forwarding；
+- 接收中心产生的 A3/C 选择位，完成本 cluster 的局部数据选择，不重复比较 key；
 - 输出 256 bit write-back bundle。
 
-### 11.4 `deqacc_v2_acc_store`
+### 11.4 `acc_slice_v1`（完整 ACC）
 
 这是 V2 当前唯一的完整 FACC/OACC 存储拥有者，负责：
 
@@ -471,11 +485,11 @@ deqacc_v2_top.sv
 
 这里不允许再实例化四份独立 `acc_slice`。若后续 route 仍不满足，再另行评估 bank/列物理分区。
 
-### 11.5 `deqacc_v2_commit`
+### 11.5 顶层 commit 静态拼接
 
 负责：
 
-- 检查四 arithmetic cluster write-back valid 是否同拍；
+- 检查各 lane 的 Q1/A3 valid 与中心 key 一致；四 bundle 不再各自维护写回 metadata；
 - 将四个 bundle 送入完整 ACC，或在完整 ACC 完成后分发逻辑结果；
 - 保持 V1 外部结果接口的顺序；
 - 输出 `result_valid`、`result_meta`、`vpu_valid` 等边带。
@@ -489,19 +503,16 @@ V2 端口名称可以按现有项目风格调整，但语义必须固定。
 ### 12.1 输入
 
 ```text
-job_valid / job_ready
-job_kind / generation / context_id
-scale_ea[2]
-scale_eb[16]
-scale_fold
-
-issue_valid
-issue_psum[2][16]
-issue_row_valid[2]
-issue_zero[2][16]
-issue_key / issue_bank / issue_parity / issue_address
-issue_dest / issue_last
+rsp_valid
+rsp.psum[2][16]
+rsp.e_stream[2]
+rsp.e_stat[16]
+rsp.row_valid[2]
+rsp.meta.exp_fold
+rsp.meta.acc_sel / pair_idx / nt / add_old / last / identity
 ```
+
+上述字段均属同笔事务。保留 V1 外部接口；没有新增 DEQACC Job 输入，也不从实时上层 Job 状态推断 scale。
 
 ### 12.2 arithmetic cluster 内部
 

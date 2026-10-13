@@ -8,10 +8,12 @@
 | `acc_slice_v1` | `published_v1_acc.sv` |
 | `deqacc_v1_group8` | `published_v1_group.sv` |
 | `DEQACC_V1` | `published_v1_top.sv` |
+| `fp32_add_lane_v1` | `published_v1_fpadd.sv` |
+| `deqacc_v1_control` | `published_v1_control.sv` |
 
-四个副本内容仅做上表模块定义及实例引用的标识符替换，已与发布文件逐文本比较。没有把V2的ACC或反量化修复复制进参考。
+六个副本内容仅做上表模块定义及实例引用的标识符替换。原共享的 FPADD/控制在本轮修改前独立冻结，参考 group/top 改为调用冻结副本。恢复模块原名后的文本 SHA256 与发布版原文件完全一致（FPADD `5BDB57A1...`，控制 `55FBC2F9...`）。没有把 V2 的 scale ingress、中心控制、LZA 或舍入算法复制进参考。
 
-共享未变模块：`pcore_pkg`、`dea8_fp32_pkg`、`deqacc_v1_pkg`、`dea8_acc_store`、`deqacc_v1_control`、`fp32_add_lane_v1`。文件hash与发布版一致，记录于`v1_shared_sha256.csv`，运行脚本先检查。
+共享未变模块：`pcore_pkg`、`dea8_fp32_pkg`、`deqacc_v1_pkg`、`dea8_acc_store`。共享模块及两份新冻结副本的 hash 记录于 `v1_shared_sha256.csv`，运行脚本先检查。
 
 若以后修改共享模块，必须把旧发布模块也独立冻结并替换对应实例；不得简单更新hash把当前实现同时作为被测和参考。
 

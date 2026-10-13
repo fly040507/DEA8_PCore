@@ -1,6 +1,6 @@
 # DEA8：八核 VLA 计算工程
 
-本目录是独立的 DEQACC 开发副本。当前入口：[DEQACC V2 优化方案](DEQACC_V2_优化方案.md)、[V2 验证结果](Pcore/reports/v2_verification_status.md)。2026-10-13：V2 剩余功能仿真已完成，211,978笔算术、10,486笔完整流水及V1/V2同拍对照、动态M、RAW负例、完整七Job均PASS；修复ACC读对齐和shift=32舍入边界。V2保持七级、II=1、Delta=4，单个完整16列ACC、四个算术bundle；FPADD当前仍采用精确LZD，LZA待实现。`DEA8/`保持冻结，综合/P&R和250MHz物理时序未验证。V1/R11只作历史基线。
+本目录是独立的 DEQACC 开发副本。当前入口：[DEQACC V2 优化方案](DEQACC_V2_优化方案.md)、[V2 验证结果](Pcore/reports/v2_verification_status.md)。2026-10-13：已实现逐事务 scale ingress、唯一中心前递控制、四个八-lane physical cluster 和 Full dual-path FPADD；Qlane 不再接 Ea/Eb/fold。保持七级、II=1、Delta=4，以及单个完整 16 列 ACC。新算法短套件、独立 V1 对照及完整七 Job 全部 PASS。`DEA8/` 不修改，没有综合/P&R 或 250 MHz 签核。V1/R11 仅作历史基线。
 
 进度核对：2026-10-10。
 

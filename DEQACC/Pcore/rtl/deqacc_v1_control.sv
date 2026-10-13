@@ -7,14 +7,43 @@ module deqacc_v1_control(
   output logic [5:0] valid_pipe,
   output pair_meta_t meta_pipe[0:5],
   output logic [5:0][1:0] rows_pipe,
-  output logic commit_valid,done,output pair_meta_t commit_meta
+  output logic commit_valid,done,output pair_meta_t commit_meta,
+  output v1_key_t keys[0:6],
+  output logic [1:0] use_a3,use_c
 );
+  logic [1:0] commit_rows;
+  v1_key_t input_key;
+  function automatic bit key_match(input v1_key_t producer,consumer,input int parity);
+    return producer.valid&&producer.rows[parity]&&producer.generation==consumer.generation&&
+      producer.sel==consumer.sel&&producer.addr==consumer.addr;
+  endfunction
+
+  // Keys are views of the one metadata spine, not four replicated pipelines.
+  always_comb begin
+    input_key='0;
+    input_key.valid=in_valid;input_key.generation=generation;
+    input_key.add_old=rsp.meta.add_old;input_key.sel=rsp.meta.acc_sel;
+    input_key.addr=v1_address(rsp.meta);input_key.rows=rsp.row_valid;
+    for(int s=0;s<6;s++)begin
+      keys[s]='0;keys[s].valid=valid_pipe[s];keys[s].generation=generation;
+      keys[s].add_old=meta_pipe[s].add_old;keys[s].sel=meta_pipe[s].acc_sel;
+      keys[s].addr=v1_address(meta_pipe[s]);keys[s].rows=rows_pipe[s];
+    end
+    keys[6]='0;keys[6].valid=commit_valid;keys[6].generation=generation;
+    keys[6].add_old=commit_meta.add_old;keys[6].sel=commit_meta.acc_sel;
+    keys[6].addr=v1_address(commit_meta);keys[6].rows=commit_rows;
+    for(int p=0;p<2;p++)begin
+      use_a3[p]=key_match(keys[5],keys[1],p);
+      use_c[p]=!use_a3[p]&&key_match(keys[6],keys[1],p);
+    end
+  end
   always_ff @(posedge clk)begin
     meta_pipe[0]<=rsp.meta;
     rows_pipe[0]<=rsp.row_valid;
     for(int s=1;s<6;s++)meta_pipe[s]<=meta_pipe[s-1];
     for(int s=1;s<6;s++)rows_pipe[s]<=rows_pipe[s-1];
     commit_meta<=meta_pipe[5];
+    commit_rows<=rows_pipe[5];
     if(reset)generation<=0;
     else if(clear)generation<=!generation;
     if(reset||clear)begin valid_pipe<=0;commit_valid<=0;done<=0;end
@@ -23,4 +52,16 @@ module deqacc_v1_control(
       commit_valid<=valid_pipe[5];done<=valid_pipe[5]&&meta_pipe[5].last;
     end
   end
+  // synthesis translate_off
+  always @(posedge clk)if(!reset&&!clear)begin
+    if(input_key.valid&&input_key.add_old)
+      for(int p=0;p<2;p++)if(input_key.rows[p])
+        for(int s=0;s<3;s++)if(key_match(keys[s],input_key,p))
+          $fatal(1,"V1 accumulator RAW: dependent input interval below four cycles");
+    if(keys[1].valid&&keys[1].add_old)
+      for(int p=0;p<2;p++)if(keys[1].rows[p])
+        for(int s=2;s<5;s++)if(key_match(keys[s],keys[1],p))
+          $fatal(1,"V2 unresolved writer at A0");
+  end
+  // synthesis translate_on
 endmodule

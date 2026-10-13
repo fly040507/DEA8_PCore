@@ -36,6 +36,12 @@ try {
     }
     $line=([regex]::Match($text,"(?m)^$top PASS.*$")).Value
     $results.Add($line);$line
+    if($top -eq 'tb_deqacc_v1_arithmetic' -or $top -eq 'tb_deqacc_v1_stream') {
+      $extra=if($top -eq 'tb_deqacc_v1_arithmetic'){'tb_deqacc_v2_dual_path'}else{'tb_deqacc_v2_ingress'}
+      $detail=([regex]::Match($text,"(?m)^$extra PASS.*$")).Value
+      if(!$detail){throw "Missing V2 structural/algorithm coverage: $extra"}
+      $results.Add($detail);$detail
+    }
   }
   foreach ($test in @('BAD_RAW','BAD_RAW_2','BAD_RAW_3')) {
     $text=Invoke-Vivado xsim "v2_suite_tb_deqacc_v1_stream -runall -testplusarg $test -log reports/v2_${test}.log" -AllowFailure
@@ -47,7 +53,7 @@ try {
     $line="$test PASS expected RAW rejection";$results.Add($line);$line
   }
   # Keep the published V1 reference test-only. Its unchanged shared arithmetic
-  # dependencies are hash-pinned; four changed modules have renamed snapshots.
+  # dependencies are hash-pinned; changed modules use test-only renamed copies.
   $pins=Import-Csv (Join-Path $here 'tb/reference/v1_shared_sha256.csv')
   foreach($pin in $pins) {
     if((Get-FileHash -LiteralPath (Join-Path $here $pin.file) -Algorithm SHA256).Hash -ne $pin.sha256) {
@@ -64,19 +70,21 @@ try {
     if($text -match '(?im)^\s*(Fatal|Error|ERROR):' -or $text -notmatch [regex]::Escape($marker)) {
       throw "Published V1/V2 lockstep failed: $top"
     }
-    $line=([regex]::Match($text,'(?m)^tb_deqacc_v2.* PASS.*$')).Value
+    $line=([regex]::Match($text,"(?m)^$marker.*$")).Value
     $results.Add($line);$line
   }
   $results.Add('V2 simulation only. No synthesis/placement/routing. 250 MHz physical timing is unverified.')
   [IO.File]::WriteAllLines((Join-Path $report 'v2_simulation_summary.txt'),$results,[Text.Encoding]::UTF8)
   $hashes=@('file,sha256')
   $sources=@('rtl/pcore_pkg.sv','rtl/deqacc_v1_pkg.sv','rtl/dequant_lane_v1.sv','rtl/fp32_add_lane_v1.sv',
-    'rtl/acc_slice_v1.sv','rtl/deqacc_v1_control.sv','rtl/deqacc_v1_group8.sv','rtl/DEQACC_V1.sv',
+    'rtl/acc_slice_v1.sv','rtl/deqacc_v1_control.sv','rtl/deqacc_v2_scale_ingress.sv',
+    'rtl/deqacc_v2_cluster.sv','rtl/DEQACC_V1.sv',
     'rtl/dea8_acc_store.sv','rtl/dea8_matrix.sv','rtl/dea8_fp32_pkg.sv',
     'tb/fp32_legacy_ref_pkg.sv','tb/tb_deqacc_v1_arithmetic.sv','tb/tb_deqacc_v1_stream.sv',
     'tb/tb_deqacc_v1_dynamic_matrix.sv','tb/tb_pcore_control.sv','run_deqacc_v1.ps1',
     'tb/reference/published_v1_dequant.sv','tb/reference/published_v1_acc.sv',
     'tb/reference/published_v1_group.sv','tb/reference/published_v1_top.sv',
+    'tb/reference/published_v1_fpadd.sv','tb/reference/published_v1_control.sv',
     'tb/reference/v1_shared_sha256.csv','pcore_v1_sim.f','deqacc_v1.f','v2_lockstep.f')
   foreach($source in $sources) {
     $digest=(Get-FileHash -LiteralPath (Join-Path $here $source) -Algorithm SHA256).Hash

@@ -8,8 +8,8 @@ import dea8_fp32_pkg::*;
 module dequant_lane_v1(
   input logic clk,reset,clear,in_valid,
   input logic signed [31:0] psum,
-  input logic [7:0] ea,eb,
-  input logic signed [EXP_FOLD_BITS-1:0] fold,
+  input logic signed [11:0] base,
+  input logic bad_scale,
   output logic out_valid,
   output logic [31:0] partial_value
 );
@@ -184,8 +184,8 @@ module dequant_lane_v1(
     lead_q<=lead32(magnitude);
     sign_q<=psum[31];
     zero_q<=magnitude==0;
-    bad_q<=(&ea)||(&eb);
-    base_q<=$signed({4'b0,ea})+$signed({4'b0,eb})+$signed(fold)-12'sd266;
+    bad_q<=bad_scale;
+    base_q<=base;
     partial_value<=next_value;
     if(reset||clear) begin
       valid_q<=0;

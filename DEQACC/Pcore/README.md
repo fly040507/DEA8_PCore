@@ -2,7 +2,7 @@
 
 ## DEQACC 开发副本当前状态（2026-10-13）
 
-本副本在 V1 RTL 上原地重构为 DEQACC V2：32 lane、4 个算术 bundle、**一个完整 16 列 FACC/OACC**、七级流水。ACC 没有拆成四份；四个 bundle 只作为算术侧与完整 ACC 的固定接口。Q1 已改为固定宽度 barrel/jam 与 RNE，算术流水和 `Delta=4` 协议保持不变。V1 报告仅作历史对照；没有新的综合或布局布线结果。
+本副本在 V1 RTL 上原地重构为 DEQACC V2：32 lane、4 个八-lane physical cluster、**一个完整 16 列 FACC/OACC**、七级流水。中心控制只保留一套 key/RAW/forward 比较，旧逻辑 group 已删除。cluster 内 ingress 按每笔 response 生成 row_bias/base；Qlane 只接 Psum/base/bad_scale/valid。FPADD 已改为 Full dual-path、operand-only LZA、一位修正和并行舍入候选；四个 256 bit bundle 仍只传数据。II=1 和 Delta=4 不变，没有综合/P&R 结果。
 
 从本目录运行短仿真套件：
 
@@ -14,9 +14,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run_deqacc_v1.ps1 -Sev
 
 脚本名保留`v1`以兼容原入口，内部使用V2库与报告名。所有工具经同一cmd先call settings64.bat再call工具bat，不使用shadow环境或直接unwrapped入口。短套件包含发布版V1/V2 lockstep，timeout至少300000ms；带七Job建议3600000ms。
 
-当前验证结论：**V2剩余功能仿真已完成，全部PASS**。211,978笔算术、10,486笔完整流水/同拍对照、动态M、三个RAW负例及七Job265,408issues通过；当前系统DLL阻塞未复现。新证据见 [V2验证结果](reports/v2_verification_status.md)、`reports/v2_simulation_summary.txt` 和 `reports/v2_sources_sha256.csv`。下面的迁移日志仅作为历史工程对照。
+当前验证全部 PASS：212,166 笔 Dequant/FPADD，335,584 次 lane scale 检查，10,486 笔 stream/独立 V1 对照，动态 M、RAW 负例和七 Job 265,408 次 issue。最终结论见 [V2验证结果](reports/v2_verification_status.md)、`reports/v2_simulation_summary.txt` 和 `reports/v2_sources_sha256.csv`，需同时核对源码 hash；下面的迁移日志仅作历史对照。
 
-当前FPADD仍是精确LZD实现，方案中的局部LZA与其他物理优化尚未落地；仿真PASS不等于完整V2优化清单或4ns时序签核完成。
+USE_LZA=1 为默认模式；USE_LZA=0 的精确 LZD 仅供功能/后续物理对照。四个 soft hierarchy 是 RTL 的物理局部化边界，不代表已经证实 lane 放置邻近、route 优化或 4 ns 时序。
 
 PCore 是 DEA8 的单核计算单元：双行 INT8 矩阵计算、FP32 DEQACC 累加、Q/O/Z 本地存储、后处理调度和 K/V/O/Down 输出。**当前 RTL 与迁移后七 Job 全链路仿真已通过；VPU/SFU 算术和外部供数由 TB 模拟。**
 

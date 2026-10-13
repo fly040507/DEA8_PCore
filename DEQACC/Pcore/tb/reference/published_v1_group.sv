@@ -51,7 +51,7 @@ module published_v1_group(
       localparam int N=micro*2+c;
       published_v1_dequant quant(.clk,.reset,.clear,.in_valid(input_key.valid),.psum(psum[r][N]),
         .ea(ea[r]),.eb(eb[N]),.fold,.out_valid(partial_valid[r][N]),.partial_value(partial_values[r][N]));
-      fp32_add_lane_v1 add(.clk,.reset,.clear,.in_valid(keys[1].valid),.add_old(keys[1].add_old),
+      published_v1_fpadd add(.clk,.reset,.clear,.in_valid(keys[1].valid),.add_old(keys[1].add_old),
         .old_value(old_issue[r][N]),.partial_value(partial_values[r][N]),
         .out_valid(a3_valid[r][N]),.result_value(a3_values[r][N]));
     end

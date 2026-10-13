@@ -17,14 +17,9 @@ module DEQACC_V1(
   logic [5:0] valid_pipe;
   pair_meta_t meta_pipe[0:5];
   logic [5:0][1:0] rows_pipe;
-  v1_key_t input_key;
-  logic [3:0] group_commit;
-  logic [31:0] group_debug[0:3];
-  logic [3:0] group_wr_valid;
-  acc_sel_e group_wr_sel[0:3];
-  logic [9:0] group_wr_addr[0:3];
-  logic [1:0] group_wr_rows[0:3];
-  logic [1:0][3:0][31:0] group_wr_data[0:3];
+  v1_key_t keys[0:6];
+  logic [1:0] use_a3,use_c;
+  logic [1:0][3:0][31:0] cluster_wr_data[0:3];
   logic [1:0][15:0][31:0] acc_old_data,acc_external_data,acc_wr_data;
   logic acc_wr_valid;
   acc_sel_e acc_wr_sel;
@@ -33,9 +28,6 @@ module DEQACC_V1(
   logic [31:0] acc_dbg_data;
   logic result_free,vpu_free;
   always_comb begin
-    input_key='0;input_key.valid=rsp_valid;input_key.generation=generation;
-    input_key.add_old=rsp.meta.add_old;input_key.sel=rsp.meta.acc_sel;
-    input_key.addr=v1_address(rsp.meta);input_key.rows=rsp.row_valid;
     result_free=!(rsp_valid&&rsp.meta.acc_sel==result_rd_sel);
     vpu_free=!(rsp_valid&&rsp.meta.acc_sel==vpu_wr.sel);
     for(int s=0;s<6;s++)begin
@@ -46,19 +38,19 @@ module DEQACC_V1(
   assign result_rd_ready=!reset&&!clear&&result_rd_owner==ACC_READ_RESULT&&result_rd_sel<=ACC_OACC&&result_free;
   assign vpu_wr_ready=!reset&&!clear&&vpu_wr.sel<=ACC_OACC&&vpu_free;
   deqacc_v1_control control(.clk,.reset,.clear,.in_valid(rsp_valid),.rsp,.generation,.valid_pipe,.meta_pipe,.rows_pipe,
-    .commit_valid,.done,.commit_meta);
+    .commit_valid,.done,.commit_meta,.keys,.use_a3,.use_c);
   assign commit_write_valid=commit_valid;
   always_comb begin
     acc_wr_data='0;
     for(int g=0;g<4;g++) begin
       for(int r=0;r<2;r++)
         for(int n=0;n<4;n++)
-          acc_wr_data[r][g*4+n]=group_wr_data[g][r][n];
+          acc_wr_data[r][g*4+n]=cluster_wr_data[g][r][n];
     end
-    acc_wr_valid=group_wr_valid[0];
-    acc_wr_sel=group_wr_sel[0];
-    acc_wr_addr=group_wr_addr[0];
-    acc_wr_rows=group_wr_rows[0];
+    acc_wr_valid=keys[5].valid;
+    acc_wr_sel=keys[5].sel;
+    acc_wr_addr=keys[5].addr;
+    acc_wr_rows=keys[5].rows;
   end
   always_ff @(posedge clk)begin
     if(reset||clear)begin
@@ -89,7 +81,7 @@ module DEQACC_V1(
   assign result_even_data=acc_external_data[0];
   assign result_odd_data=acc_external_data[1];
   assign dbg_data=dbg_valid?acc_dbg_data:0;
-  for(genvar g=0;g<4;g++)begin: groups
+  for(genvar g=0;g<4;g++)begin: physical_clusters
     logic signed [1:0][3:0][31:0] sums;
     logic [1:0][3:0][31:0] cdata,old_data;
     for(genvar r=0;r<2;r++)for(genvar n=0;n<4;n++)begin: columns
@@ -97,25 +89,13 @@ module DEQACC_V1(
       assign commit_write.data[r][g*4+n]=cdata[r][n];
       assign old_data[r][n]=acc_old_data[r][g*4+n];
     end
-    deqacc_v1_group8 compute(.clk,.reset,.clear,.input_key,.psum(sums),.ea(rsp.e_stream),
-      .eb(rsp.e_stat[g*4+:4]),.fold(rsp.meta.exp_fold),.acc_old_data(old_data),
-      .commit_valid(group_commit[g]),.commit_data(cdata),
-      .acc_wr_valid(group_wr_valid[g]),.acc_wr_sel(group_wr_sel[g]),.acc_wr_addr(group_wr_addr[g]),
-      .acc_wr_rows(group_wr_rows[g]),.acc_wr_data(group_wr_data[g]),
-      .dbg_sel,.dbg_parity,.dbg_addr,.dbg_column(dbg_lane[1:0]),.dbg_data(group_debug[g]));
+    deqacc_v2_cluster arithmetic(.clk,.reset,.clear,.q0_valid(rsp_valid),
+      .a0_valid(keys[1].valid),.a3_stage_valid(keys[5].valid),.add_old(keys[1].add_old),
+      .psum(sums),.ea(rsp.e_stream),.eb(rsp.e_stat[g*4+:4]),.fold(rsp.meta.exp_fold),
+      .use_a3,.use_c,.acc_old_data(old_data),.commit_data(cdata),.a3_values(cluster_wr_data[g]));
   end
   // synthesis translate_off
   always @(posedge clk)if(!reset&&!clear)begin
-    if(group_commit!=={4{commit_valid}})$fatal(1,"V1 group commit alignment mismatch");
-    if(group_wr_valid!=={4{group_wr_valid[0]}})$fatal(1,"V2 ACC write bundle valid mismatch");
-    for(int g=1;g<4;g++)begin
-      if(group_wr_valid[g]&&group_wr_sel[g]!==group_wr_sel[0])
-        $fatal(1,"V2 ACC write bundle select mismatch");
-      if(group_wr_valid[g]&&group_wr_addr[g]!==group_wr_addr[0])
-        $fatal(1,"V2 ACC write bundle address mismatch");
-      if(group_wr_valid[g]&&group_wr_rows[g]!==group_wr_rows[0])
-        $fatal(1,"V2 ACC write bundle row mask mismatch");
-    end
     if(rsp_valid&&(rsp.meta.acc_sel>ACC_OACC||rsp.meta.pair_idx>=PAIRS||
        (rsp.meta.acc_sel==ACC_OACC&&rsp.meta.nt>=TILE)||
        ((rsp.row_valid&~row_mask(rsp.meta.pair_idx))!=0)))$fatal(1,"V1 illegal accumulator input");
