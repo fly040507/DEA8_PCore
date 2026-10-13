@@ -1,6 +1,6 @@
 # DEA8：八核 VLA 计算工程
 
-本目录是独立的 DEQACC 开发副本。当前入口：[DEQACC V2 优化方案](DEQACC_V2_优化方案.md)、[V2 验证结果](Pcore/reports/v2_verification_status.md)。2026-10-13：采用第三种方案，删除逻辑 cluster；独立 scale 网络只算两个 row_bias，每行固定 `1→4→16` 分发，32 lane 按同行分成四个位置组。Psum 直达 Qlane，Qlane 仅接 Psum/base/bad_scale/valid。完整 ACC、Full dual-path FPADD、七级/II=1/Delta=4 不变。本轮短仿真全部 PASS，覆盖 11 种 M；没有重跑七 Job、综合/P&R 或 250 MHz 签核。`DEA8/` 不修改，旧七 Job/V1/R11 结果仅作历史基线。
+本目录是独立的 DEQACC 开发副本。入口：[DEQACC V2 优化方案](DEQACC_V2_优化方案.md)、[V2 验证结果](Pcore/reports/v2_verification_status.md)。2026-10-13 V2 收尾：scale/forward 每行 `1→4→16`，add_old/valid/flush `1→4→32`；ACC 读掩码局部分发，RAM 保持完整。32 lane 按同行分为四组，已提供每组八个 lane 的硬 Pblock 脚本。七级/II=1/Delta=4 不变；短仿真覆盖 11 种 M 全部 PASS，约束 Tcl/器件 API 自检 PASS。没有当前源码综合/P&R、七 Job 或 250 MHz 签核，约束尚未应用到当前综合网表。`DEA8/` 不修改，旧结果只作历史基线。
 
 进度核对：2026-10-10。
 

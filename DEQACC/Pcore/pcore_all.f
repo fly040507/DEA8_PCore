@@ -18,6 +18,7 @@ rtl/deqacc_v1_pkg.sv
 rtl/dequant_lane_v1.sv
 rtl/fp32_add_lane_v1.sv
 rtl/acc_slice_v1.sv
+rtl/deqacc_v2_fanout.sv
 rtl/deqacc_v1_control.sv
 rtl/deqacc_v2_scale_ingress.sv
 rtl/DEQACC_V1.sv

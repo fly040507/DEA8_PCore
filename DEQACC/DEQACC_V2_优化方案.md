@@ -1,27 +1,27 @@
 # DEQACC V2 优化方案
 
 **版本**：DEQACC V2 优化方案  
-**状态**：2026-10-13，已改为第三种方案：独立 scale 网络、同行布局、每行固定 `1→4→16`。本轮 `-Focused` 短套件 PASS，包含 11 种 M 的真实 MXU；未跑七 Job 或独立 V1 lockstep，未执行综合/布局布线  
+**状态**：2026-10-13，V2 收尾：scale/forward/common control 分级分发、ACC 局部读掩码、同行 8-lane Pblock 脚本已实现。`-Focused` 短套件 PASS，包含 11 种 M 的真实 MXU；未跑七 Job、独立 V1 lockstep 或当前源码综合/布局布线  
 **适用范围**：`DEQACC/` 独立设计  
 **明确不修改**：`DEA8/`、V1 历史报告和既有发布快照；V2 直接在 `DEQACC/Pcore` 的原 V1 文件名基础上原地实现，保留旧接口命名以降低迁移风险
 
 ## 1. 方案结论
 
-当前实现：一个完整 ACC、32 个 lane、4 个同行的物理位置组；删除逻辑 cluster wrapper。独立的 scale 网络只计算一次 row_bias0/1，各经四个独立组合分支驱动四列 base 加法器。Ea/Eb/fold 随每笔 MXU response 变化，不是 Job 常量；base 和 Psum 在 Q0 同拍捕获。ACC 同步读仍由已寄存 Q0 控制驱动，在 Q1 边界返回。Full dual-path FPADD 和 USE_LZA=0 对照不变。实测范围见 [V2验证结果](Pcore/reports/v2_verification_status.md)；位置组只是布局意图，物理邻近性和时序未签核。
+当前实现：一个完整 ACC、32 个 lane、4 个同行位置组，不设逻辑 cluster wrapper。row_bias0/1 只算一次，各经四个分支驱动四列 base；use_a3/use_c 每行 `1→4→16`，add_old/valid/flush 则 `1→4→32`。ACC 的读 bank 选择与 initialized 掩码由局部 one-hot 控制树分发，不再由单个掩码驱动整条 512-bit 数据。七级和 Full dual-path FPADD 不变。已提供四个硬 Pblock 约束，但尚未在当前综合网表上应用，物理邻近性和时序未签核。
 
 V2 的目标不是继续堆加流水级数，也不是一开始就拆分 ACC，而是在保持 V1 功能和时序接口的前提下，先优化反量化、FPADD、控制扇出和 ACC 外围的长距离通路。
 
 最终采用下面的结构：
 
 1. **32 个计算 lane**，独立接入顶层；不设逻辑 cluster 模块。
-2. 四个同行位置组，每组 8 lane：row0 的 0–7/8–15 列、row1 的 0–7/8–15 列。每组接两个独立的四列 scale 分支；同行也不能改为 `1→2→16`。
+2. 四个同行位置组，每组 8 lane：row0 的 0–7/8–15 列、row1 的 0–7/8–15 列。每组接两个四列 scale/forward 分支和一个八-lane common-control 分支；每行 scale/forward 不能改为 `1→2→16`。
 3. 保留 **7 个有效流水阶段**：`Q0 -> Q1 -> A0 -> A1 -> A2 -> A3 -> C`。
 4. 保留 `II=1`，保留 V1 的 `Delta=4` 前递约束，保持累加顺序和位精确结果不变。
 5. scale 使用独立逐事务输入网络：全局两份 row_bias → 每行四个分支 → 每分支四个外部 base 加法器。共 32 个 base 加法器，Qlane 不接 Ea/Eb/fold。
 6. Q0/Q1 使用固定宽度、固定级数的直接反量化逻辑，删除动态整数循环和运行时可变深度移位。
 7. FP32 加法保留 4 个 A 阶段，但采用“FAR/CLOSE 受控双路径”，只在 CLOSE 路径使用局部 LZA，并保留精确修正。
 8. **FACC/OACC 先保持为一个完整的 ACC 存储与控制模块**，不在本版方案中拆成四份，也不复制完整 ACC。
-9. ACC 数据仍为 `[2][16][32]`，各 lane 直接按 row/column 静态连线读写；四个位置组各对应 256 bit，但不另设 bundle Buffer、重排网络或独立 ACC。
+9. ACC 数据仍为 `[2][16][32]`，各 lane 按原 row/column 连线读写；各列的 old/external read 由局部 one-hot 掩码选择。四个位置组各对应 256 bit，不增设 Buffer、重排网络或独立 ACC。
 10. 只有在 V2 完成综合和布局布线后，证明完整 ACC 仍是主要 routing 瓶颈，才启动“ACC bank/列分区”备选方案；该备选不属于当前冻结结构。
 
 一句话概括：
@@ -50,7 +50,8 @@ V2 的目标不是继续堆加流水级数，也不是一开始就拆分 ACC，�
 ```text
 MXU rsp
   +-- meta/row_valid --> central control spine (one set of keys/source compare)
-  |                       +--> Q0/Q1/A0/A3/C valid and per-row use_a3/use_c
+  |                       +--> per-row use_a3/use_c -> 1->4->16 local controls
+  |                       +--> add_old/Q0-valid/A0-valid/flush -> 1->4->32
   |                       +--> complete ACC read/write bank/address/row mask
   |
   +-- Ea/fold --> two shared row_bias roots
@@ -61,7 +62,7 @@ MXU rsp
                                 ^                       |         |
                                 +-- lane old mux <------+---------+
                                        ^
-                           complete ACC old[2][16]
+                        local ACC read-mask trees -> old[2][16]
 
 Physical region0: row0, col0..7    (scale branches0/1)
 Physical region1: row0, col8..15   (scale branches2/3)
@@ -103,7 +104,7 @@ region2 : row1 col0..7  <- row1 branch0/1
 region3 : row1 col8..15 <- row1 branch2/3
 ```
 
-`physical_regions[g].lanes[n]` 只是 generate 命名，不是 cluster 模块。key/valid/meta 流水和 RAW/forward 比较只有中心一套；前递数据 mux 和 C 数据寄存器留在各 lane。同行布局便于后续靠近对应 parity 的 ACC 数据，但收益须由实际布局布线确认。
+`physical_regions[g].lanes[n]` 是 generate 命名，不是 cluster 模块。Q/FPADD 实例保留软层次，C 数据寄存器命名在对应 lane 下；约束脚本将每组八个 lane 及其 scale/forward/common/ACC-read 控制端点纳入同一个硬 Pblock。中心 key/RAW/forward 比较仍只有一套。约束不切分 ACC，实际局部化收益仍须布局布线确认。
 
 ### 4.2 局部 payload 宽度
 
@@ -160,7 +161,7 @@ Qlane 的事务输入格式：
 
 分支端点用 `LUT1(INIT=2'b10)` 做组合 buffer，只对这些 primitive 加 `DONT_TOUCH`；row_bias root 加 `KEEP`。包括 bad_Ea 的分发，共 `2×4×(12+1)=104` 个显式 LUT1 实例，没有新增寄存器。这个数是 RTL 实例数，不是综合后的利用率。
 
-`bad_Ea=(Ea==255)` 在 root 单独生成并随分支传递；仅从数值 row_bias 不能恢复 bad_Ea。bad_Eb 则按列生成，最终 `bad_scale=bad_Ea||bad_Eb`。本轮不做 Pblock/LOC，组合 buffer 会增加一级逻辑延迟，是否换来更低 route 必须后续实测。
+`bad_Ea=(Ea==255)` 在 root 单独生成并随分支传递；仅从数值 row_bias 不能恢复 bad_Ea。bad_Eb 按列生成，最终 `bad_scale=bad_Ea||bad_Eb`。32 个 `deqacc_v2_base_add` 是有名字的组合锥，便于随对应 scale 分支纳入 lane Pblock。没有 LOC/BEL 固定单个资源点，组合 buffer 的逻辑延迟与 route 收益仍需实测。
 
 ### 5.3 是否需要额外 scale 流水级
 
@@ -353,7 +354,7 @@ C: 2 x 16 x 32 bit write-back into complete ACC / commit
 3. 当前事务前序的 C 前递值；
 4. `old=0` 的明确旁路。
 
-完整 ACC 输出 `[2][16]` 的 old data，每 lane 直接使用对应切片，不增加全局重排。中心控制只发送 source select 和 key；A3/C/RAM/zero 的数据 mux 放在各 lane，不能将全宽数据汇聚到中心 control。
+完整 ACC 输出 `[2][16]` 的 old data，每 lane 使用对应列切片，不增加全局重排。三个 bank 的 512-bit 原始读数据和 initialized 状态不变；每行一次生成三位 read-mask root，经 `1→4→16` 控制树在各 lane 做 32-bit one-hot 选择。old 与 external read 各有一套选择树，RAM、地址、valid map 和同步读延迟不变。中心只发送 key/source select，A3/C/RAM/zero 的 mux 留在各 lane。
 
 ### 9.4 当前阶段允许的 ACC 优化
 
@@ -375,11 +376,27 @@ C: 2 x 16 x 32 bit write-back into complete ACC / commit
 
 - `Delta=4` 是协议约束，V2 保留。
 - A3/C key 与 A0 消费 key 只在中心 control spine 比较一次；每个 parity 各有 use_a3/use_c，32 lane 只做本地数据 mux。
-- `use_a3`、`use_c` 是紧凑选择位，数据不回流中心控制。
+- `use_a3`、`use_c` 每行各通过四个分支、16 个本地驱动端点送到 mux；只复制组合驱动器，不重复 key 比较或增加寄存级。
 - 同一 key 过早重用时，由 assertion 报错；不让它依赖综合后随机的 RAM 读写优先级。
 - 32 lane 的 Q1/A3 valid 必须与中心 key 同拍；任何 lane 不一致均视为事务错误。
 
 ## 10. 控制和布线约束
+
+### 10.0 本轮冻结的分发树
+
+| 信号 | 分发结构 | 末端用途 |
+| --- | --- | --- |
+| row_bias/bad_Ea | 每行 `1→4→16`，每分支四个 base 加法器 | base/bad_scale 在 Q0 捕获 |
+| use_a3/use_c | 每行 `1→4→16`，分支和末端都有显式组合 buffer | 对应行四列/每 lane 的 old mux |
+| add_old | 全部 lane `1→4→32`，每分支八个末端 | 同一 lane 的 zero mux 和 FPADD bypass 共用 |
+| rsp_valid / A0-valid | 各 `1→4→32` | Q0 / A0 的 valid 寄存器 |
+| reset/clear | 先组合成 flush，再 `1→4→32` | 每 lane Q/FPADD 的同步 valid 清除 |
+| ACC old/external read-mask | 每行各三位 root，`1→4→16` | 本 lane 的 32-bit one-hot 掩码 |
+| ACC bank write/read/地址/flush | 既有 bank/parity 内 `MAX_FANOUT=32` | 允许工具局部复制驱动，不复制 RAM |
+
+接口只有一个事务级 add_old，两行语义相同；不增加两份独立 Job 配置。`1→4→32` 指 32 个 lane 末端，不表示末端只接一根物理负载：例如 add_old 还会驱动本 lane 的 32-bit zero mux。这样的宽扇出被限制在 lane 内，而不跨越全局。
+
+显式组合 buffer 共 568 个 LUT1：scale 104、forward 80、common control 144、ACC old/external mask 240。比上一轮增加 464 个组合 buffer；这是 RTL 实例数，不是综合利用率。没有新增流水寄存器。时钟不走 LUT 分发，仍交给专用时钟网络。
 
 ### 10.1 中心 control spine 只传窄信号
 
@@ -402,7 +419,7 @@ Ea/Eb/fold 不由控制中心分发，独立 ingress 从本笔 rsp 直接读取�
 
 ### 10.2 复位和清除
 
-reset/clear 由完整 ACC 清除 valid map，由唯一 control spine 清除事务 valid；各 lane 只清除 Q/FPADD 的本地 valid，不拥有独立 key pipeline、RAW comparator 或 forwarding 控制器。scale ingress 是纯组合网络，不需要复位寄存器。真实扇出与放置效果需后续物理报告验证。
+reset/clear 由唯一 control spine 和完整 ACC 维持原语义；算术 lane 通过本地 flush leaf 清除 Q/FPADD valid，不清除宽数据寄存器。ACC 的既有 bank/parity 内使用小宽度 bank_flush 和 MAX_FANOUT 约束，不拆分 valid map 或数据 RAM。scale/fanout 是纯组合网络，没有额外复位寄存器。实际扇出由后续综合网表验证。
 
 建议先用自然层次实现并测量，再针对真正的高扇出网使用局部 `MAX_FANOUT`。不使用全局 blanket `DONT_TOUCH`，也不把所有层次锁死。
 
@@ -411,18 +428,42 @@ AMD 文档对 `MAX_FANOUT` 的说明也是“通过复制寄存器/驱动器限�
 
 ### 10.3 层次属性
 
-当前不再设 cluster wrapper，四个 `physical_regions` generate 标签保留位置意图；本轮没有 LOC/Pblock。只对八个 scale 分支的组合 buffer 端点使用局部 `DONT_TOUCH`：
+当前不设 cluster wrapper。Qlane、FPADD、base-adder 和 fanout 保留软层次，配合四组 Pblock 的目标选择；只对分发树的组合 buffer primitive 使用局部 `DONT_TOUCH`，不锁住整个算术锥、RAM 或控制中心：
 
 ```systemverilog
 (* DONT_TOUCH="true" *) LUT1 #(.INIT(2'b10)) branch_buffer(...);
 ```
 
-不要在 V2 初版中使用 `keep_hierarchy="yes"`、全局 `DONT_TOUCH` 或未经测量的 Pblock。第一轮应比较：
+ACC 的 `matrix_wr/rd_en/wr_en/ram_rd_addr/ram_wr_addr/bank_flush` 加局部 MAX_FANOUT=32。该属性允许工具复制驱动器，但本轮没有综合，不能声称实际扇出已经降到 32。[AMD MAX_FANOUT](https://docs.amd.com/r/2022.2-English/ug912-vivado-properties/MAX_FANOUT)
+
+没有全局 DONT_TOUCH，也没有固定 LOC/BEL。后续物理实验应比较：
 
 1. 无物理约束的 V2；
 2. 仅四个同行位置组的局部放置/扇出约束；
 3. 必要时再对完整 ACC 做局部控制复制；
 4. 最后才评估 ACC bank/列分区。
+
+### 10.4 八-lane 局部 Pblock
+
+文件：`Pcore/deqacc_v2_locality.tcl`。在当前源码完成 synth_design 后、opt/place 前调用：
+
+```tcl
+source [file join $root deqacc_v2_locality.tcl]
+# OOC 顶层直接为 DEQACC_V1 时，core path 为空。
+deqacc_v2_locality::apply
+# 若是更大顶层中的实例，传实际层次名；也可传四个 clock-region 名称。
+# deqacc_v2_locality::apply matrix/dequant {X3Y1 X4Y1 X3Y2 X4Y2}
+```
+
+- 四个 Pblock，分别约束 row0 左/右八列、row1 左/右八列及各自的本地控制/scale 端点
+- 默认从器件实际几何选择同一 SLR 内邻近 2×2 clock regions；初始粒度为每组一个 clock region，不承诺八个 lane 紧邻在相邻 SLICE
+- IS_SOFT=FALSE，放在 EXCLUDE_PLACEMENT/CONTAIN_ROUTING 设置之后并立即回读，避免属性设置后又恢复软约束
+- EXCLUDE_PLACEMENT=FALSE，不独占区域；CONTAIN_ROUTING=FALSE，不把跨区数据/控制布线强行困在 Pblock
+- 每个 lane 和本地端点必须匹配到非空 primitive 集合；成员不能跨组重叠，不能纳入 `memory/banks` 的 RAM
+- 根 row_bias、中心 control 和完整 ACC 不纳入 lane Pblock；不复制或拆分 ACC
+- 当前约束仅针对单核 DEQACC；八核集成时应显式分配各核坐标，不能让八核都使用同一默认区域
+
+本轮没有当前综合网表，因此不宣称已完成真实 lane 成员匹配、容量检查、放置或时序签核。单独的器件/Tcl 自检只读取旧 U50 checkpoint，验证几何、API 与错误目标拒绝；不是当前 RTL 的物理证据。
 
 ## 11. 推荐模块边界
 
@@ -432,6 +473,7 @@ V2 按下面的边界直接重构原 V1 文件；文件名暂不整体改名，�
 DEQACC_V1.sv (V2 implementation, compatibility name)
   ├─ deqacc_v1_control.sv             x1 (metadata spine + key views + RAW/forward compare)
   ├─ deqacc_v2_scale_ingress.sv       x1 (2 roots, 4 branches/row, 32 local base adders)
+  ├─ deqacc_v2_fanout.sv             (row-forward/common control/ACC read-mask trees)
   ├─ physical_regions[0:3]           (generate labels only, 8 same-row lanes/region)
   │    └─ lanes[0:7]
   │         ├─ dequant_lane_v1.sv    x1 (Psum/base/bad_scale/valid only)
@@ -475,6 +517,7 @@ DEQACC_V1.sv (V2 implementation, compatibility name)
 - 每 lane 完成 Q0/Q1、FPADD 和本地 C 数据寄存；
 - 每 lane 直接读取完整 ACC 对应 row/column 的 old data；
 - 使用中心产生的本行 A3/C 选择位，不重复比较 key；
+- 本地控制来自 forward/common tree 的 leaf，不直接使用全局 root；八个 lane 及对应端点由 Pblock 约束脚本选择；
 - A3 和 C 数据保持原 row/column 映射，不改变 ACC 或外部接口。
 
 ### 11.4 `acc_slice_v1`（完整 ACC）
@@ -485,6 +528,7 @@ DEQACC_V1.sv (V2 implementation, compatibility name)
 - 全部 FACC/OACC RAM 的读写；
 - valid map 和初始化状态；
 - 向 32 lane 返回 `[2][16]` 的 old data；
+- old/external initialized + bank 选择通过组合树分发；各 bank 的 RAM 和 valid map 仍完整；
 - 接收静态 `[2][16]` 写回数据；中心控制和 C 数据共同完成逻辑 commit。
 
 这里不允许再实例化四份独立 `acc_slice`。若后续 route 仍不满足，再另行评估 bank/列物理分区。
@@ -529,6 +573,9 @@ bad_scale[2][16]
 Qlane: Psum[32] + base[12] + bad_scale + valid
 old_issue / partial_values / a3_values / commit_data[2][16][32]
 use_a3[2] / use_c[2]            // central per-row source select
+forward_leaf[2][16][2]         // {use_c, use_a3}, per-row 1->4->16
+control_leaf[32][4]            // {add_old, A0-valid, Q0-valid, flush}, 1->4->32
+old_mask_leaf / external_mask_leaf[2][16][3]
 keys[5]                        // central ACC write identity
 ```
 
@@ -578,7 +625,7 @@ error_valid / error_code
 
 ### 14.1 位精确功能验证
 
-V2 复用冻结 golden/reference vectors。独立发布版 V1 lockstep 入口保留，但本轮按用户要求只运行 `-Focused`：单 lane 算术、32-lane stream、动态 M 和三项 RAW 负例；不运行七 Job 或独立 V1 lockstep。之前七 Job/lockstep 的 PASS 不证明当前同行源码。
+V2 复用冻结 golden/reference vectors。本轮 `-Focused` 覆盖单 lane 算术、32-lane stream、动态 M 和三项 RAW 负例；stream 额外检查每个控制 leaf、ACC read-mask、add_old/A0 bypass 同拍对齐。不运行七 Job 或独立 V1 lockstep，之前 PASS 不证明当前源码。
 
 完整验收时可额外运行 V1/V2 lockstep：
 
@@ -604,6 +651,7 @@ V2 复用冻结 golden/reference vectors。独立发布版 V1 lockstep 入口保
 - 八个 scale 分支的列映射与四个同行位置组，边界列 3/4、7/8、11/12；
 - A3/C forwarding 与 RAM old value 的三路选择；
 - 各 lane commit 同拍对齐和 last 传递；最终 ACC 包含无效/未使用行的全空间检查。
+- forward/common/read-mask 控制树的每 lane 等价检查，flush 没有增加延迟。
 
 ### 14.3 结构性断言
 
@@ -721,6 +769,8 @@ DEQACC V2 不是“把 V1 变成更宽的中心总线”，也不是一开始就
 2 shared row-bias roots -> 4 branches/row -> 16 local base adders/row
 lane-local forwarding + complete ACC
 compact central control
+explicit local forward/valid/add_old/flush/read-mask trees
+four 8-lane hard-Pblock constraints (not yet applied to current netlist)
 7 stages / II=1 / Delta=4
 bit-exact with V1
 ```

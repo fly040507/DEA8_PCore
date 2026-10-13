@@ -4,6 +4,8 @@
 
 本副本在 V1 RTL 上原地重构为 DEQACC V2：32 lane、四个同行位置组、**一个完整 16 列 FACC/OACC**、七级流水。采用第三种方案，删除逻辑 cluster wrapper；独立 ingress 只计算两个 row_bias，各经四个组合分支驱动四个外部 base 加法器，始终为每行 `1→4→16`。Psum 从 rsp 直接接到 Qlane，与 base/bad_scale/valid 同拍捕获；Qlane 不接 Ea/Eb/fold。中心 key/RAW/forward 唯一一套，FPADD Full dual-path 不变；II=1 和 Delta=4 不变，没有综合/P&R 结果。
 
+本轮收尾：use_a3/use_c 每行 `1→4→16`，add_old/Q0-valid/A0-valid/flush `1→4→32`；ACC old/external read 的 one-hot mask 同样局部分发。分发树总计 568 个显式组合 LUT1，不增加寄存器。原 ACC bank 的读写/地址/flush 加 MAX_FANOUT=32，RAM 和 valid map 不拆分。
+
 从本目录运行短仿真套件：
 
 ```powershell
@@ -17,9 +19,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run_deqacc_v1.ps1 -Sev
 
 脚本名保留`v1`以兼容原入口，内部使用V2库与报告名。所有工具经同一cmd先call settings64.bat再call工具bat，不使用shadow环境或直接unwrapped入口。短套件包含发布版V1/V2 lockstep，timeout至少300000ms；带七Job建议3600000ms。
 
-本轮短仿真全部 PASS：212,166 笔 Dequant/FPADD，335,584 次 lane scale 检查，10,486 笔 stream（含 5,000 笔旧 A11 数值对照），M=1/2/3/4/7/8/16/31/32/50/51 的真实 MXU 和三项 RAW 负例。入口见 [V2验证结果](reports/v2_verification_status.md)、`reports/v2_same_row_simulation_summary.txt` 和 `reports/v2_same_row_sources_sha256.csv`。本轮未跑七 Job 或独立 V1 lockstep，旧报告不能证明同行源码。
+本轮短仿真全部 PASS：212,166 笔 Dequant/FPADD，335,584 次 lane scale 和控制树检查，10,486 笔 stream（含 5,000 笔旧 A11 数值对照），M=1/2/3/4/7/8/16/31/32/50/51 的真实 MXU 和三项 RAW 负例。约束器件/Tcl API 自检也通过。入口见 [V2验证结果](reports/v2_verification_status.md)、`reports/v2_same_row_simulation_summary.txt` 和 `reports/v2_same_row_sources_sha256.csv`。本轮未跑七 Job 或独立 V1 lockstep，旧报告不能证明当前源码。
 
-USE_LZA=1 为默认模式；USE_LZA=0 的精确 LZD 供功能/后续物理对照。位置组是 generate 标签，不强制放置；八个 scale 分支的 LUT1 buffer 局部保护，没有增加寄存器。还未验证实际局部化、route 收益或 4 ns 时序。
+USE_LZA=1 为默认模式；USE_LZA=0 的精确 LZD 供功能/后续物理对照。已提供 [deqacc_v2_locality.tcl](deqacc_v2_locality.tcl)：当前源码完成 synth_design 后调用 `deqacc_v2_locality::apply`，将每组八个同行 lane 和其 scale/control 本地端点放入同一硬 Pblock，ACC RAM 排除。脚本检查非空目标、组间重叠和硬约束回读；八核集成时需显式分配每核区域。当前只做过旧 U50 checkpoint 上的器件/API 自检，不能代替新网表匹配、区域容量、放置、route 或 4 ns 验证。
 
 以下 PCore 主体和七 Job 描述保留已完成的功能边界；迁移日志和上一轮七 Job 是历史证据，不是本轮同行 DEQACC 的整机回归。VPU/SFU 算术和外部供数由 TB 模拟。
 

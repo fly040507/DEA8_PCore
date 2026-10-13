@@ -8,6 +8,7 @@ deqacc_v1_pkg.sv
 dequant_lane_v1.sv
 fp32_add_lane_v1.sv
 acc_slice_v1.sv
+deqacc_v2_fanout.sv
 deqacc_v1_control.sv
 deqacc_v2_scale_ingress.sv
 DEQACC_V1.sv

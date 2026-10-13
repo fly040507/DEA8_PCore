@@ -18,7 +18,7 @@ module tb_deqacc_v1_stream;
   pair_meta_t expected_meta[0:6];logic [1:0] expected_rows[0:6];logic [6:0] valids=0;
   int last_issue[0:2][0:415][0:1];
   int cycle=0,accepted=0,checked=0,flushed=0,a3_hits=0,c_hits=0,external_reads=0,external_writes=0;
-  int scale_checks=0;
+  int scale_checks=0,control_checks=0;
   logic [31:0] rng=32'h3597a4c1;
   logic compare_old=0,old_commit,old_done;
   pair_meta_t old_meta;acc_write_t old_write;
@@ -32,8 +32,23 @@ module tb_deqacc_v1_stream;
       localparam int COLUMN=COLUMN_BASE+n;
       always @(posedge clk)begin
       logic enabled,bad;
+      logic a_enabled,expected_bypass;
       logic signed [11:0] expected_base,expected_bias;
+      localparam int CONTROL_LANE=ROW*TILE+COLUMN;
       enabled=!reset&&!clear&&rsp_valid;
+      a_enabled=!reset&&!clear&&dut.keys[1].valid;
+      expected_bypass=!dut.keys[1].add_old;
+      if(dut.control_leaf[CONTROL_LANE]!==
+           {dut.keys[1].add_old,dut.keys[1].valid,rsp_valid,reset||clear}||
+         dut.forward_leaf[ROW][COLUMN]!=={dut.use_c[ROW],dut.use_a3[ROW]})
+        $fatal(1,"V2 control tree mismatch region=%0d row=%0d column=%0d",g,ROW,COLUMN);
+      for(int b=0;b<3;b++)begin
+        if(dut.memory.old_mask_leaf[ROW][COLUMN][b]!==
+             ((dut.memory.read_sel_q==acc_sel_e'(b))&&dut.memory.bank_initialized[ROW][b])||
+           dut.memory.external_mask_leaf[ROW][COLUMN][b]!==
+             ((dut.memory.external_sel_q==acc_sel_e'(b))&&dut.memory.bank_initialized[ROW][b]))
+          $fatal(1,"V2 ACC control tree mismatch row=%0d column=%0d bank=%0d",ROW,COLUMN,b);
+      end
       expected_bias=12'(int'(rsp.e_stream[ROW])+int'($signed(rsp.meta.exp_fold))-DOT_EXP_OFFSET);
       expected_base=expected_bias+12'(int'(rsp.e_stat[COLUMN]));
       bad=(&rsp.e_stream[ROW])||(&rsp.e_stat[COLUMN]);
@@ -46,7 +61,10 @@ module tb_deqacc_v1_stream;
           dut.physical_regions[g].lanes[n].quant.bad_q!==bad)
           $fatal(1,"V2 per-transaction ingress mismatch region=%0d row=%0d column=%0d",g,ROW,COLUMN);
         scale_checks++;
+        control_checks++;
       end
+      if(a_enabled&&dut.physical_regions[g].lanes[n].add.order_q.bypass!==expected_bypass)
+        $fatal(1,"V2 add_old leaf/Q0 alignment mismatch row=%0d column=%0d",ROW,COLUMN);
       end
     end
   end
@@ -302,6 +320,8 @@ module tb_deqacc_v1_stream;
       checked,old_checked,a3_hits,c_hits,external_reads,external_writes);
     if(scale_checks!=accepted*32)$fatal(1,"V2 ingress coverage count mismatch");
     $display("tb_deqacc_v2_ingress PASS lane_checks=%0d same_row_regions=4 row_bias_roots=2 branches_per_row=4 columns_per_branch=4 Qlane_base_only=1 central_forwarding=1",scale_checks);
+    if(control_checks!=scale_checks)$fatal(1,"V2 control tree coverage mismatch");
+    $display("tb_deqacc_v2_control_fanout PASS lane_checks=%0d forwarding=1_to_4_to_16 common=1_to_4_to_32 flush=1 ACC_read_masks=1 latency_unchanged=1",control_checks);
 `ifdef V2_LOCKSTEP
     if(lockstep_commits!=checked)$fatal(1,"V1/V2 lockstep count mismatch");
     $display("tb_deqacc_v2_lockstep PASS commits=%0d Q1_A3_C=1 stage_keys=7 forwarding=1 full_ACC=1 published_V1=af62635",lockstep_commits);

@@ -1,6 +1,6 @@
 # DEQACC V2 验证结果
 
-更新时间：2026-10-13 15:10。当前源码采用第三种方案：独立 scale 网络、同行 lane 布局，每行固定 `1→4→16`；ACC 保持完整。`run_deqacc_v1.ps1 -Focused` 返回码 0，三个正例和三个 RAW 负例全部 PASS。本轮没有跑七 Job、独立 V1 lockstep 或综合/P&R，没有 4 ns 时序结论。
+更新时间：2026-10-13，V2 控制/局部约束收尾。scale 和 forward 每行 `1→4→16`，add_old/valid/flush `1→4→32`；ACC 读掩码也分级分发，RAM 保持完整。短套件三个正例、三个 RAW 负例全部 PASS。四个同行 8-lane 硬 Pblock 的脚本已提供，器件/Tcl API 自检通过；尚未应用到当前综合网表。本轮没有七 Job、独立 V1 lockstep、当前源码综合/P&R 或 4 ns 时序结论。
 
 模块和脚本保留 V1 兼容名，不按文件名判断版本。本轮入口：[v2_same_row_simulation_summary.txt](v2_same_row_simulation_summary.txt)，对应源码/TB：[v2_same_row_sources_sha256.csv](v2_same_row_sources_sha256.csv)。旧 `v2_simulation_summary.txt`、`v2_sources_sha256.csv` 属于 11:53 的混合行结构，不能证明当前源码。
 
@@ -13,6 +13,10 @@
 | 逻辑控制 | 唯一 metadata spine；keys 是流水 metadata 的视图；RAW 与 A3/C compare 各只有中心一套 |
 | 同行位置组 | 删除 cluster wrapper；四个 generate 位置标签，依次 row0 0–7/8–15、row1 0–7/8–15，各八 lane |
 | 分支端点 | 两行各四个独立 LUT1 buffer 分支，含 12-bit row_bias 和 bad_Ea；104 个显式 LUT1，不增加寄存器 |
+| forward | 每行 use_a3/use_c 根只驱动四个分支，每分支四个 lane leaf；80 个显式 LUT1 |
+| common control | add_old/Q0-valid/A0-valid/flush 各 `1→4→32`；144 个显式 LUT1；没有新增 Job 配置字段 |
+| ACC read mask | old/external read 各按行生成三位 root，再 `1→4→16`；240 个显式 LUT1；不再用全行初始化位遮罩 512 bit |
+| bank 控制 | 原 bank/parity 内 matrix_wr/rd_en/wr_en/读写地址/bank_flush 加 MAX_FANOUT=32，允许复制控制驱动，不复制 RAM |
 | Psum/base | Psum 从 rsp 直达 Qlane；外部 base 加法器结果与 Psum/bad_scale/valid 同拍捕获 |
 | ACC | 一个完整 16 列 FACC_A/FACC_B/OACC；按原 `[2][16]` 静态读写，没有四份 ACC 或中转 Buffer |
 | FPADD | FAR/CLOSE 独立 A1 raw 与 A2 candidates，CLOSE operand-only LZA + 一位精确修正，A3 选择路径/舍入候选并打包 |
@@ -21,7 +25,9 @@
 
 保留此前两项修复：ACC read 由已寄存 Q0 key 驱动，在 Q1 返回；shift=32 的 sticky 不包含 guard bit31。本轮没有提前 ACC read 或改变累加次序。
 
-同行位置标签不强制放置邻近。局部 `DONT_TOUCH` 只保护分支 buffer primitive，没有锁住整个 ingress/lane/ACC；104 是 RTL 实例数，不是综合利用率。组合 buffer 增加一层逻辑延迟，能否降低 routing 或满足 250 MHz 尚未测量。
+分发树合计 568 个显式 LUT1，比上一轮增加 464 个组合 buffer；没有新增寄存器。局部 DONT_TOUCH 只保护这些端点，不锁住整个 ingress/lane/ACC。Q/FPADD/base-adder/fanout 使用软层次，C 寄存器命名在 lane 内。RTL 实例数不等于综合利用率；逻辑延迟和 route 收益尚未测量。
+
+约束文件：[deqacc_v2_locality.tcl](../deqacc_v2_locality.tcl)。每组八个同行 lane 与其 scale/forward/common/read-mask 本地端点进入一个硬 Pblock，ACC RAM 排除。初始粒度为四个相邻 clock region，同一 SLR；仍需当前综合网表成员、区域容量和布局验证。
 
 ## 2. 新算法验证
 
@@ -31,8 +37,10 @@
 | Full dual-path | CLOSE 27,319；FAR 异号 90,731；bypass 5,959；LZA 一位修正 5,835、无需修正 13,943；round up/down 均命中；USE_LZA=0/1 同拍结果一致 | [算术](v2_same_row_tb_deqacc_v1_arithmetic.log) |
 | 32-lane stream | 10,486 commit；5,000 笔旧 A11 对照；Delta=4/5/6/7；A3=276、C=271 命中；外部 read-first/反压/clear/全 ACC 模型通过 | [stream](v2_same_row_tb_deqacc_v1_stream.log) |
 | scale ingress | 335,584 次 lane base/bad_scale 检查；两 root、八分支、四个同行位置组均覆盖；bad_Ea 同拍一致 | [stream](v2_same_row_tb_deqacc_v1_stream.log) |
+| 控制树 | 335,584 次 lane 检查；forward/common/flush/ACC mask leaf 逐拍等于 root；add_old 与 A0 bypass 对齐 | [stream](v2_same_row_tb_deqacc_v1_stream.log) |
 | 动态 M / 真 MXU | `[M,256]×[256,16]`；M=1/2/3/4/7/8/16/31/32/50/51，合计 1,680 commit；变化的行/列/Tile scale，最终 ACC 和所有未使用行通过 | [动态 M](v2_same_row_tb_deqacc_v1_dynamic_matrix.log) |
 | RAW 负例 | Delta=1/2/3 各恰好触发指定 DUT assertion，无其他错误 | [Delta1](v2_same_row_BAD_RAW.log)、[Delta2](v2_same_row_BAD_RAW_2.log)、[Delta3](v2_same_row_BAD_RAW_3.log) |
+| 约束器件/API | 在旧 U50 checkpoint 的临时内存设计上，验证几何、硬 Pblock/八个 proxy register 成员、非法目标拒绝；不代表当前 V2 网表匹配或放置 | [Tcl/device](v2_locality_device_check.log) |
 
 新增定向例：所有 23 个尾数抵消深度、正负两种方向、exponent=1/2/127/254；FAR halfway-even/odd、舍入进位、exponent difference=1 的严重抵消。沿用 base=-298..273 和 shift32/33 边界。随机/定向覆盖不是全域形式等价证明。
 
@@ -82,4 +90,6 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run_deqacc_v1.ps1 -Foc
 
 源码修改后重新编译和展开，再跑新 snapshot。完整套件需给足时间；七 Job 中 VPU/SFU 与外部数据仍由 TB 模拟，不是八核实体联调或真实外部吞吐验证。
 
-没有修改 `DEA8/`、V1 历史报告或 GitHub 发布仓库。下一阶段需单独授权物理验证：检查两 root/八分支实际 fanout、base 加法器与同行 lane 距离、buffer 逻辑延迟与 route 收益。ACC 分区不是当前结构，不自动加入。
+约束自检还修复了属性顺序问题：设置 EXCLUDE_PLACEMENT/CONTAIN_ROUTING 后再设 IS_SOFT=FALSE，并回读验证；早先的相反顺序在 Vivado 2022.2 中留下软 Pblock。自检仅临时修改旧 checkpoint 的内存对象，没有写回 checkpoint 或启动 place/route。默认器件几何选择为 X3Y1/X4Y1/X3Y2/X4Y2，不作为八核最终分配。
+
+没有修改 `DEA8/`、V1 历史报告或 GitHub 发布仓库。下一阶段需单独授权物理验证：在当前源码综合网表上应用 Pblock，核对 32 lane/端点成员、实际 fanout、区域容量和路由时序。ACC 分区不是当前结构，不自动加入。

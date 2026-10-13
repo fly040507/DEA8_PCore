@@ -39,13 +39,27 @@ module deqacc_v2_scale_ingress(
         .I0(bad_ea),.O(bad_ea_branch[r][g]));
       for(genvar c=0;c<BRANCH_COLUMNS;c++)begin: columns
         localparam int COLUMN=g*BRANCH_COLUMNS+c;
-        assign base[r][COLUMN]=$signed(row_bias_branch[r][g])+
-          BASE_BITS'($signed({1'b0,eb[COLUMN]}));
-        assign bad_scale[r][COLUMN]=bad_ea_branch[r][g]||bad_eb[COLUMN];
+        (* keep_hierarchy="soft" *) deqacc_v2_base_add base_adder(
+          .row_bias(row_bias_branch[r][g]),.eb(eb[COLUMN]),
+          .bad_ea(bad_ea_branch[r][g]),.bad_eb(bad_eb[COLUMN]),
+          .base(base[r][COLUMN]),.bad_scale(bad_scale[r][COLUMN]));
       end
     end
   end
   // synthesis translate_off
   initial if(TILE!=16||BRANCH_COLUMNS!=4)$fatal(1,"V2 scale ingress requires per-row 1-to-4-to-16");
   // synthesis translate_on
+endmodule
+
+// A named local combinational cone for placement beside its Qlane.
+(* keep_hierarchy="soft" *)
+module deqacc_v2_base_add(
+  input logic signed [11:0] row_bias,
+  input logic [SCALE_BITS-1:0] eb,
+  input logic bad_ea,bad_eb,
+  output logic signed [11:0] base,
+  output logic bad_scale
+);
+  assign base=$signed(row_bias)+12'($signed({1'b0,eb}));
+  assign bad_scale=bad_ea||bad_eb;
 endmodule

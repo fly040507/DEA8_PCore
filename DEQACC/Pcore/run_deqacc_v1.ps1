@@ -46,6 +46,11 @@ try {
       $detail=([regex]::Match($text,"(?m)^$extra PASS.*$")).Value
       if(!$detail){throw "Missing V2 structural/algorithm coverage: $extra"}
       $results.Add($detail);$detail
+      if($top -eq 'tb_deqacc_v1_stream') {
+        $detail=([regex]::Match($text,'(?m)^tb_deqacc_v2_control_fanout PASS.*$')).Value
+        if(!$detail){throw 'Missing V2 control tree coverage'}
+        $results.Add($detail);$detail
+      }
     }
   }
   foreach ($test in @('BAD_RAW','BAD_RAW_2','BAD_RAW_3')) {
@@ -85,7 +90,7 @@ try {
   [IO.File]::WriteAllLines((Join-Path $report "${prefix}_simulation_summary.txt"),$results,[Text.Encoding]::UTF8)
   $hashes=@('file,sha256')
   $sources=@('rtl/pcore_pkg.sv','rtl/deqacc_v1_pkg.sv','rtl/dequant_lane_v1.sv','rtl/fp32_add_lane_v1.sv',
-    'rtl/acc_slice_v1.sv','rtl/deqacc_v1_control.sv','rtl/deqacc_v2_scale_ingress.sv',
+    'rtl/acc_slice_v1.sv','rtl/deqacc_v1_control.sv','rtl/deqacc_v2_scale_ingress.sv','rtl/deqacc_v2_fanout.sv',
     'rtl/DEQACC_V1.sv',
     'rtl/dea8_acc_store.sv','rtl/dea8_matrix.sv','rtl/dea8_fp32_pkg.sv',
     'tb/fp32_legacy_ref_pkg.sv','tb/tb_deqacc_v1_arithmetic.sv','tb/tb_deqacc_v1_stream.sv',
@@ -93,7 +98,8 @@ try {
     'tb/reference/published_v1_dequant.sv','tb/reference/published_v1_acc.sv',
     'tb/reference/published_v1_group.sv','tb/reference/published_v1_top.sv',
     'tb/reference/published_v1_fpadd.sv','tb/reference/published_v1_control.sv',
-    'tb/reference/v1_shared_sha256.csv','pcore_v1_sim.f','deqacc_v1.f','v2_lockstep.f')
+    'tb/reference/v1_shared_sha256.csv','pcore_v1_sim.f','pcore_all.f','rtl/pcore.f','deqacc_v1.f','v2_lockstep.f',
+    'deqacc_v2_locality.tcl','tb/check_deqacc_v2_locality.tcl')
   foreach($source in $sources) {
     $digest=(Get-FileHash -LiteralPath (Join-Path $here $source) -Algorithm SHA256).Hash
     $hashes+="$source,$digest"

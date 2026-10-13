@@ -19,6 +19,9 @@ module DEQACC_V1(
   logic [5:0][1:0] rows_pipe;
   v1_key_t keys[0:6];
   logic [1:0] use_a3,use_c;
+  localparam int CTRL_FLUSH=0,CTRL_Q_VALID=1,CTRL_A_VALID=2,CTRL_ADD_OLD=3;
+  logic [2*TILE-1:0][3:0] control_leaf;
+  logic [1:0][TILE-1:0][1:0] forward_leaf;
   logic signed [1:0][11:0] row_bias;
   logic signed [1:0][TILE-1:0][11:0] lane_base;
   logic [1:0][TILE-1:0] bad_scale,partial_valid,a3_valid;
@@ -42,6 +45,12 @@ module DEQACC_V1(
   assign vpu_wr_ready=!reset&&!clear&&vpu_wr.sel<=ACC_OACC&&vpu_free;
   deqacc_v1_control control(.clk,.reset,.clear,.in_valid(rsp_valid),.rsp,.generation,.valid_pipe,.meta_pipe,.rows_pipe,
     .commit_valid,.done,.commit_meta,.keys,.use_a3,.use_c);
+  deqacc_v2_fanout #(.WIDTH(4),.BRANCHES(4),.LEAVES_PER_BRANCH(TILE/2)) control_fanout(
+    .root({keys[1].add_old,keys[1].valid,rsp_valid,reset||clear}),.leaf(control_leaf));
+  for(genvar r=0;r<2;r++)begin: row_forward
+    deqacc_v2_fanout #(.WIDTH(2),.BRANCHES(4),.LEAVES_PER_BRANCH(TILE/4)) fanout(
+      .root({use_c[r],use_a3[r]}),.leaf(forward_leaf[r]));
+  end
   deqacc_v2_scale_ingress scale_ingress(.ea(rsp.e_stream),.eb(rsp.e_stat),
     .fold(rsp.meta.exp_fold),.row_bias,.base(lane_base),.bad_scale);
   assign commit_write_valid=commit_valid;
@@ -80,24 +89,32 @@ module DEQACC_V1(
   assign result_even_data=acc_external_data[0];
   assign result_odd_data=acc_external_data[1];
   assign dbg_data=dbg_valid?acc_dbg_data:0;
-  // Location labels only: no cluster module, storage or controller.
-  // Each region contains eight lanes of one row and two scale branches.
+  // Four same-row placement groups; the post-synthesis locality constraints
+  // include these lanes and their local scale/control buffer endpoints.
   for(genvar g=0;g<4;g++)begin: physical_regions
     localparam int ROW=g/2;
     localparam int COLUMN_BASE=(g%2)*(TILE/2);
     for(genvar n=0;n<TILE/2;n++)begin: lanes
       localparam int COLUMN=COLUMN_BASE+n;
-      assign old_issue[ROW][COLUMN]=!keys[1].add_old?32'b0:
-        use_a3[ROW]?a3_values[ROW][COLUMN]:
-        use_c[ROW]?commit_data[ROW][COLUMN]:acc_old_data[ROW][COLUMN];
-      dequant_lane_v1 quant(.clk,.reset,.clear,.in_valid(rsp_valid),
+      localparam int CONTROL_LANE=ROW*TILE+COLUMN;
+      logic [31:0] c_q;
+      assign old_issue[ROW][COLUMN]=!control_leaf[CONTROL_LANE][CTRL_ADD_OLD]?32'b0:
+        forward_leaf[ROW][COLUMN][0]?a3_values[ROW][COLUMN]:
+        forward_leaf[ROW][COLUMN][1]?commit_data[ROW][COLUMN]:acc_old_data[ROW][COLUMN];
+      (* keep_hierarchy="soft" *) dequant_lane_v1 quant(
+        .clk,.reset(1'b0),.clear(control_leaf[CONTROL_LANE][CTRL_FLUSH]),
+        .in_valid(control_leaf[CONTROL_LANE][CTRL_Q_VALID]),
         .psum(rsp.psum[ROW][COLUMN]),.base(lane_base[ROW][COLUMN]),
         .bad_scale(bad_scale[ROW][COLUMN]),.out_valid(partial_valid[ROW][COLUMN]),
         .partial_value(partial_values[ROW][COLUMN]));
-      fp32_add_lane_v1 add(.clk,.reset,.clear,.in_valid(keys[1].valid),.add_old(keys[1].add_old),
+      (* keep_hierarchy="soft" *) fp32_add_lane_v1 add(
+        .clk,.reset(1'b0),.clear(control_leaf[CONTROL_LANE][CTRL_FLUSH]),
+        .in_valid(control_leaf[CONTROL_LANE][CTRL_A_VALID]),
+        .add_old(control_leaf[CONTROL_LANE][CTRL_ADD_OLD]),
         .old_value(old_issue[ROW][COLUMN]),.partial_value(partial_values[ROW][COLUMN]),
         .out_valid(a3_valid[ROW][COLUMN]),.result_value(a3_values[ROW][COLUMN]));
-      always_ff @(posedge clk)commit_data[ROW][COLUMN]<=a3_values[ROW][COLUMN];
+      always_ff @(posedge clk)c_q<=a3_values[ROW][COLUMN];
+      assign commit_data[ROW][COLUMN]=c_q;
     end
   end
   // synthesis translate_off
