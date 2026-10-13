@@ -19,7 +19,10 @@ module DEQACC_V1(
   logic [5:0][1:0] rows_pipe;
   v1_key_t keys[0:6];
   logic [1:0] use_a3,use_c;
-  logic [1:0][3:0][31:0] cluster_wr_data[0:3];
+  logic signed [1:0][11:0] row_bias;
+  logic signed [1:0][TILE-1:0][11:0] lane_base;
+  logic [1:0][TILE-1:0] bad_scale,partial_valid,a3_valid;
+  logic [1:0][TILE-1:0][31:0] partial_values,old_issue,a3_values,commit_data;
   logic [1:0][15:0][31:0] acc_old_data,acc_external_data,acc_wr_data;
   logic acc_wr_valid;
   acc_sel_e acc_wr_sel;
@@ -39,19 +42,15 @@ module DEQACC_V1(
   assign vpu_wr_ready=!reset&&!clear&&vpu_wr.sel<=ACC_OACC&&vpu_free;
   deqacc_v1_control control(.clk,.reset,.clear,.in_valid(rsp_valid),.rsp,.generation,.valid_pipe,.meta_pipe,.rows_pipe,
     .commit_valid,.done,.commit_meta,.keys,.use_a3,.use_c);
+  deqacc_v2_scale_ingress scale_ingress(.ea(rsp.e_stream),.eb(rsp.e_stat),
+    .fold(rsp.meta.exp_fold),.row_bias,.base(lane_base),.bad_scale);
   assign commit_write_valid=commit_valid;
-  always_comb begin
-    acc_wr_data='0;
-    for(int g=0;g<4;g++) begin
-      for(int r=0;r<2;r++)
-        for(int n=0;n<4;n++)
-          acc_wr_data[r][g*4+n]=cluster_wr_data[g][r][n];
-    end
-    acc_wr_valid=keys[5].valid;
-    acc_wr_sel=keys[5].sel;
-    acc_wr_addr=keys[5].addr;
-    acc_wr_rows=keys[5].rows;
-  end
+  assign acc_wr_data=a3_values;
+  assign acc_wr_valid=keys[5].valid;
+  assign acc_wr_sel=keys[5].sel;
+  assign acc_wr_addr=keys[5].addr;
+  assign acc_wr_rows=keys[5].rows;
+  assign commit_write.data=commit_data;
   always_ff @(posedge clk)begin
     if(reset||clear)begin
       result_rd_data_valid<=0;commit_write.sel<=ACC_FACC_A;commit_write.addr<=0;commit_write.row_valid<=0;
@@ -81,21 +80,30 @@ module DEQACC_V1(
   assign result_even_data=acc_external_data[0];
   assign result_odd_data=acc_external_data[1];
   assign dbg_data=dbg_valid?acc_dbg_data:0;
-  for(genvar g=0;g<4;g++)begin: physical_clusters
-    logic signed [1:0][3:0][31:0] sums;
-    logic [1:0][3:0][31:0] cdata,old_data;
-    for(genvar r=0;r<2;r++)for(genvar n=0;n<4;n++)begin: columns
-      assign sums[r][n]=rsp.psum[r][g*4+n];
-      assign commit_write.data[r][g*4+n]=cdata[r][n];
-      assign old_data[r][n]=acc_old_data[r][g*4+n];
+  // Location labels only: no cluster module, storage or controller.
+  // Each region contains eight lanes of one row and two scale branches.
+  for(genvar g=0;g<4;g++)begin: physical_regions
+    localparam int ROW=g/2;
+    localparam int COLUMN_BASE=(g%2)*(TILE/2);
+    for(genvar n=0;n<TILE/2;n++)begin: lanes
+      localparam int COLUMN=COLUMN_BASE+n;
+      assign old_issue[ROW][COLUMN]=!keys[1].add_old?32'b0:
+        use_a3[ROW]?a3_values[ROW][COLUMN]:
+        use_c[ROW]?commit_data[ROW][COLUMN]:acc_old_data[ROW][COLUMN];
+      dequant_lane_v1 quant(.clk,.reset,.clear,.in_valid(rsp_valid),
+        .psum(rsp.psum[ROW][COLUMN]),.base(lane_base[ROW][COLUMN]),
+        .bad_scale(bad_scale[ROW][COLUMN]),.out_valid(partial_valid[ROW][COLUMN]),
+        .partial_value(partial_values[ROW][COLUMN]));
+      fp32_add_lane_v1 add(.clk,.reset,.clear,.in_valid(keys[1].valid),.add_old(keys[1].add_old),
+        .old_value(old_issue[ROW][COLUMN]),.partial_value(partial_values[ROW][COLUMN]),
+        .out_valid(a3_valid[ROW][COLUMN]),.result_value(a3_values[ROW][COLUMN]));
+      always_ff @(posedge clk)commit_data[ROW][COLUMN]<=a3_values[ROW][COLUMN];
     end
-    deqacc_v2_cluster arithmetic(.clk,.reset,.clear,.q0_valid(rsp_valid),
-      .a0_valid(keys[1].valid),.a3_stage_valid(keys[5].valid),.add_old(keys[1].add_old),
-      .psum(sums),.ea(rsp.e_stream),.eb(rsp.e_stat[g*4+:4]),.fold(rsp.meta.exp_fold),
-      .use_a3,.use_c,.acc_old_data(old_data),.commit_data(cdata),.a3_values(cluster_wr_data[g]));
   end
   // synthesis translate_off
   always @(posedge clk)if(!reset&&!clear)begin
+    if(partial_valid!=={(2*TILE){keys[1].valid}})$fatal(1,"V2 partial/key mismatch");
+    if(a3_valid!=={(2*TILE){keys[5].valid}})$fatal(1,"V2 A3/key mismatch");
     if(rsp_valid&&(rsp.meta.acc_sel>ACC_OACC||rsp.meta.pair_idx>=PAIRS||
        (rsp.meta.acc_sel==ACC_OACC&&rsp.meta.nt>=TILE)||
        ((rsp.row_valid&~row_mask(rsp.meta.pair_idx))!=0)))$fatal(1,"V1 illegal accumulator input");

@@ -1,9 +1,13 @@
 param(
   [string]$VivadoRoot='D:\Xilinx\Vivado\2022.2',
-  [switch]$SevenJobs
+  [switch]$SevenJobs,
+  [switch]$Focused
 )
 $ErrorActionPreference='Stop'
 $here=$PSScriptRoot
+if ($Focused -and $SevenJobs) {throw 'Focused verification excludes the seven-job simulation'}
+$prefix=if($Focused){'v2_same_row'}else{'v2'}
+$library=if($Focused){'v2_same_row_suite'}else{'v2_suite'}
 $report=Join-Path $here 'reports'
 if (!(Test-Path -LiteralPath $report)) {throw 'Expected project reports directory'}
 if (!(Test-Path -LiteralPath (Join-Path $VivadoRoot 'settings64.bat'))) {throw 'Vivado settings64.bat is missing'}
@@ -15,24 +19,25 @@ function Invoke-Vivado([string]$Tool,[string]$Arguments,[switch]$AllowFailure) {
   $code=$LASTEXITCODE
   $text=$output -join "`n"
   if (!$AllowFailure -and ($code -ne 0 -or $text -match '(?im)^\s*(ERROR|Error):')) {
-    throw "$Tool failed (exit=$code). See reports/v2_* logs."
+    throw "$Tool failed (exit=$code). See reports/${prefix}_* logs."
   }
   return $text
 }
 Push-Location $here
 try {
-  Invoke-Vivado xvlog '-sv -work v2_suite -f pcore_v1_sim.f -log reports/v2_suite_compile.log' | Out-Null
-  Invoke-Vivado xvlog ('-work v2_suite "{0}\data\verilog\src\glbl.v"' -f $VivadoRoot) | Out-Null
+  Invoke-Vivado xvlog "-sv -work $library -f pcore_v1_sim.f -log reports/${prefix}_suite_compile.log" | Out-Null
+  Invoke-Vivado xvlog ('-work {0} "{1}\data\verilog\src\glbl.v"' -f $library,$VivadoRoot) | Out-Null
   $results=[Collections.Generic.List[string]]::new()
-  $tops=@('tb_deqacc_v1_arithmetic','tb_deqacc_v1_stream','tb_deqacc_v1_dynamic_matrix','tb_matrix')
+  $tops=@('tb_deqacc_v1_arithmetic','tb_deqacc_v1_stream','tb_deqacc_v1_dynamic_matrix')
+  if (!$Focused) {$tops+='tb_matrix'}
   if ($SevenJobs) {$tops+='tb_pcore_control'}
   foreach ($top in $tops) {
-    $snapshot="v2_suite_$top"
+    $snapshot="${library}_$top"
     $optimization='--O2'
-    Invoke-Vivado xelab "v2_suite.$top v2_suite.glbl -s $snapshot $optimization --debug typical --mt off -timescale 1ns/1ps -L unisims_ver -log reports/v2_${top}_elab.log" | Out-Null
-    $text=Invoke-Vivado xsim "$snapshot -runall -log reports/v2_${top}.log"
+    Invoke-Vivado xelab "$library.$top $library.glbl -s $snapshot $optimization --debug typical --mt off -timescale 1ns/1ps -L unisims_ver -log reports/${prefix}_${top}_elab.log" | Out-Null
+    $text=Invoke-Vivado xsim "$snapshot -runall -log reports/${prefix}_${top}.log"
     if ($text -match '(?im)^\s*(Fatal|Error|ERROR):' -or $text -notmatch [regex]::Escape("$top PASS")) {
-      throw "Verification failed: $top (check reports/v2_${top}.log)"
+      throw "Verification failed: $top (check reports/${prefix}_${top}.log)"
     }
     $line=([regex]::Match($text,"(?m)^$top PASS.*$")).Value
     $results.Add($line);$line
@@ -44,7 +49,7 @@ try {
     }
   }
   foreach ($test in @('BAD_RAW','BAD_RAW_2','BAD_RAW_3')) {
-    $text=Invoke-Vivado xsim "v2_suite_tb_deqacc_v1_stream -runall -testplusarg $test -log reports/v2_${test}.log" -AllowFailure
+    $text=Invoke-Vivado xsim "${library}_tb_deqacc_v1_stream -runall -testplusarg $test -log reports/${prefix}_${test}.log" -AllowFailure
     $fatals=[regex]::Matches($text,'(?im)^\s*Fatal:.*$')
     if ($fatals.Count -ne 1 -or $text -notmatch 'Fatal: V1 accumulator RAW: dependent input interval below four cycles' -or
         $text -match '(?im)^\s*(ERROR|Error):' -or $text -match 'tb_deqacc_v1_stream PASS') {
@@ -60,9 +65,10 @@ try {
       throw "Published V1 reference dependency changed: $($pin.file)"
     }
   }
-  Invoke-Vivado xvlog '-sv -work v2_lockstep_final -d V2_LOCKSTEP -f deqacc_v1.f -f v2_lockstep.f -log reports/v2_lockstep_compile.log' | Out-Null
-  Invoke-Vivado xvlog ('-work v2_lockstep_final "{0}\data\verilog\src\glbl.v"' -f $VivadoRoot) | Out-Null
-  foreach($top in @('tb_deqacc_v1_arithmetic','tb_deqacc_v1_stream')) {
+  if (!$Focused) {
+    Invoke-Vivado xvlog '-sv -work v2_lockstep_final -d V2_LOCKSTEP -f deqacc_v1.f -f v2_lockstep.f -log reports/v2_lockstep_compile.log' | Out-Null
+    Invoke-Vivado xvlog ('-work v2_lockstep_final "{0}\data\verilog\src\glbl.v"' -f $VivadoRoot) | Out-Null
+    foreach($top in @('tb_deqacc_v1_arithmetic','tb_deqacc_v1_stream')) {
     $snapshot="v2_lockstep_final_$top"
     Invoke-Vivado xelab "v2_lockstep_final.$top v2_lockstep_final.glbl -s $snapshot --O2 --debug typical --mt off -timescale 1ns/1ps -L unisims_ver -log reports/v2_lockstep_${top}_elab.log" | Out-Null
     $text=Invoke-Vivado xsim "$snapshot -runall -log reports/v2_lockstep_${top}.log"
@@ -72,13 +78,15 @@ try {
     }
     $line=([regex]::Match($text,"(?m)^$marker.*$")).Value
     $results.Add($line);$line
+    }
   }
+  if ($Focused) {$results.Add('Focused same-row verification: arithmetic, 32-lane ACC stream, dynamic M and three RAW negatives. Seven jobs and V1 lockstep were not run.')}
   $results.Add('V2 simulation only. No synthesis/placement/routing. 250 MHz physical timing is unverified.')
-  [IO.File]::WriteAllLines((Join-Path $report 'v2_simulation_summary.txt'),$results,[Text.Encoding]::UTF8)
+  [IO.File]::WriteAllLines((Join-Path $report "${prefix}_simulation_summary.txt"),$results,[Text.Encoding]::UTF8)
   $hashes=@('file,sha256')
   $sources=@('rtl/pcore_pkg.sv','rtl/deqacc_v1_pkg.sv','rtl/dequant_lane_v1.sv','rtl/fp32_add_lane_v1.sv',
     'rtl/acc_slice_v1.sv','rtl/deqacc_v1_control.sv','rtl/deqacc_v2_scale_ingress.sv',
-    'rtl/deqacc_v2_cluster.sv','rtl/DEQACC_V1.sv',
+    'rtl/DEQACC_V1.sv',
     'rtl/dea8_acc_store.sv','rtl/dea8_matrix.sv','rtl/dea8_fp32_pkg.sv',
     'tb/fp32_legacy_ref_pkg.sv','tb/tb_deqacc_v1_arithmetic.sv','tb/tb_deqacc_v1_stream.sv',
     'tb/tb_deqacc_v1_dynamic_matrix.sv','tb/tb_pcore_control.sv','run_deqacc_v1.ps1',
@@ -90,5 +98,5 @@ try {
     $digest=(Get-FileHash -LiteralPath (Join-Path $here $source) -Algorithm SHA256).Hash
     $hashes+="$source,$digest"
   }
-  [IO.File]::WriteAllLines((Join-Path $report 'v2_sources_sha256.csv'),$hashes,[Text.Encoding]::UTF8)
+  [IO.File]::WriteAllLines((Join-Path $report "${prefix}_sources_sha256.csv"),$hashes,[Text.Encoding]::UTF8)
 } finally {Pop-Location}

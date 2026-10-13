@@ -10,7 +10,6 @@ rtl/fp32_add_lane_v1.sv
 rtl/acc_slice_v1.sv
 rtl/deqacc_v1_control.sv
 rtl/deqacc_v2_scale_ingress.sv
-rtl/deqacc_v2_cluster.sv
 rtl/DEQACC_V1.sv
 tb/fp32_legacy_ref_pkg.sv
 tb/tb_deqacc_v1_arithmetic.sv

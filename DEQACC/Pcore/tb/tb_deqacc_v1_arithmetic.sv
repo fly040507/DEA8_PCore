@@ -13,11 +13,11 @@ module tb_deqacc_v1_arithmetic;
   int qcount=0,acount=0,close_count=0,far_sub_count=0,bypass_count=0;
   int extra_count=0,lza_corrections=0,lza_exact=0,round_ups=0,round_downs=0;
   logic signed [1:0][11:0] row_bias;
-  logic signed [1:0][3:0][11:0] base;
-  logic [1:0][3:0] bad_scale;
+  logic signed [1:0][TILE-1:0][11:0] base;
+  logic [1:0][TILE-1:0] bad_scale;
   logic fallback_valid;
   logic [31:0] fallback_result;
-  deqacc_v2_scale_ingress ingress(.ea({8'b0,ea}),.eb({24'b0,eb}),.fold,.row_bias,.base,.bad_scale);
+  deqacc_v2_scale_ingress ingress(.ea({8'b0,ea}),.eb({120'b0,eb}),.fold,.row_bias,.base,.bad_scale);
   dequant_lane_v1 q(.clk,.reset,.clear,.in_valid(qvalid),.psum,.base(base[0][0]),.bad_scale(bad_scale[0][0]),
     .out_valid(qout),.partial_value(qresult));
   fp32_add_lane_v1 adder(.clk,.reset,.clear,.in_valid(avalid),.add_old,

@@ -10,7 +10,6 @@ fp32_add_lane_v1.sv
 acc_slice_v1.sv
 deqacc_v1_control.sv
 deqacc_v2_scale_ingress.sv
-deqacc_v2_cluster.sv
 DEQACC_V1.sv
 DEQACC_3.3ns_lane.sv
 DEQACC_3.3ns_group2.sv

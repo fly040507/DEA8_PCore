@@ -25,20 +25,28 @@ module tb_deqacc_v1_stream;
   logic [10:0] old_valids=0;logic [1:0][15:0][31:0] old_expected[0:10];
   pair_meta_t old_expected_meta[0:10];logic [1:0] old_expected_rows[0:10];int old_checked=0;
   DEQACC_V1 dut(.*,.result_rd_owner(ACC_READ_RESULT));
-  for(genvar g=0;g<4;g++)for(genvar r=0;r<2;r++)for(genvar n=0;n<4;n++)begin: ingress_check
-    always @(posedge clk)begin
+  for(genvar g=0;g<4;g++)begin: region_check
+    localparam int ROW=g/2;
+    localparam int COLUMN_BASE=(g%2)*(TILE/2);
+    for(genvar n=0;n<TILE/2;n++)begin: ingress_check
+      localparam int COLUMN=COLUMN_BASE+n;
+      always @(posedge clk)begin
       logic enabled,bad;
-      logic signed [11:0] expected_base;
+      logic signed [11:0] expected_base,expected_bias;
       enabled=!reset&&!clear&&rsp_valid;
-      expected_base=12'(int'(rsp.e_stream[r])+int'(rsp.e_stat[g*4+n])+
-        int'($signed(rsp.meta.exp_fold))-DOT_EXP_OFFSET);
-      bad=(&rsp.e_stream[r])||(&rsp.e_stat[g*4+n]);
+      expected_bias=12'(int'(rsp.e_stream[ROW])+int'($signed(rsp.meta.exp_fold))-DOT_EXP_OFFSET);
+      expected_base=expected_bias+12'(int'(rsp.e_stat[COLUMN]));
+      bad=(&rsp.e_stream[ROW])||(&rsp.e_stat[COLUMN]);
       #1;
       if(enabled)begin
-        if(dut.physical_clusters[g].arithmetic.rows[r].lanes[n].quant.base_q!==expected_base||
-          dut.physical_clusters[g].arithmetic.rows[r].lanes[n].quant.bad_q!==bad)
-          $fatal(1,"V2 per-transaction ingress mismatch cluster=%0d row=%0d column=%0d",g,r,n);
+        if(dut.row_bias[ROW]!==expected_bias||
+          dut.scale_ingress.row_bias_branch[ROW][COLUMN/4]!==expected_bias||
+          dut.scale_ingress.bad_ea_branch[ROW][COLUMN/4]!==(&rsp.e_stream[ROW])||
+          dut.physical_regions[g].lanes[n].quant.base_q!==expected_base||
+          dut.physical_regions[g].lanes[n].quant.bad_q!==bad)
+          $fatal(1,"V2 per-transaction ingress mismatch region=%0d row=%0d column=%0d",g,ROW,COLUMN);
         scale_checks++;
+      end
       end
     end
   end
@@ -71,7 +79,7 @@ module tb_deqacc_v1_stream;
     if(result_rd_data_valid&&{result_odd_data,result_even_data}!=={ref_odd,ref_even})
       $fatal(1,"V1/V2 external response mismatch");
   end
-  for(genvar g=0;g<4;g++)begin: compare_clusters
+  for(genvar g=0;g<4;g++)begin: compare_reference_columns
     always @(posedge clk)begin
       #1;
       if(dut.keys[1].valid)begin
@@ -79,7 +87,7 @@ module tb_deqacc_v1_stream;
           dut.use_c!==v1_bridge.groups[g].compute.use_c)
           $fatal(1,"V1/V2 forwarding selector mismatch");
         for(int r=0;r<2;r++)if(dut.keys[1].rows[r])
-          if(dut.physical_clusters[g].arithmetic.old_issue[r]!==v1_bridge.groups[g].compute.old_issue[r])
+          if(dut.old_issue[r][g*4+:4]!==v1_bridge.groups[g].compute.old_issue[r])
             $fatal(1,"V1/V2 selected old bundle mismatch");
       end
     end
@@ -92,12 +100,13 @@ module tb_deqacc_v1_stream;
           dut.keys[s]!==v1_bridge.groups[g].compute.keys[s])
           $fatal(1,"V1/V2 stage key mismatch");
       end
-      if(dut.keys[1].valid&&
-        dut.physical_clusters[g].arithmetic.partial_values!==v1_bridge.groups[g].compute.partial_values)
-        $fatal(1,"V1/V2 Q1 bundle mismatch");
+      if(dut.keys[1].valid)
+        for(int r=0;r<2;r++)
+          if(dut.partial_values[r][g*4+:4]!==v1_bridge.groups[g].compute.partial_values[r])
+            $fatal(1,"V1/V2 Q1 bundle mismatch");
       if(dut.keys[5].valid)
         for(int r=0;r<2;r++)if(dut.keys[5].rows[r]&&
-          dut.physical_clusters[g].arithmetic.a3_values[r]!==v1_bridge.groups[g].compute.a3_values[r])
+          dut.a3_values[r][g*4+:4]!==v1_bridge.groups[g].compute.a3_values[r])
           $fatal(1,"V1/V2 A3 bundle mismatch");
     end
   end
@@ -292,7 +301,7 @@ module tb_deqacc_v1_stream;
     $display("tb_deqacc_v1_stream PASS checked=%0d A11_compared=%0d latency=7 II=1 delta=4,5,6,7 A3_hits=%0d C_hits=%0d external_reads=%0d external_writes=%0d clear=1 final_ACC=1",
       checked,old_checked,a3_hits,c_hits,external_reads,external_writes);
     if(scale_checks!=accepted*32)$fatal(1,"V2 ingress coverage count mismatch");
-    $display("tb_deqacc_v2_ingress PASS lane_checks=%0d clusters=4 Qlane_base_only=1 central_forwarding=1",scale_checks);
+    $display("tb_deqacc_v2_ingress PASS lane_checks=%0d same_row_regions=4 row_bias_roots=2 branches_per_row=4 columns_per_branch=4 Qlane_base_only=1 central_forwarding=1",scale_checks);
 `ifdef V2_LOCKSTEP
     if(lockstep_commits!=checked)$fatal(1,"V1/V2 lockstep count mismatch");
     $display("tb_deqacc_v2_lockstep PASS commits=%0d Q1_A3_C=1 stage_keys=7 forwarding=1 full_ACC=1 published_V1=af62635",lockstep_commits);

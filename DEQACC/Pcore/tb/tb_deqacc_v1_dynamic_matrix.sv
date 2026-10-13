@@ -9,6 +9,10 @@ module tb_deqacc_v1_dynamic_matrix;
   pair_meta_t commit_meta;acc_write_t commit_write;
   logic [PAIR_BITS:0] m_rows=ROWS;
   logic a_protocol_error,b_protocol_error;
+  logic dbg_valid=0,dbg_parity=0;
+  logic [9:0] dbg_addr=0;
+  logic [3:0] dbg_lane=0;
+  logic [31:0] dbg_data;
   logic [31:0] golden[0:ROWS-1][0:15];
   int commits=0,issues=0,done_count=0,cycle=0,last_pair_cycle[0:PAIRS-1],min_reuse=1000000;
   dea8_matrix dut(.clk,.reset,.clear,.runtime_local_a(1'b0),.runtime_streaming(1'b0),
@@ -22,18 +26,25 @@ module tb_deqacc_v1_dynamic_matrix;
     .commit_write_valid,.commit_write,.result_rd_owner(ACC_READ_RESULT),.result_rd_valid(1'b0),
     .result_rd_ready(),.vpu_wr_valid(1'b0),.vpu_wr_ready(),.vpu_wr('0),.result_rd_sel(ACC_OACC),
     .result_rd_addr(10'b0),.result_rd_data_valid(),.result_even_data(),.result_odd_data(),
-    .dbg_valid(1'b0),.dbg_sel(ACC_FACC_A),.dbg_parity(1'b0),.dbg_addr(10'b0),.dbg_lane(4'b0),.dbg_data(),
+    .dbg_valid,.dbg_sel(ACC_FACC_A),.dbg_parity,.dbg_addr,.dbg_lane,.dbg_data,
     .a_protocol_error,.b_protocol_error);
-  function automatic qvec16_t qv(input int value);
-    qvec16_t v;v.scale=128;
+  function automatic int a_scale(input int row,tile);
+    return 126+(row+3*tile)%6;
+  endfunction
+  function automatic int b_scale(input int col,tile);
+    return 126+(2*col+tile)%7;
+  endfunction
+  function automatic qvec16_t qv(input int value,exponent);
+    qvec16_t v;v.scale=SCALE_BITS'(exponent);
     for(int k=0;k<16;k++)v.data[8*k+:8]=8'(value);
     return v;
   endfunction
-  function automatic logic [31:0] one_partial(input int row,col);
+  function automatic logic [31:0] one_partial(input int row,col,tile);
     int dot,lead;logic [31:0] mag;
     dot=16*(row[0]?-(row+1):row+1)*(col+1);mag=dot<0?-dot:dot;lead=0;
     for(int i=0;i<32;i++)if(mag[i])lead=i;
-    return fp32_legacy_ref_pkg::pack_scaled32(dot<0,mag<<(31-lead),lead-10,mag==0,0);
+    return fp32_legacy_ref_pkg::pack_scaled32(dot<0,mag<<(31-lead),
+      a_scale(row,tile)+b_scale(col,tile)-DOT_EXP_OFFSET+lead,mag==0,0);
   endfunction
   always @(posedge clk)begin
     cycle++;
@@ -54,11 +65,11 @@ module tb_deqacc_v1_dynamic_matrix;
     #1;
     if(commit_valid)begin
       int p;p=commit_meta.pair_idx;
-      if(!commit_write_valid||commit_write.addr!=p||commit_write.sel!=ACC_FACC_A||
+      if(!commit_write_valid||commit_write.addr!=p||commit_write.sel!=ACC_FACC_A||commit_meta.tile_idx>=K_TILES||
          commit_write.row_valid!=((p==(int'(m_rows)+1)/2-1&&m_rows[0])?2'b01:2'b11))
         $fatal(1,"V1 dynamic M metadata/mask mismatch M=%0d pair=%0d",m_rows,p);
       for(int r=0;r<2;r++)if(commit_write.row_valid[r])for(int n=0;n<16;n++)begin
-        golden[2*p+r][n]=fp32_legacy_ref_pkg::fp32_add(golden[2*p+r][n],one_partial(2*p+r,n));
+        golden[2*p+r][n]=fp32_legacy_ref_pkg::fp32_add(golden[2*p+r][n],one_partial(2*p+r,n,int'(commit_meta.tile_idx)));
         if(commit_write.data[r][n]!==golden[2*p+r][n])$fatal(1,"V1 dynamic M numeric mismatch M=%0d row=%0d col=%0d",m_rows,2*p+r,n);
       end
       commits++;
@@ -76,7 +87,7 @@ module tb_deqacc_v1_dynamic_matrix;
           xbc_entry='0;xbc_entry.tile_idx=TILE_BITS'(t);xbc_entry.group_idx=4'(g);
           for(int r=0;r<4;r++)begin
             xbc_entry.row_valid[r]=(4*g+r<rows);
-            xbc_entry.row[r]=qv((4*g+r)%2?-(4*g+r+1):(4*g+r+1));
+            xbc_entry.row[r]=qv((4*g+r)%2?-(4*g+r+1):(4*g+r+1),a_scale(4*g+r,t));
           end
           xbc_valid=1;do @(posedge clk);while(!xbc_ready);
           @(negedge clk);xbc_valid=0;
@@ -85,7 +96,7 @@ module tb_deqacc_v1_dynamic_matrix;
       begin
         for(int t=0;t<K_TILES;t++)for(int g=0;g<8;g++)begin
           hbm_entry='0;hbm_entry.tile_idx=TILE_BITS'(t);hbm_entry.group_idx=3'(g);hbm_entry.epoch=2;
-          hbm_entry.col[0]=qv(2*g+1);hbm_entry.col[1]=qv(2*g+2);
+          hbm_entry.col[0]=qv(2*g+1,b_scale(2*g,t));hbm_entry.col[1]=qv(2*g+2,b_scale(2*g+1,t));
           hbm_valid=1;do @(posedge clk);while(!hbm_ready);
           @(negedge clk);hbm_valid=0;
         end
@@ -94,13 +105,21 @@ module tb_deqacc_v1_dynamic_matrix;
     wait(done_count==1);wait(!job_busy);@(negedge clk);
     if(a_protocol_error||b_protocol_error||job_busy||commits!=K_TILES*((rows+1)/2)||
        issues!=commits||min_reuse<4)$fatal(1,"V1 dynamic M counts/protocol/hazard failed M=%0d",rows);
+    // Read the complete row space, including masked and unused rows.
+    dbg_valid=1;
+    for(int r=0;r<ROWS;r++)for(int n=0;n<TILE;n++)begin
+      dbg_parity=1'(r%2);dbg_addr=10'(r/2);dbg_lane=4'(n);#0.01;
+      if(dbg_data!==golden[r][n])$fatal(1,"V2 dynamic M final ACC mismatch M=%0d row=%0d col=%0d",rows,r,n);
+    end
+    dbg_valid=0;@(negedge clk);
     $display("V1_DYNAMIC_M M=%0d issues=%0d commits=%0d min_same_address_interval=%0d RAW_stalls_in_DEQACC=0",rows,issues,commits,min_reuse);
   endtask
   initial begin
     xbc_entry='0;hbm_entry='0;
     repeat(4)@(negedge clk);reset=0;
-    test_rows(1);test_rows(2);test_rows(3);test_rows(7);test_rows(16);test_rows(31);test_rows(51);
-    $display("tb_deqacc_v1_dynamic_matrix PASS M=1,2,3,7,16,31,51 real_MXU=1 bit_exact=1");$finish;
+    test_rows(1);test_rows(2);test_rows(3);test_rows(4);test_rows(7);test_rows(8);
+    test_rows(16);test_rows(31);test_rows(32);test_rows(50);test_rows(51);
+    $display("tb_deqacc_v1_dynamic_matrix PASS M=1,2,3,4,7,8,16,31,32,50,51 real_MXU=1 bit_exact=1 per_tile_row_column_scales=1 final_ACC=1 masked_rows=1");$finish;
   end
   initial begin #1000000;$fatal(1,"V1 dynamic M watchdog rows=%0d issues=%0d commits=%0d",m_rows,issues,commits);end
 endmodule

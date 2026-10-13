@@ -2,11 +2,14 @@
 
 ## DEQACC 开发副本当前状态（2026-10-13）
 
-本副本在 V1 RTL 上原地重构为 DEQACC V2：32 lane、4 个八-lane physical cluster、**一个完整 16 列 FACC/OACC**、七级流水。中心控制只保留一套 key/RAW/forward 比较，旧逻辑 group 已删除。cluster 内 ingress 按每笔 response 生成 row_bias/base；Qlane 只接 Psum/base/bad_scale/valid。FPADD 已改为 Full dual-path、operand-only LZA、一位修正和并行舍入候选；四个 256 bit bundle 仍只传数据。II=1 和 Delta=4 不变，没有综合/P&R 结果。
+本副本在 V1 RTL 上原地重构为 DEQACC V2：32 lane、四个同行位置组、**一个完整 16 列 FACC/OACC**、七级流水。采用第三种方案，删除逻辑 cluster wrapper；独立 ingress 只计算两个 row_bias，各经四个组合分支驱动四个外部 base 加法器，始终为每行 `1→4→16`。Psum 从 rsp 直接接到 Qlane，与 base/bad_scale/valid 同拍捕获；Qlane 不接 Ea/Eb/fold。中心 key/RAW/forward 唯一一套，FPADD Full dual-path 不变；II=1 和 Delta=4 不变，没有综合/P&R 结果。
 
 从本目录运行短仿真套件：
 
 ```powershell
+# 本轮实际执行：算术、32-lane ACC stream、动态 M、RAW 负例
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run_deqacc_v1.ps1 -Focused
+# 更完整的短回归，额外含独立 V1 lockstep
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run_deqacc_v1.ps1
 # 包含当前完整七Job FUNCTIONAL仿真，需要较长时间
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run_deqacc_v1.ps1 -SevenJobs
@@ -14,11 +17,11 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run_deqacc_v1.ps1 -Sev
 
 脚本名保留`v1`以兼容原入口，内部使用V2库与报告名。所有工具经同一cmd先call settings64.bat再call工具bat，不使用shadow环境或直接unwrapped入口。短套件包含发布版V1/V2 lockstep，timeout至少300000ms；带七Job建议3600000ms。
 
-当前验证全部 PASS：212,166 笔 Dequant/FPADD，335,584 次 lane scale 检查，10,486 笔 stream/独立 V1 对照，动态 M、RAW 负例和七 Job 265,408 次 issue。最终结论见 [V2验证结果](reports/v2_verification_status.md)、`reports/v2_simulation_summary.txt` 和 `reports/v2_sources_sha256.csv`，需同时核对源码 hash；下面的迁移日志仅作历史对照。
+本轮短仿真全部 PASS：212,166 笔 Dequant/FPADD，335,584 次 lane scale 检查，10,486 笔 stream（含 5,000 笔旧 A11 数值对照），M=1/2/3/4/7/8/16/31/32/50/51 的真实 MXU 和三项 RAW 负例。入口见 [V2验证结果](reports/v2_verification_status.md)、`reports/v2_same_row_simulation_summary.txt` 和 `reports/v2_same_row_sources_sha256.csv`。本轮未跑七 Job 或独立 V1 lockstep，旧报告不能证明同行源码。
 
-USE_LZA=1 为默认模式；USE_LZA=0 的精确 LZD 仅供功能/后续物理对照。四个 soft hierarchy 是 RTL 的物理局部化边界，不代表已经证实 lane 放置邻近、route 优化或 4 ns 时序。
+USE_LZA=1 为默认模式；USE_LZA=0 的精确 LZD 供功能/后续物理对照。位置组是 generate 标签，不强制放置；八个 scale 分支的 LUT1 buffer 局部保护，没有增加寄存器。还未验证实际局部化、route 收益或 4 ns 时序。
 
-PCore 是 DEA8 的单核计算单元：双行 INT8 矩阵计算、FP32 DEQACC 累加、Q/O/Z 本地存储、后处理调度和 K/V/O/Down 输出。**当前 RTL 与迁移后七 Job 全链路仿真已通过；VPU/SFU 算术和外部供数由 TB 模拟。**
+以下 PCore 主体和七 Job 描述保留已完成的功能边界；迁移日志和上一轮七 Job 是历史证据，不是本轮同行 DEQACC 的整机回归。VPU/SFU 算术和外部供数由 TB 模拟。
 
 八核系统分工见 [DEA8 README](../README.md)，跨核归约见 [Reduce README](../reduce/README.md)。
 
