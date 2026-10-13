@@ -1,13 +1,15 @@
 # DEQACC V2 优化方案
 
+最新物理记录（2026-10-13晚）：当前同行V2已完成综合/布局布线，4ns WNS=−0.685ns，所有内部网络route完成、hold无失败；250MHz setup未签核。真实七级/分路径与资源见 [布局布线报告](DEQACC_V2_布局布线报告.md)。下面综合阶段说明按历史保留。
+
 **版本**：DEQACC V2 优化方案  
-**状态**：2026-10-13，V2 收尾：scale/forward/common control 分级分发、ACC 局部读掩码、同行 8-lane Pblock 脚本已实现。`-Focused` 短套件 PASS，包含 11 种 M 的真实 MXU；未跑七 Job、独立 V1 lockstep 或当前源码综合/布局布线  
+**状态**：2026-10-13，当前同行V2 `-Focused`短套件PASS（11种M）；全接口OOC综合已完成，4ns综合估算WNS=−0.988ns，核心44,945 LUT/20,633 FF。七级逐级及feedback/ACC报告见 [综合报告](DEQACC_V2_综合报告.md)。同行8-lane硬Pblock已匹配当前网表；尚未place/route、物理时序签核、当前版本七Job或独立V1 lockstep  
 **适用范围**：`DEQACC/` 独立设计  
 **明确不修改**：`DEA8/`、V1 历史报告和既有发布快照；V2 直接在 `DEQACC/Pcore` 的原 V1 文件名基础上原地实现，保留旧接口命名以降低迁移风险
 
 ## 1. 方案结论
 
-当前实现：一个完整 ACC、32 个 lane、4 个同行位置组，不设逻辑 cluster wrapper。row_bias0/1 只算一次，各经四个分支驱动四列 base；use_a3/use_c 每行 `1→4→16`，add_old/valid/flush 则 `1→4→32`。ACC 的读 bank 选择与 initialized 掩码由局部 one-hot 控制树分发，不再由单个掩码驱动整条 512-bit 数据。七级和 Full dual-path FPADD 不变。已提供四个硬 Pblock 约束，但尚未在当前综合网表上应用，物理邻近性和时序未签核。
+当前实现：一个完整ACC、32个lane、4个同行位置组，不设逻辑cluster wrapper。row_bias0/1只算一次，各经四个分支驱动四列base；use_a3/use_c每行`1→4→16`，add_old/valid/flush为`1→4→32`。ACC读bank/initialized掩码局部分发，七级和Full dual-path不变。四个硬Pblock现已匹配当前综合网表，568个分发LUT1均保留；尚未放置，所以物理邻近性与routing收益未验证。当前综合瓶颈为Q1和中央forward compare到A0，不能以局部树已实例化推断4ns满足。
 
 V2 的目标不是继续堆加流水级数，也不是一开始就拆分 ACC，而是在保持 V1 功能和时序接口的前提下，先优化反量化、FPADD、控制扇出和 ACC 外围的长距离通路。
 
@@ -786,4 +788,3 @@ bit-exact with V1
 - AMD UG901： [MAX_FANOUT](https://docs.amd.com/r/2022.2-English/ug901-vivado-synthesis/MAX_FANOUT)
 - AMD UG912： [DONT_TOUCH](https://docs.amd.com/r/2022.2-English/ug912-vivado-properties/DONT_TOUCH)，仅用于保护局部分支端点，不是时序保证
 - LZA 精确修正的经典来源： [Schmookler and Nowka, ARITH 2001](https://doi.org/10.1109/ARITH.2001.930098)
-

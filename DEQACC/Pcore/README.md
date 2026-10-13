@@ -2,7 +2,9 @@
 
 ## DEQACC 开发副本当前状态（2026-10-13）
 
-本副本在 V1 RTL 上原地重构为 DEQACC V2：32 lane、四个同行位置组、**一个完整 16 列 FACC/OACC**、七级流水。采用第三种方案，删除逻辑 cluster wrapper；独立 ingress 只计算两个 row_bias，各经四个组合分支驱动四个外部 base 加法器，始终为每行 `1→4→16`。Psum 从 rsp 直接接到 Qlane，与 base/bad_scale/valid 同拍捕获；Qlane 不接 Ea/Eb/fold。中心 key/RAW/forward 唯一一套，FPADD Full dual-path 不变；II=1 和 Delta=4 不变，没有综合/P&R 结果。
+**最新：当前同行V2已完成全接口OOC布局布线，4ns setup未过（WNS=−0.685ns），hold无失败、全部内部网络已route。**七级/feedback/ACC真实路由和资源见 [布局布线报告](../DEQACC_V2_布局布线报告.md)、`reports/v2_route_20261013/`。命令：`powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run_deqacc_v2_route.ps1`，建议timeout3600000ms。以下综合和Focused验证状态按阶段保留，不将综合估算作为当前routing结果。
+
+本副本在 V1 RTL 上原地重构为 DEQACC V2：32 lane、四个同行位置组、**一个完整 16 列 FACC/OACC**、七级流水。采用第三种方案，删除逻辑 cluster wrapper；独立 ingress 只计算两个 row_bias，各经四个组合分支驱动四个外部 base 加法器，始终为每行 `1→4→16`。Psum 从 rsp 直接接到 Qlane，与 base/bad_scale/valid 同拍捕获；Qlane 不接 Ea/Eb/fold。中心 key/RAW/forward 唯一一套，FPADD Full dual-path 不变；II=1 和 Delta=4 不变。当前OOC综合结果见 [七级综合报告](../DEQACC_V2_综合报告.md)，尚无当前源码P&R结果。
 
 本轮收尾：use_a3/use_c 每行 `1→4→16`，add_old/Q0-valid/A0-valid/flush `1→4→32`；ACC old/external read 的 one-hot mask 同样局部分发。分发树总计 568 个显式组合 LUT1，不增加寄存器。原 ACC bank 的读写/地址/flush 加 MAX_FANOUT=32，RAM 和 valid map 不拆分。
 
@@ -21,7 +23,15 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run_deqacc_v1.ps1 -Sev
 
 本轮短仿真全部 PASS：212,166 笔 Dequant/FPADD，335,584 次 lane scale 和控制树检查，10,486 笔 stream（含 5,000 笔旧 A11 数值对照），M=1/2/3/4/7/8/16/31/32/50/51 的真实 MXU 和三项 RAW 负例。约束器件/Tcl API 自检也通过。入口见 [V2验证结果](reports/v2_verification_status.md)、`reports/v2_same_row_simulation_summary.txt` 和 `reports/v2_same_row_sources_sha256.csv`。本轮未跑七 Job 或独立 V1 lockstep，旧报告不能证明当前源码。
 
-USE_LZA=1 为默认模式；USE_LZA=0 的精确 LZD 供功能/后续物理对照。已提供 [deqacc_v2_locality.tcl](deqacc_v2_locality.tcl)：当前源码完成 synth_design 后调用 `deqacc_v2_locality::apply`，将每组八个同行 lane 和其 scale/control 本地端点放入同一硬 Pblock，ACC RAM 排除。脚本检查非空目标、组间重叠和硬约束回读；八核集成时需显式分配每核区域。当前只做过旧 U50 checkpoint 上的器件/API 自检，不能代替新网表匹配、区域容量、放置、route 或 4 ns 验证。
+USE_LZA=1为默认模式；USE_LZA=0供对照。[deqacc_v2_locality.tcl](deqacc_v2_locality.tcl)的四个同行硬Pblock现已在当前综合网表上匹配并存入DCP，ACC RAM排除，尚未place/route。两个左侧区域LUT预算接近89%，见综合报告容量表；八核集成需重新分配区域，不能直接复用单核位置。
+
+综合复现（仅synthesis与报告）：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run_deqacc_v2_synth.ps1
+```
+
+基线位于`reports/v2_synth_20261013/`，七级及各字段/feedback/ACC与32-lane数据见`path_delays.csv`。新增shell捕获完整commit_write，没有改变功能RTL。4ns估算WNS=−0.988ns；未布局的net delay不是实测routing。
 
 以下 PCore 主体和七 Job 描述保留已完成的功能边界；迁移日志和上一轮七 Job 是历史证据，不是本轮同行 DEQACC 的整机回归。VPU/SFU 算术和外部供数由 TB 模拟。
 

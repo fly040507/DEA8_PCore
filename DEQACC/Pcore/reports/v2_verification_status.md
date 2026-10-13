@@ -1,6 +1,10 @@
 # DEQACC V2 验证结果
 
+最新物理进度（2026-10-13晚）：已完成当前源码综合、place、phys_opt和route，内部57,274个网络全部布通；4ns WNS=−0.685ns/TNS=−1521.264ns，hold无失败。真实七级与分路径见 [布局布线报告](../../DEQACC_V2_布局布线报告.md)。功能RTL未改，未重跑七Job或添加新的行为仿真结论；以下Focused和综合状态按阶段记录保留。
+
 更新时间：2026-10-13，V2 控制/局部约束收尾。scale 和 forward 每行 `1→4→16`，add_old/valid/flush `1→4→32`；ACC 读掩码也分级分发，RAM 保持完整。短套件三个正例、三个 RAW 负例全部 PASS。四个同行 8-lane 硬 Pblock 的脚本已提供，器件/Tcl API 自检通过；尚未应用到当前综合网表。本轮没有七 Job、独立 V1 lockstep、当前源码综合/P&R 或 4 ns 时序结论。
+
+后续综合更新（2026-10-13晚）：功能RTL保持不变，已完成当前源码OOC综合和七级/分路径/资源报告，见 [DEQACC_V2_综合报告.md](../../DEQACC_V2_综合报告.md)。四Pblock已匹配当前网表；核心44,945 LUT/20,633 FF/14 RAMB36＋2 RAMB18；4ns综合估算WNS=−0.988ns，未做布局布线或物理签核。此更新只增加综合证据，不将旧七Job/lockstep记录升级为当前同行RTL的验证。
 
 模块和脚本保留 V1 兼容名，不按文件名判断版本。本轮入口：[v2_same_row_simulation_summary.txt](v2_same_row_simulation_summary.txt)，对应源码/TB：[v2_same_row_sources_sha256.csv](v2_same_row_sources_sha256.csv)。旧 `v2_simulation_summary.txt`、`v2_sources_sha256.csv` 属于 11:53 的混合行结构，不能证明当前源码。
 

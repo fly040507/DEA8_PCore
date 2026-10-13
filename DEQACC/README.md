@@ -1,6 +1,8 @@
 # DEA8：八核 VLA 计算工程
 
-本目录是独立的 DEQACC 开发副本。入口：[DEQACC V2 优化方案](DEQACC_V2_优化方案.md)、[V2 验证结果](Pcore/reports/v2_verification_status.md)。2026-10-13 V2 收尾：scale/forward 每行 `1→4→16`，add_old/valid/flush `1→4→32`；ACC 读掩码局部分发，RAM 保持完整。32 lane 按同行分为四组，已提供每组八个 lane 的硬 Pblock 脚本。七级/II=1/Delta=4 不变；短仿真覆盖 11 种 M 全部 PASS，约束 Tcl/器件 API 自检 PASS。没有当前源码综合/P&R、七 Job 或 250 MHz 签核，约束尚未应用到当前综合网表。`DEA8/` 不修改，旧结果只作历史基线。
+最新物理进度（2026-10-13晚）：**当前同行V2已完成综合、布局布线**，见 [七级布局布线报告](DEQACC_V2_布局布线报告.md)。内部网络全部route，但4ns setup失败，WNS=−0.685ns/TNS=−1521.264ns；核心44,045 LUT/20,712 FF。后续流水优化以新报告真实route路径为依据，前段综合数字保留为历史。
+
+本目录是独立的 DEQACC 开发副本。入口：[DEQACC V2 优化方案](DEQACC_V2_优化方案.md)、[V2 验证结果](Pcore/reports/v2_verification_status.md)、[七级综合时序与资源](DEQACC_V2_综合报告.md)。2026-10-13：当前同行V2短仿真覆盖11种M通过；已完成全接口OOC综合，核心44,945 LUT、20,633 FF、14 RAMB36＋2 RAMB18。4ns综合估算WNS=−0.988ns，主要瓶颈Q1/forward控制→A0；四个硬Pblock已匹配当前网表。七级/II=1/Delta=4与完整ACC不变；尚未布局布线、签核250MHz或重跑当前同行版本七Job。`DEA8/`保持冻结，旧结果仅作历史基线。
 
 进度核对：2026-10-10。
 
