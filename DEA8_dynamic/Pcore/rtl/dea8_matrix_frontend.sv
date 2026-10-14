@@ -4,9 +4,10 @@ import pcore_pkg::*;
 // this stage binds real source queues to the verified arithmetic, not a job shell.
 module dea8_matrix_frontend (
   input logic clk,reset,clear,
+  input logic gu_capture_ready,launch_allow,
   input logic job_valid,output logic job_ready,input compute_job_t job,input b_source_e job_b_source,
   input a_source_e job_a_source,
-  output logic busy,done_valid,input logic done_ready,output logic protocol_error,
+  output logic busy,done_valid,input logic done_ready,output compute_job_t done_work,output logic protocol_error,
   input logic a_desc_valid,output logic a_desc_ready,input a_slot_desc_t a_desc,
   input logic a_in_valid,output logic a_in_ready,input a3_beat_t a_in,
   input logic local_cmd_valid,output logic local_cmd_ready,input local_load_cmd_t local_cmd,
@@ -46,16 +47,22 @@ module dea8_matrix_frontend (
   logic ld_cmd_ready,ld_desc_valid,ld_desc_ready,ld_data_valid,ld_data_ready,ld_empty,ld_error;
   logic local_cmd_legal,selected_desc_valid,selected_data_valid;
   logic ld_rd_valid,ld_rd_ready;
+  logic aq_input_closed,bq_input_closed,ingress_closed;
+  compute_job_t core_done_work;
   a_slot_desc_t ld_desc,selected_desc;
   a3_beat_t ld_data,selected_data;
 
   assign protocol_error=error_q||aq_error||bq_error||pair_error||core_error||ld_error;
   assign all_empty=aq_empty&&bq_empty&&pair_empty&&ld_empty;
-  assign job_ready=core_job_ready&&all_empty&&!protocol_error&&job_b_source<=B_KVB;
+  assign ingress_closed=ctx.m_rows==0||
+    (a_next==ctx.tiles&&aq_input_closed&&local_next==(a_source_q==A_LOCAL?ctx.tiles:0)&&
+     ld_empty&&b_next==ctx.tiles&&bq_input_closed&&pair_empty);
+  assign job_ready=core_job_ready&&(all_empty||ingress_closed)&&!protocol_error&&job_b_source<=B_KVB;
   assign job_fire=job_valid&&job_ready;
-  assign active=core_busy&&!core_done&&!protocol_error;
+  assign active=core_busy&&(!core_done||ctx.token!=core_done_work.token||ctx.work_seq!=core_done_work.work_seq)&&!protocol_error;
   assign busy=core_busy||!all_empty;
-  assign done_valid=core_done&&all_empty;
+  assign done_valid=core_done&&(all_empty||ctx.token!=core_done_work.token||ctx.work_seq!=core_done_work.work_seq);
+  assign done_work=core_done_work;
   always_comb begin
     expected_uses=ctx.mode==MAT_GU?2:(ctx.nt_per_tile?int'(ctx.tiles):1);
     packet_tiles=b_packet_tiles(source_q);
@@ -86,7 +93,7 @@ module dea8_matrix_frontend (
   assign local_rd_valid=active&&a_source_q==A_LOCAL&&ld_rd_valid;
   assign ld_rd_ready=active&&a_source_q==A_LOCAL&&local_rd_ready;
   assign source_read_closed=ctx.m_rows==0||(a_source_q==A_LOCAL?
-    (local_next==ctx.tiles&&ld_empty):(a_next==ctx.tiles&&!aq.fill_open));
+    (local_next==ctx.tiles&&ld_empty):(a_next==ctx.tiles&&aq_input_closed));
   assign aq_ready=core_a_ready&&!protocol_error;
   assign bq_ready=core_b_ready&&!protocol_error;
   assign b_desc_ready=active&&b_desc_legal&&bq_desc_ready;
@@ -122,7 +129,7 @@ module dea8_matrix_frontend (
     .desc_valid(selected_desc_valid&&active&&a_desc_legal),.desc_ready(aq_desc_ready),.desc(selected_desc),
     .in_valid(selected_data_valid&&active),.in_ready(aq_in_ready),.in_entry(selected_data),
     .out_valid(aq_valid),.out_ready(aq_ready),.out_entry(aq_entry),
-    .tile_available(aq_available),.empty(aq_empty),.protocol_error(aq_error),.used_slots());
+    .tile_available(aq_available),.empty(aq_empty),.input_closed(aq_input_closed),.protocol_error(aq_error),.used_slots());
   dea8_local_a_loader loader(.clk,.reset,.clear,
     .cmd_valid(local_cmd_valid&&active&&a_source_q==A_LOCAL&&local_cmd_legal),.cmd_ready(ld_cmd_ready),.cmd(local_cmd),
     .desc_valid(ld_desc_valid),.desc_ready(ld_desc_ready),.desc(ld_desc),
@@ -137,9 +144,9 @@ module dea8_matrix_frontend (
   dea8_b_queue bq(.clk,.reset,.clear,
     .desc_valid(b_desc_valid&&active&&b_desc_legal),.desc_ready(bq_desc_ready),.desc(b_desc),
     .in_valid(rx_valid),.in_ready(rx_ready),.in_data(rx_data),.in_tag(rx_tag),
-    .out_valid(bq_valid),.out_ready(bq_ready),.out_entry(bq_entry),.empty(bq_empty),.protocol_error(bq_error),.used_slots());
-  dea8_compute_core core(.clk,.reset,.clear,.job_valid(job_fire),.job_ready(core_job_ready),.job,
-    .busy(core_busy),.done_valid(core_done),.done_ready(done_ready&&all_empty),.protocol_error(core_error),
+    .out_valid(bq_valid),.out_ready(bq_ready),.out_entry(bq_entry),.empty(bq_empty),.input_closed(bq_input_closed),.protocol_error(bq_error),.used_slots());
+  dea8_compute_core core(.clk,.reset,.clear,.gu_capture_ready,.launch_allow,.job_valid(job_fire),.job_ready(core_job_ready),.job,
+    .busy(core_busy),.done_valid(core_done),.done_work(core_done_work),.done_ready(done_ready&&done_valid),.protocol_error(core_error),
     .a_valid(aq_valid&&!protocol_error),.a_bank(aq_entry.tile_idx[0]),.a_tile_available(aq_available),
     .a(aq_entry),.a_ready(core_a_ready),.a_tile_reserve(),
     .b_valid(bq_valid&&!protocol_error),.b(bq_entry),.b_ready(core_b_ready),

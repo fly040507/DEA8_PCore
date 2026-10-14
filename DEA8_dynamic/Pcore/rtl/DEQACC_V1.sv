@@ -9,6 +9,7 @@ module DEQACC_V1(
   input acc_sel_e result_rd_sel,input logic [9:0] result_rd_addr,
   output logic result_rd_data_valid,output logic [15:0][31:0] result_even_data,result_odd_data,
   output logic commit_valid,done,output pair_meta_t commit_meta,
+  output logic retire_valid,
   output logic commit_write_valid,output acc_write_t commit_write,
   input logic dbg_valid,input acc_sel_e dbg_sel,input logic dbg_parity,
   input logic [9:0] dbg_addr,input logic [3:0] dbg_lane,output logic [31:0] dbg_data
@@ -61,6 +62,7 @@ module DEQACC_V1(
   deqacc_v1_control control(.clk,.reset,.clear,.in_valid(rsp_valid),.rsp,.generation,.valid_pipe,.meta_pipe,.rows_pipe,
     .commit_valid,.done,.commit_meta);
   assign commit_write_valid=commit_valid;
+  assign retire_valid=acc_wr_valid&&meta_pipe[5].last&&!reset&&!clear;
   always_comb begin
     acc_wr_data='0;
     for(int g=0;g<4;g++) begin

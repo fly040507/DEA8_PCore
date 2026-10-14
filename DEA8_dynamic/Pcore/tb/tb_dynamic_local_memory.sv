@@ -12,6 +12,7 @@ module tb_dynamic_local_memory;
   local_write_t wr='0;local_read_t rd='0;local_response_t out_response;
   logic qoz_active,qoz_complete,qoz_bound;
   logic [1:0] pbuf_active,pbuf_complete,pbuf_bound;
+  local_object_t qoz_object,pbuf_object[0:1];
   logic protocol_error,empty;
   dea8_local_memory dut(.*);
 

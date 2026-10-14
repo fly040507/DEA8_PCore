@@ -1,7 +1,8 @@
 param(
     [string]$VivadoRoot = 'D:\Xilinx\Vivado\2022.2',
-    [string[]]$Tests = @('tb_dynamic_pcore_control', 'tb_dynamic_projection_scheduler', 'tb_dynamic_projection_post', 'tb_dynamic_v_pair', 'tb_dynamic_kv_output', 'tb_dynamic_kv_projection', 'tb_dynamic_q_projection', 'tb_dynamic_profile', 'tb_dynamic_a_queue', 'tb_dynamic_local_memory', 'tb_dynamic_local_loader', 'tb_dynamic_local_compute', 'tb_dynamic_frontend', 'tb_dynamic_pe', 'tb_deqacc_v1_arithmetic', 'tb_dynamic_deqacc', 'tb_dynamic_compute'),
-    [ValidateSet('O0','O2')][string]$Optimization = 'O2'
+    [string[]]$Tests = @('tb_dynamic_pcore_control', 'tb_dynamic_unit_control', 'tb_dynamic_projection_scheduler', 'tb_dynamic_projection_post', 'tb_dynamic_v_pair', 'tb_dynamic_kv_output', 'tb_dynamic_kv_projection', 'tb_dynamic_q_projection', 'tb_dynamic_local_projection', 'tb_dynamic_gu_chain', 'tb_dynamic_attention', 'tb_dynamic_attention_cancel', 'tb_dynamic_seven_jobs', 'tb_dynamic_profile', 'tb_dynamic_a_queue', 'tb_dynamic_local_memory', 'tb_dynamic_local_loader', 'tb_dynamic_local_compute', 'tb_dynamic_frontend', 'tb_dynamic_pe', 'tb_deqacc_v1_arithmetic', 'tb_dynamic_deqacc', 'tb_dynamic_compute'),
+    [ValidateSet('O0','O2')][string]$Optimization = 'O2',
+    [string[]]$TestPlusArgs = @()
 )
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
@@ -20,6 +21,7 @@ $files = @(Get-Content -LiteralPath (Join-Path $root 'compute.f')) + @('compute.
 $pins = @($files | Where-Object { $_.Trim() } | ForEach-Object {
     [pscustomobject]@{ file = $_; sha256 = (Get-FileHash -LiteralPath (Join-Path $root $_) -Algorithm SHA256).Hash }
 })
+$pins | Export-Csv -NoTypeInformation -Encoding UTF8 -LiteralPath (Join-Path $reports "sources_start_sha256_$stamp.csv")
 
 function Invoke-VivadoTool([string]$Tool, [string]$Arguments, [string]$LogName, [switch]$ExpectedRaw) {
     $command = 'call "' + $settings + '" && call "' +
@@ -50,14 +52,15 @@ try {
     foreach ($top in $Tests) {
         $snapshot = "${top}_$stamp"
         $null = Invoke-VivadoTool 'xelab' ("$library.$top $library.glbl -L unisims_ver --$Optimization --debug typical --mt off -timescale 1ns/1ps --snapshot $snapshot") "${top}_elaborate_$stamp.log"
-        $output = Invoke-VivadoTool 'xsim' ("$snapshot -runall") "${top}_run_$stamp.log"
+        $argsText = ($TestPlusArgs | ForEach-Object { ' -testplusarg "' + $_ + '"' }) -join ''
+        $output = Invoke-VivadoTool 'xsim' ("$snapshot -runall" + $argsText) "${top}_run_$stamp.log"
         if ($output -notmatch ([regex]::Escape($top) + ' PASS\b')) {
             throw "$top produced no PASS marker"
         }
         $line = [regex]::Match($output, "(?m)^$top PASS.*$").Value
         $results.Add($line)
         Write-Host $line
-        if ($top -in @('tb_dynamic_compute','tb_dynamic_frontend','tb_dynamic_local_compute','tb_dynamic_q_projection','tb_dynamic_kv_projection')) {
+        if ($top -in @('tb_dynamic_compute','tb_dynamic_frontend','tb_dynamic_local_compute','tb_dynamic_q_projection','tb_dynamic_kv_projection','tb_dynamic_local_projection','tb_dynamic_gu_chain','tb_dynamic_attention','tb_dynamic_seven_jobs')) {
             [regex]::Matches($output, '(?m)^CASE .*') | ForEach-Object { $results.Add($_.Value) }
         }
         if ($top -eq 'tb_dynamic_deqacc') {

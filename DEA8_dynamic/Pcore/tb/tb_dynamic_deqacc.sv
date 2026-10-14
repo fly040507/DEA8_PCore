@@ -10,6 +10,7 @@ module tb_dynamic_deqacc;
   acc_sel_e result_rd_sel=ACC_FACC_A;
   logic [9:0] result_rd_addr=0;
   logic result_rd_data_valid,commit_valid,done,commit_write_valid;
+  logic retire_valid;
   logic [15:0][31:0] result_even_data,result_odd_data;
   pair_meta_t commit_meta;
   logic dbg_valid=0,dbg_parity=0;acc_sel_e dbg_sel=ACC_FACC_A;

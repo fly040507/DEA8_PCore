@@ -22,6 +22,12 @@ module tb_dynamic_projection_post;
   job_token_t active_unit_token;
   logic unit_quant_valid=0,unit_quant_ready,kv_quant_valid,kv_quant_ready=0,kv_output_done=0;
   kv_quant_t unit_quant='0,kv_quant;
+  logic function_cmd_valid,function_cmd_ready=0,function_armed_valid=0,function_armed_ready;
+  logic function_go_valid,function_go_ready=0,function_data_valid,function_data_ready=0;
+  logic function_result_valid=0,function_result_ready,function_done_valid=0,function_done_ready,function_done_error=0;
+  unit_cmd_t function_cmd;fp16_stream_t function_data,function_result='0;
+  job_token_t function_armed_token=0,function_go_token,function_done_token=0;
+  unit_function_e function_done_function=UNIT_GELU;
   dea8_projection_post dut(.*);
   logic memory_error,memory_active,memory_bound,memory_empty;
   dea8_quant_store #(.QOZ(1)) memory(.clk,.reset,.clear,

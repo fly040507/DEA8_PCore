@@ -6,6 +6,7 @@ module dea8_a_queue (
   input logic in_valid,output logic in_ready,input a3_beat_t in_entry,
   output logic out_valid,input logic out_ready,output a2_t out_entry,
   output logic tile_available,empty,protocol_error,
+  output logic input_closed,
   output logic [$clog2(A_SLOTS+1)-1:0] used_slots
 );
   a_slot_desc_t slots[A_SLOTS],hold_desc;
@@ -55,6 +56,7 @@ module dea8_a_queue (
     int'(hold_use)+1==int'(hold_desc.uses);
   assign tile_available=out_valid&&hold_pair==0;
   assign empty=used_slots==0&&!fill_open&&!hold_valid;
+  assign input_closed=!fill_open;
 
   always_comb begin
     out_entry='0;

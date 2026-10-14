@@ -4,6 +4,8 @@ module tb_dynamic_compute;
   logic clk=0;always #2 clk=~clk;
   logic reset=1,clear=0,job_valid=0,job_ready,busy,done_valid,done_ready=0,protocol_error;
   compute_job_t job='0,current;
+  logic gu_capture_ready=1;
+  logic launch_allow=1;compute_job_t done_work;
   logic a_valid=0,a_bank=0,a_tile_available=1,a_ready,a_tile_reserve;
   a2_t a='0;
   logic b_valid=0,b_ready;b4_t b='0;
@@ -215,7 +217,9 @@ module tb_dynamic_compute;
     feeding=0;
     if(a_sent!=total||committed!=total||b_sent!=(rows==0?0:tiles*B_LOAD_GROUPS))
       $fatal(1,"Job transaction count mismatch rows=%0d a=%0d c=%0d b=%0d",rows,a_sent,committed,b_sent);
-    if(rows!=0&&cycle!=last_issue+COMMIT_DELAY+1)$fatal(1,"Job completion boundary mismatch");
+    // Retirement is the physical C write, not an extra registered notification.
+    if(rows!=0&&cycle!=last_issue+COMMIT_DELAY)$fatal(1,"Job completion boundary mismatch");
+    if(done_work!==next_job)$fatal(1,"Retired work identity mismatch");
     if(rows==0&&(a_ready||b_ready||psum_valid||commit_valid))$fatal(1,"M0 not an empty job");
     if(rows!=0)begin
       for(int p=0;p<pairs;p++)begin

@@ -81,8 +81,9 @@ package pcore_pkg;
     pair_read_t request;
     logic [1:0][TILE-1:0][FP_BITS-1:0] data;
   } pair_reply_t;
-  typedef enum logic [2:0] {UNIT_ROPE_QUANT,UNIT_V_QUANT,UNIT_GU_MUL_QUANT,
-    UNIT_QK_POST,UNIT_P_POST,UNIT_OACC_SCALE,UNIT_AFIN_QUANT} unit_function_e;
+  typedef enum logic [3:0] {UNIT_ROPE_QUANT,UNIT_V_QUANT,UNIT_GU_MUL_QUANT,
+    UNIT_QK_POST,UNIT_P_POST,UNIT_OACC_SCALE,UNIT_AFIN_QUANT,
+    UNIT_GELU,UNIT_ALPHA_EXP,UNIT_P_EXP,UNIT_RECIP} unit_function_e;
   typedef struct packed {
     job_token_t token,parent_token;
     unit_function_e function_id;
@@ -91,7 +92,83 @@ package pcore_pkg;
     logic [15:0] profile_id,profile_version,position_base,feature_context,output_version;
     logic identity_rows;
     logic [15:0] column_base0,column_base1;
+    logic [5:0] block_id;
+    logic scan_pair_major;
   } unit_cmd_t;
+  typedef struct packed {
+    job_token_t token;
+    logic [ROW_COUNT_BITS-1:0] row;
+    logic [TILE-1:0] mask;
+    logic [TILE-1:0][FP_BITS-1:0] data;
+    logic last;
+  } fp16_stream_t;
+  typedef struct packed {
+    job_token_t token;
+    logic [ROW_COUNT_BITS-1:0] row;
+    logic [1:0] group_id;
+    logic [3:0] mask;
+    logic [3:0][FP_BITS-1:0] data;
+    logic last;
+  } fp4_stream_t;
+  typedef enum logic [2:0] {WS_SCORE,WS_M,WS_AA,WS_L,WS_ALPHA,WS_RECIP} workspace_kind_e;
+  typedef struct packed {
+    job_token_t token;
+    workspace_kind_e kind;
+    logic bank,write;
+    logic [5:0] block_id;
+    logic [ROW_COUNT_BITS-1:0] index;
+    logic [1:0] group_id;
+    logic [TILE-1:0] mask;
+    logic [ROW_LANES-1:0] row_mask;
+    logic [ROW_LANES-1:0][TILE-1:0][FP_BITS-1:0] data;
+  } workspace_req_t;
+  typedef struct packed {
+    job_token_t token;
+    workspace_kind_e kind;
+    logic bank;
+    logic [5:0] block_id;
+    logic [ROW_COUNT_BITS-1:0] index;
+    logic [1:0] group_id;
+    logic [TILE-1:0] mask;
+    logic [ROW_LANES-1:0] row_mask;
+    logic [ROW_LANES-1:0][TILE-1:0][FP_BITS-1:0] data;
+  } workspace_rsp_t;
+  typedef struct packed {
+    job_token_t token;
+    workspace_kind_e kind;
+    logic bank,write;
+    logic [5:0] block_id;
+    logic [ROW_COUNT_BITS-1:0] index;
+    logic [1:0] group_id;
+    logic [3:0] mask;
+    logic [3:0][FP_BITS-1:0] data;
+  } sfu_workspace_req_t;
+  typedef struct packed {
+    job_token_t token;
+    workspace_kind_e kind;
+    logic [5:0] block_id;
+    logic [ROW_COUNT_BITS-1:0] index;
+    logic [1:0] group_id;
+    logic [3:0] mask;
+    logic [3:0][FP_BITS-1:0] data;
+  } sfu_workspace_rsp_t;
+  typedef struct packed {
+    logic [1:0] score_complete,alpha_complete;
+    logic [1:0][5:0] score_block,alpha_block;
+    logic [3:0] stat_complete;
+    logic [3:0][5:0] stat_block;
+  } workspace_status_t;
+  typedef struct packed {
+    job_token_t token;
+    acc_sel_e sel;
+    logic [PAIR_BITS-1:0] pair_idx;
+    logic [TILE_BITS-1:0] nt;
+  } unit_acc_read_t;
+  typedef struct packed {
+    unit_acc_read_t request;
+    logic [ROW_LANES-1:0] mask;
+    logic [ROW_LANES-1:0][TILE-1:0][FP_BITS-1:0] data;
+  } unit_acc_reply_t;
   typedef struct packed {
     logic [DATA_BITS-1:0] data;
     logic [SCALE_BITS-1:0] scale;
@@ -251,6 +328,10 @@ package pcore_pkg;
     logic [ROW_LANES-1:0] row_valid;
     logic [ROW_LANES-1:0][TILE-1:0][FP_BITS-1:0] data;
   } acc_write_t;
+  typedef struct packed {
+    job_token_t token;
+    acc_write_t payload;
+  } unit_acc_write_t;
   typedef struct packed {
     job_token_t token;
     logic [SEQ_BITS-1:0] work_seq;

@@ -1,367 +1,221 @@
-# 动态 PCore：统一控制与 Q/K/V Projection
+# 动态 PCore：七 Job、三种矩阵模式
 
-顶层已接入 Q/K/V 三种非空 Job，共用控制中心、Projection scheduler、ACC reader 和 Pair BUF。Q 写 QOZ；K/V 经 PCore 内部 sender 直传 GCore，等待每个 Tile 的匹配 commit 才完成。矩阵、存储、外发为真实 RTL；RoPE/量化与 GCore 接收由 TB 模拟。Attention、G-U、O/Down 的完整 Job 尚未接入，不能据此声称七 Job 已跑通。最新验证记录见文末；历史记录不能替代当前源码回归。
+单核动态行数重构实现。顶层已接入 K、V、Q、Attention、O、G-U、Down，共用一条双行 MXU / 七级 DEQACC 链路。矩阵、存储、控制和外发为真实 RTL；VPU/SFU 算术、外部供数和目标接收由 TB 模拟。
 
-原动态计算核、XBC/local A加载、HBM双PC/KVB512、QOZ/PBUF模块继续保留。矩阵算术及存储为真实RTL；VPU/SFU算术不在本工程实现。
+仅修改 `DEA8_dynamic`。旧 `DEA8/`、独立 `DEQACC/` 只读；未综合、未布局布线、未上传。**4 ns 仿真时钟不代表 250 MHz 物理时序达标。**
 
-所有改动位于 `DEA8_dynamic/Pcore`。`DEA8`、独立 `DEQACC` 目录只读。
+## 1. 当前能力与边界
 
-## 整体重构方案入口
+- 保留七种外部 Job、Projection / Attention / G-U 三种矩阵模式
+- 一次接受一个外部 Job，completion 保持到 DEA8 接受；内部允许 active + prepared
+- K/V 固定 51 行；其它五种 Job 使用已提交 profile 的 M，范围 0..51
+- 同一 PCore 已验证无 clear 的七 Job 串联，Q → Attention → O、G-U → Down 使用实际 QOZ 结果，不重填 fixture
+- 独立动态 Reduce 已实现并验证；尚未联接八个真实动态 PCore
+- `Control/`、`Gcore/`、`HBM/` 尚不是 DEA8 总控、GCore 或物理 HBM 控制器实现
 
-[PCore整体重构方案V1](C:/Users/fly04/Desktop/VLA/DEA8_dynamic/Pcore/PCore整体重构方案_V1.md) 确定后续七Job、三mode、单控制中心、共享Pair BUF、后处理接口和内部外发。专用调度见 [Attention V1](C:/Users/fly04/Desktop/VLA/DEA8_dynamic/Pcore/Attention调度方案_V1.md)。这些是待实施方案，不代表本页计算核已经接好完整PCore。
+实现合同：[整体重构 V1](PCore整体重构方案_V1.md)、[A 加载 V1](A侧矩阵加载方案_V1.md)、[B 加载 V1](B侧矩阵加载方案_V1.md)、[Attention 调度 V1](Attention调度方案_V1.md)。这些方案记录了实施前状态；**当前完成度和验证入口以本页为准**，不要把方案末尾的“待实现”当作现状。
 
-## 计算合同
+## 2. 七种完整 Job
 
-- `M=0..51`，仅使用 compact row `0..M-1`；不接收 original token 序号
-- `P=ceil(M/2)`；每个 Tile 发射 P 个双行 pair，奇数 M 的末 pair 为 `01`
-- `M=0`：空任务完成，不加载 B、不启动 PE、不提交 ACC；不会把 0 改成 51
-- PE 不增加 M、scale、tag；仍用一个 DSP48E2 计算共享 B 的两路 INT8 乘法
-- 同一 K 归约链的首 Tile `add_old=0`，后续 Tile `add_old=1`；累加顺序不重排
-- 切换 M 后，新增或重用的输出区域必须先覆盖，再累加；不能把旧任务残留视为新的初始值
+令 E 为有效行数，P=ceil(E/2)。下表的提交数是一组最多 32 个 FP32 的 bundle，不是标量数。
 
-## 模块与存储
+| Job | 单核矩阵 / 数据来源 | 后处理与去向 | Psum / C 提交数 |
+|---|---|---|---:|
+| K | [51,1024]×[1024,32]，XBC/HBM | RoPE、MXINT8-B16；内部 sender → GCore，等待两个 Tile commit | 3328 |
+| V | [51,1024]×[1024,32]，XBC/HBM | token-B16 量化；内部 sender → GCore，等待两个 Tile commit | 3328 |
+| Q | [M,1024]×[1024,256]，XBC/HBM | RoPE、量化 → QOZ_Q | 1024P |
+| Attention | 55 QK + 55 PV，QOZ/KVB；每 Block 16 Tile | 在线 softmax、OACC_SCALE、RECIP、AFIN/量化 → QOZ_O | 1760P |
+| O | [M,256]×[256,1024]，QOZ_O/HBM | 每 NTile 最终 FP32 partial → Reduce | 1024P |
+| G-U | 两个 [M,1024]×[1024,512]，XBC/HBM | GELU(G)×U、量化 → QOZ_Z | 4096P |
+| Down | [M,512]×[512,1024]，QOZ_Z/HBM | 每 NTile 最终 FP32 partial → Reduce | 2048P |
 
-| 模块 | 本阶段实现 |
+M=0 时，K/V 仍正常处理 51 行，其余 Job 返回 empty completion，不加载、不启动算术、不 acquire 零行对象。七 Job 合计 `6656+9952P`；M=11 为 66,368，M=51 为 265,408。
+
+Q 使用 canonical 列顺序 `0,8,1,9,...,7,15`，FACC owner 按 work 奇偶而不是 canonical nt 奇偶选择。K 的两块列必须 RoPE 可配对：base0<128、base1=base0+128；V 为相邻两个 16 列块。两者都要求 16 对齐。
+
+PCore 不理解十步去噪/18 层循环，不做全 hidden 维度 RMSNorm、Residual、全局 KV 管理或跨核归约。
+
+## 3. 计算、加载和精度
+
+算术、RAM 地址和传输使用 compact row `0..E-1`。原始行号只在 profile、RoPE/mask 服务及外部 transfer context 中解释，不进入 PE。
+
+| MXU 级 | 工作 |
 |---|---|
-| `dea8_pe_2row.sv` | 原实现直接复用：2 个 INT8 权重 bank、DSP multiply、拆包与高半修正 |
-| `dea8_mxu_2row.sv` | 256 PE、双行广播、四列/拍写口、整向量 E_STAT 装载、七级旁带 |
-| `DEQACC_V1.sv` | 当前七级实现；32 lane、四算术组、一套完整 ACC、A3/C 前递；增加动态行范围保护 |
-| `dea8_compute_core.sv` | 当前计算边界的执行控制：Job、bank 身份/释放、A pair 计数、RAW 间隔、真实 commit 完成 |
-| `pcore_pkg.sv` | 动态行数 helper、`b4_t`、`compute_job_t`、带 M 的事务 metadata |
-| `dea8_profile.sv` | 一份不可变 compact→original 行表，配置/完整提交、in_use保护、保持型同步读取 |
-| `dea8_row3_store.sv` | 三个1R1W同步row bank；A queue、QOZ、PBUF复用同一原语，各有独立RAM |
-| `dea8_quant_store.sv` | 参数化对象管理：完整写入、owner/version、bind、同步读信用和release；不复制payload |
-| `dea8_local_memory.sv` | 一份QOZ与两代PBUF；统一管理接口，源切换等待已接受读返回全部消费 |
-| `dea8_local_a_loader.sv` | 两项命令预取；三行同步读返回直接写A queue，最后一个返回被接受才形成source-consumed fence |
-| `dea8_a_queue.sv` | 三slot、完整M行后READY；G/U重放2次、PV重放16次；同步双行供数与背压保持 |
-| `dea8_hbm_pair.sv` | 两个深度2的PC elastic FIFO；队头身份相同才合成512-bit |
-| `dea8_b_queue.sv` | 八slot；HBM四Tile/17beat、KVB两Tile/9beat；data/scale完整后READY，连续四组加载 |
-| `dea8_matrix_frontend.sv` | 矩阵work级绑定：父token、work/occurrence、source/role、queue排空与真实compute完成 |
-| `dea8_pcore_control.sv` | 唯一外部Job/context、七opcode解码、profile/core检查、三mode启动、completion/fault/flush |
-| `dea8_projection_scheduler.sv` | 五种Projection几何、canonical Q列号、两个FACC独立owner；顶层已接Q/K/V，V逐NTile单half capture |
-| `dea8_result_reader.sv` | 两项返回信用、同步ACC读、双行FP32 capture；目标接受最后一笔才释放FACC |
-| `dea8_pair_buffer.sv` | 唯一两half RAM，16个row bank/half；RoPE同row两operand，V同时读取16个token bank并选两个feature；两项返回信用 |
-| `dea8_projection_post.sv` | Q/K/V复用；QOZ acquire或KV返回、Pair/token、command/armed/go/done、读写完整性屏障 |
-| `dea8_tile_link_pkg.sv` | 与DEA8相同的128-bit header和64-bit commit字段布局 |
-| `dea8_pcore_output.sv` | 核内K/V双向量转单word；全局列坐标、顺序、mask、last检查；Job完成等待目标commit |
-| `dea8_kv_tile_sender.sv` | 单个64×136-bit同步Tile RAM；填完整后发送，匹配commit后才释放 |
-| `pcore_top.sv` | 纯连接顶层、全局fault握手门控；不维护第二个Job FSM、不实现非矩阵算术 |
-
-最大存储容量不随 M 改变。M 只限制有效行、读写范围和传输次数。
-
-| 物理数据存储 | 大小 / 位置 |
-|---|---|
-| PE 权重 bank A/B | 2×256×8 bit，共 512 B；每个 PE 的每个 bank 只有一个权重 |
-| Q_ACT_REG | 2×16×8 bit，32 B；PE 外，两个激活行向 16 列广播 |
-| E_STAT_BANK A/B | 2×16×8 bit，32 B；PE 外；group 0 写入目标 bank |
-| MXU 中间结果 | PE 的两个 INT16 输出、三级中间加法树、第四级 Psum 输出寄存器 |
-| MXU 旁带 `[0:6]` | 两个 A scale、16 个 B scale、mask、metadata，随有效事务推进 |
-| FACC-A / FACC-B | 每套 even 26×512 bit、odd 25×512 bit；每套 3,264 B |
-| OACC | even 416×512 bit、odd 400×512 bit；共 52,224 B |
-
-ACC 总数据容量 58,752 B，不含 validity / 控制。四算术组各交换两行×四列数据，没有四份 FACC/OACC 副本。`dea8_acc_store.sv` 中当前只实例化基础 `dea8_acc_bank`，不实例化旧 store 顶层。
-
-加载新增payload：A queue 2601 B、B queue 2176 B、两PC弹性FIFO合计128 B、B读出holding为64 B data+16 B scale。metadata、validity和物理RAM补齐另计。
-
-本地量化payload：QOZ为32×51×136 bit，共27744 B；PBUF为2×51×136 bit，共1734 B。valid bitmap、descriptor、两项读返回FIFO、RAM同步输出寄存器和loader命令寄存器另计，不能将payload容量当作综合后的BRAM数量。
-
-Pair声明payload为2×16×4×512 bit，共8192 B，逻辑有效数据为2×51×512 bit。每bank深度仅4，当前采用distributed RAM提示；RAM输出寄存器、两项reply FIFO与metadata另计，实际映射和时序仍需综合确认。没有另建两套RoPE/G-U缓存或整层FP32结果缓存；V的token-group服务和G-U接入尚未完成。
-
-公共类型已删除未使用的XBC4/B2/B1、旧matrix service、嵌套post/unit描述符和11级兼容延迟。七opcode/三mode保留，G-U静态来源修正为XBC/HBM。A/B与pipeline tag新增完整父token/work身份，Tile序号为16 bit，不再模64辨认数据。
-
-## 流水边界
-
-| MXU | 工作 |
-|---|---|
-| S0 | A 写入 Q_ACT_REG；A scale、active B scale、mask/tag 同沿写旁带 0 |
-| S1 | 共享 B 的 DSP packed multiply |
-| S2 | 两个 INT16 乘积拆包，高半符号修正 |
-| S3 | 16→8 加法树 |
-| S4 | 8→4 加法树 |
-| S5 | 4→2 加法树 |
+| S0 | 两行 INT8 进入唯一 Q_ACT_REG；两 A scale、16 B scale、mask/tag 同沿进入旁带 0 |
+| S1 | 每个 DSP48E2 共享 B 计算两个 INT8×INT8 |
+| S2 | packed product 拆包与高半符号修正，恢复两个 INT16 乘积 |
+| S3 / S4 / S5 | 加法树 16→8、8→4、4→2 |
 | S6 | 2→1 直接写 Psum 输出寄存器；旁带 6 同时输出 |
 
-Psum、两路 A scale、B scale 向量、mask/tag 直接接 DEQACC，不再加队列或额外 Psum 寄存级。
+256 PE 保留两个 INT8 weight bank。scale/tag 不进入 PE；INT32 Psum、两路 A scale、B scale 向量和 metadata 直接进入 DEQACC，无额外输出 FIFO 或第二个 Psum 寄存级。
 
-| DEQACC | 工作 |
+| DEQACC 级 | 工作 |
 |---|---|
-| Q0 | 捕获 INT32 Psum / Ea / Eb / fold / key；幅值、lead、指数基值 |
-| Q1 | 形成 FP32 partial；ACC 同步读由已寄存的 Q0 控制驱动 |
-| A0 | old 选择：A3 最新前递、C 前递、RAM，或 `add_old=0` 的零值 |
+| Q0 | Psum / scale / key 捕获，幅值、lead、指数基值 |
+| Q1 | 形成 FP32 partial；同步 ACC 读取 |
+| A0 | old 选择：A3 前递、C 前递、RAM，或首 KTile 的零值 |
 | A1 | FP32 对齐、加减 |
-| A2 | 精确 LZD 与规格化；不声称实现 LZA |
-| A3 | RNE 舍入、指数与特殊值处理 |
-| C | 写回 ACC，输出 commit / data / metadata / last |
+| A2 | 精确 LZD、规格化 |
+| A3 | RNE 舍入、指数和特殊值 |
+| C | 实际 ACC 写回、commit/data/metadata |
 
-若 S0 在边沿 t 接受，MXU response 在 t+6 出现，下一边沿进入 Q0，C 在 t+13 提交。核心的 `done_valid` 在最后 C 后一拍置位，并保持到 `done_ready`。这与“MXU 七级 + DEQACC 七级”一致。
+32 lane，每拍最多处理两行×16 个结果。S0 接受沿为 t，Psum 为 t+6，C 为 t+13。同地址依赖最小间隔四拍：Δ4 用 A3，Δ5 用 C，Δ6 及以后读 RAM。奇数 E 的末 pair mask=01，odd 行不写。
 
-## 四拍 B 加载与吞吐
+矩阵 work 支持一个 active + 一个 prepared。最后 C 的 `retire_valid` 预测真实写沿，允许已准备好的下一 work 首 S0 与旧 work 最后 C 同沿；`done_work` 始终回显旧 work 身份，不随下一 feed context 改写。
 
-`b4_t.data` 为 512 bit：四列，每列 16 个 INT8。group 0/1/2/3 分别写列 0..3 / 4..7 / 8..11 / 12..15。`b4_t.scales` 是额外的 128-bit loader 旁带，只有 group 0 有效，不等同于外部 HBM 的 512-bit beat 格式。
+B 每拍四列，四拍填满一个驻留 bank；group0 同时写完整 128-bit E_STAT。最后 B 写沿可以接受首 S0，下一沿 S1 才使用新权重；旧 bank 必须等最后 S1 后释放。
 
-每拍 64 个 PE 向指定 weight bank 写一个字节。E_STAT 同 group 0 一次写完。四个 data group 完成才形成完整 bank。
-
-- 最后 B 写拍可同沿接受下一 Tile 的首 S0；乘法在下一沿才使用新权重
-- 旧 bank 在最后 S1 真实使用后释放，不能在最后 S0 就覆盖
-- A queue 必须先确认整 Tile 完整；首 pair 用 `a_tile_available` / `a_tile_reserve` 预留
-- Tile 内连续发射依赖预留后的 A 源连续供数；核心没有 DEQACC 逐 Tile 排空等待
-
-理想供数、ACC 无外部占用时，验证目标和实际启动间隔为：
-
-```text
-I_tile = max(ceil(M/2), 4)
-last_C - first_S0 = (tiles-1) * I_tile + (P-1) + 13
-```
-
-同地址、同 parity 的依赖事务最小间隔为四拍：Δ4 用 A3，Δ5 用 C，Δ6 及以后可读到正确 RAM 值。M≤6 时显式保底四拍；这与四拍 B loader 相容，不给每个 KTile 添加七拍排空。
-
-此公式不是 HBM/KVB 全路径性能承诺。外部供数的 4.25/4.5 拍平均服务、同步 queue 读取、首拍准备等，应在后续加载链路联调中另计。
-
-## Job 与外部接口
-
-`compute_job_t` 是本阶段的计算 Job，不是 DEA8 总控七种 Job 的新替代协议：
-
-| 控制方式 | 行为 |
+| 加载部分 | 当前实现 |
 |---|---|
-| 普通 K 归约，`nt_per_tile=0` | 所有 Tile 写同一输出 NTile；首 Tile 覆盖/沿用初值，后续累加 |
-| PV，`nt_per_tile=1` | 每 Tile 改变 nt；写 `OACC[pair*16+nt]`；是否加旧 OACC 由 Job 指定 |
-| G-U，`mode=MAT_GU` | 偶 Tile Gate→FACC-A，奇 Tile Up→FACC-B；各自独立 K 归约 |
+| XBC A | 三行/beat，每行含 INT8 向量和 scale；三 slot，完整 E 行后连续输出 P pair |
+| Local A | QOZ/PBUF 三 row bank 同步读；两项命令/返回信用，不复制完整 A Tile |
+| A replay | G/U 共用一次 A 填充、重放两次；PV 的一个 P Tile 重放 16 次 |
+| HBM B | 两个 256-bit PC 配对为 512 bit；各有深度 2 elastic FIFO，检查 beat 身份 |
+| B queue | 八 slot；HBM 四 Tile/17 beat，KVB 两 Tile/9 beat；完整 data/scale 后 READY |
+| KVB | 512-bit 数据；首 beat 低 256 bit 为两个 scale 向量，高 256 bit 校验归一化 descriptor |
 
-- A：`a_valid/a_ready`，343-bit `a2_t`，另带目标 B bank；包括272-bit INT8/scale payload、完整token/work、16-bit Tile序号、pair/mask，不再携带无用slot/reserved字段
-- B：`b_valid/b_ready`，`b4_t`；顺序、tile 身份、group、bank owner 检查
-- 结果读取：一次同步返回 even/odd 两行各 16 个 FP32；超出 M 的地址不接收，奇数末行的 odd 数据返回零
-- VPU 写入：相同 32-FP32 bundle，可按 parity 写；不能写当前 M 范围外的行
-- `protocol_error` sticky：非法 M Job 以 error + done 结束；非法 A/B 阻止后续传输，必须 clear 后重试
-- `clear`：取消在途计算、bank/context/validity；不清大数据 RAM
+理想内部 Tile 间隔 `R=max(4,P)`。HBM 连续服务平均每 Tile 4.25 拍、KVB 为 4.5 拍；外部断供可以延长运行。当前不是 HBM AXI/segment 地址控制器，也未实现八核原子 KVB 广播。
 
-ACC 外部 ready 处理 DEQACC 当拍/在途的同 bank 冲突，不等同于“该 NTile 已完成 K 归约”。后续控制器必须依据 final_k 的实际 commit 与行计数释放结果。VPU 写口当前需要该 ACC 已建立的矩阵 M 上下文；更完整的 acquire / flush / job 身份协议属于后续控制接入。
+## 4. 存储与所有权
 
-## 当前加载接口边界
+容量按最大 51 行保留，M 只限制有效行、读写次数和传输长度。下表是 payload/声明容量，不含 validity、metadata、返回 FIFO、流水寄存器和物理 RAM 补齐。
 
-`dea8_matrix_frontend`接收的是矩阵work descriptor及归一化beat，不是最终DEA8七Job接口，也不是HBM AXI控制器。
-
-- A slot descriptor先预留，beat再写入；480-bit `a3_beat_t`包含408-bit payload以及token/work/occurrence/group/mask。最终XBC的运输接口与local loader应按A方案补齐/生成内部字段，不能把当前内部结构直接当成外部461-bit协议。
-- HBM两个256-bit逻辑PC分别携带70-bit beat tag，允许skew/背压；segment地址、原始AXI burst和物理HBM控制器尚未实现。
-- B packet descriptor锁定source/mode/role/block。KVB首beat低256bit存两套scale、高256bit校验当前归一化descriptor；最终kv_head/context及广播grant适配仍待接入。
-- KVB本阶段只验证单核接收，不代表八核原子广播已经完成。
-- Profile模块已验证，但`in_use`引用仍需由后续PCore/QOZ/输出控制接入，不声称18层生命周期已经联调。
-- 目前不同matrix work仍使用compute核的IDLE/RUN/DRAIN及完整排空边界；未实现Attention V1的active+prepared、同C换Block和跨BlockB驻留保留。
-
-## QOZ/PBUF 与 local A 路径
-
-```text
-量化写入 -> quant_store管理 -> row3 RAM
-                   acquire / complete / bind
-                              |
-local_cmd -> 两项loader命令 -> 同步三行read / 两项返回信用
-                              |
-                        三槽A queue -> MXU -> DEQACC -> ACC
-```
-
-| 对象 | 物理布局与完整条件 |
-|---|---|
-| QOZ_Q | 独占QOZ，logical tile 0..15映射physical 0..15；全部16 Tile的前M行写完才complete |
-| QOZ_O | 独占QOZ，logical tile 0..15映射physical 16..31；同样等待全部16 Tile |
-| QOZ_Z | 独占QOZ，logical tile 0..31映射physical 0..31；等待全部32 Tile |
-| PBUF | 两个独立generation，各一Tile；set必须等于block_id奇偶；当前代被读时可填另一代 |
-
-Q/O/Z是同一payload RAM的三个互斥用途，不是同时驻留三份矩阵。Acquire只失效validity，不清数据RAM。重新获得对象后，小M到大M仍须把全部新有效行写齐，不能读取旧payload补齐。
-
-对象身份包含kind、content_version、data_context、profile_id/version、head、M和block。Bind必须精确匹配完整对象；生产者和消费者分别锁定token，可以来自不同外部Job。写入和读返回还检查tile、compact row/group、mask和版本。重复写、同拍同row-bank写、超M或错token数据不产生RAM写副作用。
-
-单拍可写最多三个不同row-bank的136-bit entry；VPU双行量化返回可只置其中两路mask。三行同步读用固定row group，尾group由M生成mask。Data和scale在同一136-bit entry中读写，不另设一份scale影子RAM。
-
-两个manager各有两项返回信用。接受读请求前同时计入FIFO和同步RAM在途返回；消费回复才减读引用。统一端口在旧源未排空时不切QOZ/PBUF，以免返回乱序。错误锁存后停止两个manager的新事务，clear共同撤销validity与旧回复。
-
-Local loader只缓存两项命令和计数，不缓存第二份完整A Tile。请求可以先于目标slot授予发出；数据必须等目标descriptor被A queue接受后才能写入。`local_cmd.destination`绑定父token/work/occurrence、M及重放次数；PV只读一次P Tile，再由A queue重放16次。
-
-当前公共端口使用packed类型，按现有容量参数的总线宽度如下。valid/ready是独立控制信号，不计入payload；不是将所有字段复制到PE。
-
-| 类型 | 位宽 | 用途 |
+| 物理存储 | 容量 | 用途 |
 |---|---:|---|
-| `local_object_t` | 82 | acquire/bind对象身份；生产者/消费者token另带32 bit |
-| `local_write_t` | 487 | 三个136-bit entry、三行坐标/mask、写身份 |
-| `local_read_t` | 79 | 消费者token、版本、tile/group、请求序号 |
-| `local_response_t` | 490 | 原读身份、三行mask、408-bit data/scale |
-| `local_load_cmd_t` | 117 | A slot目的描述符与源kind/set/version/tile |
-| `local_release_t` | 52 | 已绑定消费者token、kind/set/version |
+| PE weight A/B | 512 B | 每 PE 两个 INT8 |
+| Q_ACT_REG / E_STAT A/B | 各 32 B | PE 外的激活寄存器 / 驻留权重 scale |
+| A queue / B queue | 2601 / 2176 B | 3 个 A slot / 8 个 B slot |
+| 双 PC elastic FIFO | 128 B | 各深度 2 |
+| FACC-A / FACC-B | 各 3264 B | 每套 even26×512、odd25×512 |
+| OACC | 52224 B | even416×512、odd400×512，地址 pair*16+nt |
+| QOZ | 27744 B | 一份 32×51×136-bit payload |
+| PBUF | 1734 B | 两代，各 51×136 bit |
+| 共享 Pair BUF | 8192 B 声明容量 | 2 half×16 row bank×4×512 bit |
+| 两代 SCORE | 6528 B | masked FP32 S，各 51×16 |
+| m / aa / l / reciprocal | 合计 816 B | 各 51 个 FP32，一代 |
+| alpha 两代 | 408 B | 各 51 个 FP32 |
+| K/V sender | 1088 B | 64×136 bit |
+| FP output holding | 128 B | 两行 serializer，不加完整 FP32 Tile 副本 |
 
-`source_read_closed`只表示当前work的全部源返回已写入A queue，**不是矩阵退休或对象自动释放**。还须等待算法退休屏障：PBUF等对应PV退休；QOZ_Q等QK54完成、全部Q读引用归零，在获取QOZ_O之前释放；O/Z等全部NTile矩阵结束。Attention整体done仍须等AFIN/量化及QOZ_O complete，不能先等整体done才尝试Q→O换owner。Manager的release_ready只检查owner和未结读引用，不能代替scheduler的算法屏障。M=0在矩阵入口走空分支，不acquire零行对象。
-
-独立frontend和memory分别提供protocol_error；新顶层统一汇集错误并关闭对外握手。Q路径已把Job和QOZ存活期接到profile in_use；Attention/O/Down的跨Job绑定与release仍未接通。
-
-## 外部 Job 与 Projection 后处理合同
-
-`pcore_job_t`由控制中心锁存一份；scheduler/post通过共享context读取，不在每条内部命令复制完整Job。包含opcode、job_id/user_tag、core/head、data/profile、position/feature/transfer context和输入/输出内容版本。`kv_column_base0/1`为已解析的全局列坐标，不把`feature_context`这个查询键直接当列地址。CORE_ID为顶层参数。
-
-- 一次只接一个外部Job；completion保持到DEA8接受
-- 父token为generation+job_id，unit token为generation+内部command_id，另保留parent_token
-- K/V固定51行并使用identity行号；其它Job使用已提交profile的M，M=0不启动矩阵、unit或QOZ对象
-- 非空Attention/G-U/O/Down返回UNSUPPORTED；Q缺profile或QOZ非空返回PRECONDITION；错误核号、位置溢出或K/V布局不合法返回INVALID
-- K/V不要求动态profile已提交，也不占用QOZ；已有Q/O/Z对象保持不变
-- fault不修改已经有效的completion，不为已退休Job重复生成fault/cancel completion
-- cancel/clear共同失效内部validity与在途返回；等待source、VPU、SFU三项flush ack后恢复，不清大payload RAM
-
-Q主路径：
+QOZ 只有一个活动 owner：Q 物理 Tile0..15，O 为16..31，Z 为0..31，**不是三份并存的矩阵 RAM**。Q/O/Z 生命周期为：
 
 ```text
-外部 Q -> VALIDATE -> Projection start
-  -> work 0..15: canonical 0,8,1,9,...,7,15
-  -> XBC/HBM -> MXU/DEQACC -> 真实C退休
-  -> 双FACC -> 有信用的ACC reader -> 唯一Pair BUF
-  -> VPU command -> armed -> go -> Pair/profile读取
-  -> 两canonical Tile量化返回 -> QOZ真实写入 -> unit done -> Pair释放
-  -> 16个NTile已capture、8条unit命令结清、QOZ完整 -> completion
+Q production → Attention Q consumer → 释放 Q → AFIN 产生 O
+→ O projection 消费/释放 O → G-U 产生 Z → Down 消费/释放 Z
 ```
 
-FACC与Pair是不同生命周期。空闲FACC即可开始下一NTile；当前Pair被unit占用时，已提交FACC可等待读出，不能阻止另一个空闲FACC计算。Pair预约移到capture之前，reader只在目标有空间时发同步读。FACC释放只看最后一个capture bundle真实被Pair接受，不等独立unit全部算完。
+每 Tile 前 E 行 data/scale 全部写入才完整；bind 精确匹配 kind/version/data/profile/head/E。读请求预留返回信用，消费返回才减少 read ref。小 M 到大 M 重新 acquire 后必须覆盖全部新有效行，不能借旧 payload 补齐。
 
-VPU负责人接入：
+PBUF 按 block parity 保存两代，消费 PV(b) 与生产 P(b+1) 不覆盖。源返回写完 A queue 只是 `source_read_closed`，还要等对应 PV 的真实 C 退休才释放 PBUF。Q 在 QK54 退休、读引用清零后释放，之后才能 acquire O；不能等整个 Attention done 才换 Q→O。
 
-| 端口 | 权限和完成条件 |
+Pair BUF 是一套共享两 half RAM：RoPE 两组 feature、V 的 token-group、G/U 的两个 operand 互斥复用。两操作数不等于两行输出；GU 当前 32 个输入 FP32/拍只代表最多 16 个独立乘积/拍，TB 按此限速，没有虚称 32 个 Z 结果/拍。
+
+## 5. Attention 调度与实际完成屏障
+
+```text
+QK0 → QK1 → PV0 → QK2 → PV1 → ... → QK54 → PV53
+    → 空出一个 Block slot → PV54 → RECIP → AFIN/量化
+```
+
+稳态首 S0 间隔 `S=16*max(4,ceil(M/2))+12`；从真实 issue 计时，不从 descriptor 接受计时。QK0 可暴露首轮加载。PV53→PV54 至少 2S，尾部 RECIP/AFIN 不声称隐藏。
+
+- QK 的最后 C → QK_POST：读 FACC、加 mask、更新 m/aa、写两代 SCORE
+- QK_POST done → ALPHA_EXP；alpha/L 已准备后可提前准备 SCALE descriptor，但没有 go 不允许访问 OACC
+- ALPHA_EXP → P_POST 与 P_EXP 流式配合：SFU4 输出 exp，VPU 更新 l、量化写当前 PBUF
+- P 可用 fence 来自真实 PBUF 完整写入和 l 更新，不依赖 TB 定时器或 unit 自报 done
+- SCALE 在前一个 PV 退休、对应 QK 实际启动后获准，按 pair-major 扫描 OACC；最后真实 RAM 写可在同沿放行下一 PV
+- PV54 退休 → SFU 计算 reciprocal → VPU AFIN/量化；QOZ_O complete、所有 unit/返回结清才返回整体 completion
+
+SFU/VPU 各支持一条 active + 一条 prepared 命令。实际近似算法和延迟由外部实现决定；接口依赖数据 fence，合法停顿只会延长周期，不应提前消费未提交数据。
+
+## 6. G-U、Projection 和内部外发
+
+Projection 共用一个 scheduler，按五种几何生成 NTile work。结果 reader 在 NTile 的最终 C 后才读 FACC，目标接受最后一个 capture bundle 才释放 bank；没有把“读请求发完”当成释放。
+
+G-U 每 NTile 交替执行 64 个 Gate KTile 和 64 个 Up KTile。Gate 写 FACC-A、Up 写 FACC-B，两个 final Tile 的 C 直接 capture 到共享 Pair；Pair 不可用时只在安全边界等待。SFU GELU(G) 与 VPU×Up/量化通过真实流式握手汇合，32 个 Z Tile 全写齐及单元 done 后整体完成。没有 ZBUF。
+
+`dea8_pcore_output` 位于 PCore 内部，分两种物理输出，不重新拼成 Collective：
+
+| 路径 | Header / data | 完成规则 |
+|---|---|---|
+| K/V → GCore | 128 / 136 bit | sender 填完整 Tile，发数据，等待匹配 64-bit commit |
+| O/Down → Reduce | 128 / 512 bit | 两行 holding 按行发送；末行真实接受后才释放 FACC |
+| Reduce → GCore | 128 / 512 bit | Reduce 自己等匹配 commit，不属于 PCore 第八种 Job |
+
+K 每 Tile51 word。V 每 Tile64 word，最后 token group 只有3个 token有效，其余清零。RAM/线路 word 为 `{scale[7:0],data[127:0]}`，与 `qvec16_t` 内部 `{data,scale}` 的 packed 次序不同。
+
+O/Down 每 Tile E 个 FP512 word，column_base=16*nt。它们的 PCore completion 仅表示 partial 已交给 Reduce，**不表示八核归约已在 GCore 提交**。
+
+Header 保留 transfer_id/epoch、destination_id、token_origin、column_base、rows、kind、layout、source_id、tile_seq。DEA8/GCore 必须在传输前绑定 `transfer context → profile/version/row_order`；非连续原始行表不随每个 row 重复发送。仍在途的 transfer key 不能被重新解释。
+
+## 7. VPU/SFU 负责人接入入口
+
+公共类型见 `rtl/pcore_pkg.sv`，顶层见 `rtl/pcore_top.sv`。不需要将完整外部 Job 复制到每条内部 command。
+
+| 接口 | 规则 |
 |---|---|
-| `unit_cmd_valid/ready` | 接受一条command，仅绑定任务，不允许立刻读Pair/QOZ |
-| `unit_armed_valid/ready` | 回显当前command token，表示已准备 |
-| `unit_go_valid/ready` | 接受go后才授权数据访问 |
-| `unit_rd/unit_out_reply` | Q/K同row两个16 FP32操作数；V按group/feature-pair序号返回两个feature的16token；两项返回信用 |
-| `unit_profile_*` | Q查询compact→original；K返回identity row，与动态M无关；V无RoPE，不允许此查询 |
-| `unit_wr` | 与local_write_t同格式，token必须是当前unit token；一拍一个canonical Tile、最多三row-bank entry，常用双行 |
-| `unit_quant` | K/V专用双向量返回，当前unit token、Tile、index、mask、token_mask、last；不能写QOZ |
-| `unit_done_*` | token/function/status回显；本命令全部读返回已消费、量化结果已接受、profile回复排空，才允许成功done |
+| cmd/ready | 绑定 token/function/rows/block/对象版本，仅 prepare，不授予内存访问 |
+| armed | 回显已接受的 command token；表示控制及返回空间准备好 |
+| go/ready | PCore 依赖满足后授权当前 command 执行 |
+| done | 回显 token/function/status；所有必要输出及读返回已结清才可成功 |
+| Pair read/reply | 两个 512-bit FP32 operand；两项返回信用、背压保持 |
+| unit_profile | Q 查 compact→original，K identity；Attention QK_POST 可查询 mask 坐标 |
+| ACC read/reply/write | 1024-bit 双行 FP32 + pair/nt/mask/token；Scale 写 OACC |
+| VPU workspace | 1024-bit payload；SCORE 两行写，统计量 span/mask |
+| SFU workspace | 128-bit payload，4 FP32；SCORE group 或统计量 span |
+| GELU stream | Gate→SFU 与 GELU→join 为 512-bit 行向量，带 row/token/last |
+| P_EXP stream | SFU→VPU 为 128-bit FP32，带 row/group/token/mask/last |
+| quant write | INT8 向量与 scale 一起，验证坐标/版本/重复写；PCore 转换 unit token 为 producer token |
+| flush/ack | source、VPU、SFU 三项 ack；必须保证旧流、active/prepared 和旧返回已撤销 |
 
-PCore将合法unit token转换为QOZ producer的parent token，数据/scale不改写。写坐标、mask、版本和重复返回均在RAM写之前检查。Data/scale/tag在停顿时一起保持。
+ROPE_QUANT、V_QUANT、GU_MUL_QUANT、QK_POST、P_POST、OACC_SCALE、AFIN_QUANT 由 VPU 实现。GELU、ALPHA_EXP、P_EXP、RECIP 由 SFU 实现。RoPE 系数由外部服务/模型提供。
 
-### K/V单元扫描与外发
+同拍退休与 prepared 的 cmd/armed 接受都必须保留，不能丢失或重发。非法 token、功能、坐标、mask、重复输出及 early done 在产生 RAM 副作用前拒绝并进入 fault。
 
-| Job | Pair命令 | 读请求 `row` 的含义 | 量化返回 | 外发 |
-|---|---|---|---|---|
-| K | 一条RoPE命令，nt0=0、nt1=1，identity_rows=1 | 0..50，两个配对feature向量 | 先Tile0的26笔，再Tile1的26笔；末mask=01 | 每Tile51个136-bit word |
-| V | 每NTile一条V_QUANT命令，共两条；只capture half0 | 0..31；group=index/8，feature_pair=index%8 | 每Tile32笔双feature向量，mask=11 | 每Tile64个136-bit word |
+正常 Job 结束不 clear 持久 Q/O/Z。cancel/clear 撤销 generation/validity/预约并等待三方 flush ack，不大范围清 payload RAM。已有 completion 不被迟到 fault 改写或重复返回。真实 GCore 的 transfer 取消需由 DEA8 协调，不能只清本核就复用旧 key。
 
-V响应的每个向量含同一feature的16token；group3仅低3token有效，其余13项由Pair读口输出FP32零，sender再按token_mask强制INT8 padding清零。两组向量合计32个FP32，但不是两个token行。
+## 8. 仿真与证据
 
-K列坐标须16对齐，base0<128、base1=base0+128；V须16对齐且base1=base0+16，两块均在256列内。`unit_cmd.column_base0/1`将解析坐标直接交给VPU，K的RoPE频率与外发header使用同一份坐标。
-
-Tile RAM保存`{scale[7:0],data[127:0]}`，不是`qvec16_t`内部的`{data,scale}`打包次序。GCore以header的kind/layout、tile_seq、column_base和transfer key恢复落点。真实GCore及transfer-context映射表尚未实现，当前TB验证协议和坐标，不声称已完成GCore集成。
-
-header映射：transfer_id=`job.transfer_context`，transfer_epoch=`job.transfer_epoch`，destination_id=`job.data_context`，token_origin=0。DEA8/GCore负责将这个key绑定到目标对象/行映射；`data_context`在本接口作为目标逻辑对象号，不是RAM地址。transfer_epoch由DEA8分配，不能使用各核独立的parent generation，避免以后八核Reduce的header因局部取消/拒绝次数不同而不一致。
-
-Pair在读引用和量化返回结清后可释放；sender另持有输出副本，等待commit。K/V外部completion必须同时满足矩阵退休、Pair命令完成及两个Tile的commit。下一Job无需用clear清理正常完成的sender；clear仅用于取消/故障恢复。
-
-`source_context`提供同Job不变的访存context；`source_work_valid/ready`发布归一化NTile工作量。当前接口不是HBM AXI地址控制器。Q后处理只用VPU接口；SFU当前仅参加flush屏障，其算术command/workspace服务随Attention/G-U接入，不能把当前Q接口当成已完成全部VPU/SFU服务。
-
-## 仿真入口与证据
-
-依据 `interaction/仿真说明.docx`：每次在同一个 cmd 内先加载 `settings64.bat`，再调用官方 xvlog / xelab / xsim。独立编译库、新 snapshot、统一时间单位，含 glbl 与真实 DSP48E2 模型。
+入口遵循 `interaction/仿真说明.docx`：同一 cmd 中加载 `settings64.bat`，再调用官方 xvlog/xelab/xsim；独立库、新 snapshot、glbl、真实 DSP48E2。默认 O2，不修改 Vivado 安装或工具路径。
 
 ```powershell
+# 23 个测试入口；含完整矩阵/后处理、故障恢复和默认 M=11 的七 Job 串联
 & .\run_compute_xsim.ps1
+# 最大行数七 Job
+& .\run_compute_xsim.ps1 -Tests tb_dynamic_seven_jobs -TestPlusArgs 'M=51'
+# 动态 Reduce 独立测试
+& ..\Reduce\run_xsim.ps1
 ```
 
-本机沙箱内启动 Vivado 自带 C 编译器失败；在获准的沙箱外通过同样的官方入口运行成功。没有替换工具、改 PATH/RDI/TCL 或修改 Vivado 安装。
+普通测试同时要求退出码 0、无 Fatal/Error/工具内部错误、明确 PASS。RAW Δ1/2/3 负例只允许精确指定的 DUT Fatal。脚本在运行前后比较所有 filelist 源码/脚本 SHA256，不能用旧日志替代当前源码结果。
 
-普通测试必须同时满足退出码 0、无 Fatal/Error、明确 PASS。RAW 负例仅允许一次指定 DUT RAW Fatal，不能拿工具启动失败或 watchdog 当通过。脚本在运行前固定源码哈希，并在运行结束再次比对。
+当前证据分阶段记录，新增修复后的整套回归正在补齐；下列时间戳不合并成同一次运行：
 
-计算核历史基线（2026-10-13，不作为本轮修改后的签核）：
-
-- [仿真汇总](reports/simulation_summary_20261013_110839.txt)
-- [源码 SHA256](reports/sources_sha256_20261013_110839.csv)
-
-| 测试 | 覆盖 |
+| 证据 | 实际范围 |
 |---|---|
-| PE | 131,072 个有符号乘积；全 INT8 A0/B 组合、A1 扫描、双 bank、clear |
-| Dequant / FPADD | 各 211,978 笔，FP32 特殊值、次正规数、RNE、极端指数、clear |
-| DEQACC stream | 344 个 commit；32 lane II=1；Δ4/5/6/7、奇偶独立前递、OACC、clear |
-| RAW 负例 | Δ1/2/3 精确触发指定 DUT 拒绝 |
-| 真实计算链路 | 71 个正常 Job，M=0..51；64 KTile、128 Gate/Up 交错 Tile、PV 多 NTile与跨 Block累加；18,560 个 Psum / FP32 commit、1,412 次 ACC 读回 |
-| 协议与取消 | 在途取消后无旧输出；M>51、非法 A mask、非法 B group 三种拒绝；供数气泡、小→大/大→小 M、奇数尾行保护 |
+| [Attention 完整仿真](reports/simulation_summary_20261014_211444.txt) / [源码](reports/sources_sha256_20261014_211444.csv) | M=0/1/11/51；每个非空 Job 55QK+55PV，全部 Psum/FP32 C、非单位 alpha、AFIN QOZ payload 位比较 |
+| [七 Job 连续](reports/simulation_summary_20261014_212754.txt) / [源码](reports/sources_sha256_20261014_212754.csv) | M=11，66,368 笔 Psum/C；同一 PCore 无 clear，真实 Q→Attention→O、GU→Down |
+| [零行七 Job](reports/simulation_summary_20261015_054106.txt) | M=0，6656 笔；K/V 仍 51 行，其余 empty |
+| [单元交接修复](reports/simulation_summary_20261015_054359.txt) | 三种同拍交接、五项非法返回、prepare 无访问及 active/prepared 取消 |
+| [Attention 故障恢复](reports/simulation_summary_20261015_055148.txt) | 真实 workspace 回复挂起时错误 token 拒绝、端口关闭、fault 保持、三方 flush；恢复后完整 110 子 Job / AFIN |
+| [动态 Reduce](../Reduce/reports/summary_20261014_202359.txt) | 53 Tile、所有 M=1..51、1378 FP512 word；固定树位比较、背压、commit 和四项拒绝 |
 
-数据由 TB 生成，但乘法、加法树、反量化、累加、ACC 读写由实际 RTL 完成。golden 独立计算 INT8 点积并使用冻结的 FP32 reference，未向 DUT 注入预期结果。
+Attention 独立测试中的首 S0 稳态间隔如下。周期来自 TB 的实际有限速率模型，不是器件实测：
 
-## A/B加载基线：2026-10-14 00:00
+| M | S | 稳态 min/max | PV53→PV54 | 接受 Job→completion | 最后 PV C→completion |
+|---:|---:|---:|---:|---:|---:|
+| 1 | 76 | 76 / 76 | 152 | 8499 | 47 |
+| 11 | 108 | 108 / 108 | 216 | 12141 | 131 |
+| 51 | 428 | 428 / 428 | 856 | 48014 | 480 |
 
-入口仍为 `run_compute_xsim.ps1`。默认O2，全部重新xvlog/xelab；源码固定后运行，结束复核hash。7个常规测试和3个精确RAW负例全部通过。
+TB 仅模拟外部数据与非矩阵处理，通过真实 command/armed/go、RAM、返回信用和背压交互。Golden 独立计算 INT8 点积并按冻结 FP32 顺序核对每次 C，**未向 DUT 注入 golden Psum/ACC**。VPU32/SFU4 用模型限速；GU 另按双操作数口的真实结果速率处理。mask/exp/GELU/RoPE 模型不是实际 pi0 精度或真实 VPU/SFU近似精度签核。
 
-证据：[本轮汇总](C:/Users/fly04/Desktop/VLA/DEA8_dynamic/Pcore/reports/simulation_summary_20261014_000028.txt)、[源码SHA256](C:/Users/fly04/Desktop/VLA/DEA8_dynamic/Pcore/reports/sources_sha256_20261014_000028.csv)。
+## 9. 当前尚未验证
 
-| 测试 | 实际证据 |
-|---|---|
-| Profile | 52个M配置、1326次非连续行lookup；live引用/响应保持；重复行、部分提交、非法M三项拒绝 |
-| A queue | 9个slot事务、162个pair；三槽环绕，1/2/16次重放，停顿保持，row2/row3不同group正确选路 |
-| 真实加载前端 | 64个work用例，M=0..51；17424个Psum和FP32 commit、1401次ACC读回；A/B占用峰值3/8，PC反压149拍 |
-| 加载用途 | 64K单NTile归约、128个G/U交错微Tile单NTile、QK/PV路径及P重放16次；实际RAM数据/scale经DSP计算 |
-| 前端协议 | 错A occurrence、错B role、错KVB头、两PC tag不一致四项拒绝；真实算术在途取消及正常恢复 |
-| 原计算核兼容 | 71个work、18560笔Psum/commit、1412次读回，A3/C命中481/485；全M、RAW间隔、取消和三项协议拒绝 |
-| PE / 算术 / DEQACC | 131072个乘积；反量化与FPADD各211978笔；344笔32-lane stream commit，Δ4/5/6/7及parity前递 |
-| RAW负例 | Δ1/2/3均只触发指定DUT RAW Fatal，工具启动失败和watchdog不计通过 |
+- 真实 VPU/SFU、GCore/DEA8 总控接入；profile/transfer context 的跨核映射及取消
+- 物理 HBM 地址/burst、八核 KVB 原子广播及实际持续带宽
+- 八个真实动态 PCore 与 Reduce 联调、全局 commit 屏障
+- 综合、布局布线、资源与 250 MHz 物理时序
+- pi0 整模型量化误差、十步去噪正确性与端到端时延
 
-本轮修正了两处仿真问题：A queue复位前未初始化slot索引的结构体数组访问导致0ps内核异常；TB结构体返回丢失work_seq，改为显式packed-vector返回。默认O2已完成数值验证，不靠O0启动代替正确性。
-
-取消用例等待真实issue后再clear，不把“输入发送完”当成“矩阵已启动”。脚本同时拦截FATAL_ERROR/内部断言，并仍要求明确PASS。失败日志保留为诊断历史。
-
-`CASE FRONTEND ... total_with_reads`包含TB额外读回与done保持，不是纯matrix work时间或完整Attention周期。本轮未执行完整Q projection的16NTile、110个Attention子Job、32NTile G-U或外部七Job序列，不据此声称整PCore完成。
-
-## 本地存储基线：2026-10-14 00:56
-
-完整回归10项常规测试和3项精确RAW负例全部通过；默认O2、重新编译/展开，运行前后核对34个源码/脚本/filelist哈希。
-
-证据：[最新汇总](C:/Users/fly04/Desktop/VLA/DEA8_dynamic/Pcore/reports/simulation_summary_20261014_005612.txt)、[最新源码SHA256](C:/Users/fly04/Desktop/VLA/DEA8_dynamic/Pcore/reports/sources_sha256_20261014_005612.csv)。上面的00:00记录是历史A/B基线，不是本次源码的签核。
-
-| 新增验证 | 实际结果 |
-|---|---|
-| QOZ/PBUF真实RAM | M=1..51，115次对象acquire；12475笔写入、10290个读返回；不同写lane到row-bank选路、Q/O/Z复用和两代PBUF并存 |
-| 存储边界 | 两项信用峰值、3312拍请求反压；部分region不能bind，未消费回复阻止release；8项非法访问拒绝，clear撤销旧回复 |
-| Local loader协议 | 36个Tile、264个正常三行beat；两项命令队列环绕，授权前预取、230拍回复背压；错请求序号与取消后的旧token返回两项拒绝 |
-| 本地源真实算术 | 64个正常work，QK覆盖M=0..51；PV重放16次、跨work累加、O/Down本地源；13488个Psum与FP32 commit，1785次ACC读回 |
-| 本地取消/恢复 | 源读在途和PE计算在途两种取消；8494次请求=8492个消费回复+2个明确撤销读，clear后重新启动并完成数值比对 |
-| 邻接回归 | 原XBC前端64个work、17424笔数值提交；独立计算核71个work、18560笔数值提交；Profile/A queue/PE/算术/DEQACC及RAWΔ1/2/3仍通过 |
-
-TB只提供量化源fixture、B运输数据和存储管理指令，真实row3 RAM、A/B queues、DSP、加法树、反量化及ACC均由RTL执行。Fixture不向DUT写入golden Psum或ACC。独立loader负例使用协议返回模型；数值链路用真实QOZ/PBUF RAM，两者不能混为一种证据。
-
-先前loader负例的TB源保持检查与故意篡改序号冲突，已限制为“合法返回必须保持”；错回复仍必须被DUT拒绝。原检查与全部数值检查保留，失败日志仅作诊断历史。
-
-`CASE LOCAL ... total_with_fixture_reads`还包含整region fixture预填、TB读回和管理握手，不能作为Block周期或完整Attention时间。当前完成的是各matrix work的本地源接入，还没有110子Job、全NTile Projection/G-U、非矩阵任务或七Job联动。
-
-本次未综合、未布局布线、未上传GitHub。旧DEA8与独立DEQACC的245个源码/脚本哈希未变。
-
-## 历史基线：2026-10-14 统一控制与 Q Job
-
-该时间戳的Q-only版本以默认O2重新编译/展开；14项常规测试和3项RAW负例全部通过，44个源码/脚本/filelist哈希在运行前后保持一致。这组哈希只对应当时源码，不是当前Q/K/V版本的签核。
-
-历史证据：[完整回归汇总](C:/Users/fly04/Desktop/VLA/DEA8_dynamic/Pcore/reports/simulation_summary_20261014_094826.txt)、[源码SHA256](C:/Users/fly04/Desktop/VLA/DEA8_dynamic/Pcore/reports/sources_sha256_20261014_094826.csv)。
-
-| 本轮新增测试 | 实际覆盖 / 边界 |
-|---|---|
-| 控制中心 | 18个指令案例，七opcode/三mode；K/V有效行固定51、其它取profile；6项拒绝、错done token、cancel/三方flush ack、completion背压及迟到fault不重复返回；engine退休由TB模拟，不是七Job数值验证 |
-| Projection scheduler | 五种几何、Q canonical顺序、交替FACC和真实capture release；矩阵退休由协议模型提供，不是五种Projection已接通 |
-| Q后处理组件 | 真实Pair/QOZ RAM、8个Pair、24个双operand回复、48笔量化写；两项读信用和command保持；7项非法unit访问拒绝，RAM validity及写计数均无副作用 |
-| 完整Q | M=0/1/11/51，共33792个Psum和FP32 commit，504次非连续profile查询；每个非空Job自动发布16个矩阵work、8条RoPE/量化command；最终QOZ全部有效行的INT8/scale逐项核对 |
-| 并行与对象保护 | 2800拍matrix work与post重叠，其中2667拍为真实MXU issue与post重叠；QOZ存活时拒绝覆盖及profile改写，3次重复Q返回PRECONDITION |
-| 邻接回归 | 原有Profile、A queue、QOZ/PBUF、local loader、local compute、XBC frontend、PE、Dequant/FPADD、DEQACC及isolated compute全部重新通过；RAWΔ1/2/3只触发指定DUT拒绝 |
-
-完整Q的几何为 `[M,1024]×[1024,256]`；M=51包含26624笔双行bundle。Golden独立生成INT8点积、按k顺序进行冻结FP32反量化/累加，再核对真实Pair操作数和最终QOZ payload；没有向矩阵链路注入golden Psum或ACC。
-
-VPU代理通过实际command/armed/go、Pair/profile读返回、量化写入和done完成任务。RoPE系数、FP32乘加/RNE及MXINT8-B16量化由TB计算，**不验证真实VPU/SFU的近似精度、资源或吞吐**。代理缓存一个Pair的临时结果、按两行量化beat写回；这些TB数组不是DUT新增RAM。独立post测试的FP32 capture fixture仅用于协议检查，不代替上述数值链路。
-
-| Q用例 | matrix work | Psum / commit | unit command | `cycles_with_done_hold` |
-|---|---:|---:|---:|---:|
-| M=0 | 0 | 0 | 0 | 8 |
-| M=1 | 16 | 1024 | 8 | 5510 |
-| M=11，STRESS | 16 | 6144 | 8 | 7719 |
-| M=51 | 16 | 26624 | 8 | 27563 |
-
-上述周期从TB提交过程开始统计，包含源代理/VPU代理、完成保持，以及非空用例随后的profile保护和重复Q拒绝检查。它不是严格的外部Job接受沿到首次completion沿，也不是理想供数的PERFORMANCE签核；后续需单独增加边沿时间戳，不能直接据此推算十步去噪时间。
-
-本轮修复了：动态结构体选择导致全零capture descriptor，改用显式两路选择；将Pair预约从矩阵启动前移至FACC读出前，消除后处理对下一NTile的串行限制；防止故障Job在clear时重复返回cancel，以及有效completion后的迟到fault重复返回。TB的capture fixture改用显式packed-vector构造，保留全部DUT合法性和数值检查。失败日志仅作诊断历史。
-
-本轮只修改`DEA8_dynamic/Pcore`；未综合、未布局布线、未上传。没有完整Attention/G-U或七Job联动证据。
-
-## 尚未完成
-
-- Q/K/V完整路径已接入；O/Down的local源绑定与FP32外发、Attention/G-U scheduler及七Job前后相连仍待实现
-- QOZ/PBUF的跨Jobconsumer绑定和release、G-U final capture
-- HBM segment/地址协议、KVB kv_head/context及八核原子广播适配
-- 通用unit/workspace服务、内部FP发送，以及active+prepared跨work边界
-- 综合、布局布线和 250 MHz 签核；仿真中的 4 ns 时钟不证明物理时序达标
-
-下一步用同一Projection scheduler接O/Down的local源绑定、释放与独立512-bit Reduce输出，再接G-U/Attention；改造matrix work的active+prepared边界以满足跨Block隐藏。当前文件清单不导入旧wrapper、兼容scheduler或重复算术链。
+以上均未用 TB 或旧 DEA8 报告冒充完成。旧设计算术/仿真仅作参考；dynamic 的实现和证据独立维护。

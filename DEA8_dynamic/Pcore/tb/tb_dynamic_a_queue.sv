@@ -5,6 +5,7 @@ module tb_dynamic_a_queue;
   logic reset=1,clear=0,desc_valid=0,desc_ready,in_valid=0,in_ready;
   a_slot_desc_t desc='0;a3_beat_t in_entry='0;
   logic out_valid,out_ready=0,tile_available,empty,protocol_error;
+  logic input_closed;
   a2_t out_entry;
   logic [$clog2(A_SLOTS+1)-1:0] used_slots;
   dea8_a_queue dut(.*);

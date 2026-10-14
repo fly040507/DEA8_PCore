@@ -1,162 +1,44 @@
-# DEA8 PCore：DEQACC V2 单核矩阵计算与七 Job 控制
+# DEQACC V3 / PCore开发副本
 
-## DEQACC 开发副本当前状态（2026-10-13）
+版本入口：[V3说明](../DEQACC_V3_版本说明.md)。**2026-10-14暂时冻结，短仿真PASS，4ns post-route WNS=+0.544ns/TNS=0/hold通过。**本副本Matrix默认连接七级DEQACC，V3功能为32 lane、II=1、同地址依赖间隔≥4拍。物理实现No-Pblock，先3.5ns目标、一轮3.45ns已有网表收尾，最终恢复4ns验收，严格裕度门槛+0.5ns。
 
-2026-10-14单lane Soft对照完成，WNS=−0.225ns/TNS=−84.415ns，setup失败1051端点；不优于No-Pblock。32个IS_SOFT均为1，实际outside2.081%，lane空间跨度减小但局部密度重新升高。详细见 [Single-Lane Soft对照报告](../DEQACC_V2_SingleLaneSoft对照报告.md)。入口`run_deqacc_v2_single_lane_soft.ps1`；`-ReportOnly -Tag v2_soft_single_lane_20261014`只补报告，逐lane详细utilization默认关闭。
+## V3实现
 
-2026-10-14新增8个硬区域、每组4个同行lane对照，WNS=−0.358ns/TNS=−310.534ns，最高CLB区域占用73.64%。比4×8 Hard改善，No-Pblock仍最佳。见 [8×4对照报告](../DEQACC_V2_8x4区域对照报告.md)；入口`run_deqacc_v2_nopblock.ps1 -FourLane`，不改RTL。
-
-2026-10-14同网表No-Pblock对照完成：WNS=−0.222ns、TNS=−61.556ns、setup失败842端点；最高region CLB占用74.17%、SLR crossing=0。相比Hard显著改善但未签核250MHz。详细结果见 [No-Pblock对照](../DEQACC_V2_NoPblock对照报告.md)，入口`run_deqacc_v2_nopblock.ps1`。本次只做物理对照，没有改功能RTL或默认Hard约束脚本。
-
-**最新：当前同行V2已完成全接口OOC布局布线，4ns setup未过（WNS=−0.685ns），hold无失败、全部内部网络已route。**七级/feedback/ACC真实路由和资源见 [布局布线报告](../DEQACC_V2_布局布线报告.md)、`reports/v2_route_20261013/`。命令：`powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run_deqacc_v2_route.ps1`，建议timeout3600000ms。以下综合和Focused验证状态按阶段保留，不将综合估算作为当前routing结果。
-
-本副本在 V1 RTL 上原地重构为 DEQACC V2：32 lane、四个同行位置组、**一个完整 16 列 FACC/OACC**、七级流水。采用第三种方案，删除逻辑 cluster wrapper；独立 ingress 只计算两个 row_bias，各经四个组合分支驱动四个外部 base 加法器，始终为每行 `1→4→16`。Psum 从 rsp 直接接到 Qlane，与 base/bad_scale/valid 同拍捕获；Qlane 不接 Ea/Eb/fold。中心 key/RAW/forward 唯一一套，FPADD Full dual-path 不变；II=1 和 Delta=4 不变。当前OOC综合结果见 [七级综合报告](../DEQACC_V2_综合报告.md)，尚无当前源码P&R结果。
-
-本轮收尾：use_a3/use_c 每行 `1→4→16`，add_old/Q0-valid/A0-valid/flush `1→4→32`；ACC old/external read 的 one-hot mask 同样局部分发。分发树总计 568 个显式组合 LUT1，不增加寄存器。原 ACC bank 的读写/地址/flush 加 MAX_FANOUT=32，RAM 和 valid map 不拆分。
-
-从本目录运行短仿真套件：
-
-```powershell
-# 本轮实际执行：算术、32-lane ACC stream、动态 M、RAW 负例
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run_deqacc_v1.ps1 -Focused
-# 更完整的短回归，额外含独立 V1 lockstep
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run_deqacc_v1.ps1
-# 包含当前完整七Job FUNCTIONAL仿真，需要较长时间
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run_deqacc_v1.ps1 -SevenJobs
-```
-
-脚本名保留`v1`以兼容原入口，内部使用V2库与报告名。所有工具经同一cmd先call settings64.bat再call工具bat，不使用shadow环境或直接unwrapped入口。短套件包含发布版V1/V2 lockstep，timeout至少300000ms；带七Job建议3600000ms。
-
-本轮短仿真全部 PASS：212,166 笔 Dequant/FPADD，335,584 次 lane scale 和控制树检查，10,486 笔 stream（含 5,000 笔旧 A11 数值对照），M=1/2/3/4/7/8/16/31/32/50/51 的真实 MXU 和三项 RAW 负例。约束器件/Tcl API 自检也通过。入口见 [V2验证结果](reports/v2_verification_status.md)、`reports/v2_same_row_simulation_summary.txt` 和 `reports/v2_same_row_sources_sha256.csv`。本轮未跑七 Job 或独立 V1 lockstep，旧报告不能证明当前源码。
-
-USE_LZA=1为默认模式；USE_LZA=0供对照。[deqacc_v2_locality.tcl](deqacc_v2_locality.tcl)的四个同行硬Pblock现已在当前综合网表上匹配并存入DCP，ACC RAM排除，尚未place/route。两个左侧区域LUT预算接近89%，见综合报告容量表；八核集成需重新分配区域，不能直接复用单核位置。
-
-综合复现（仅synthesis与报告）：
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run_deqacc_v2_synth.ps1
-```
-
-基线位于`reports/v2_synth_20261013/`，七级及各字段/feedback/ACC与32-lane数据见`path_delays.csv`。新增shell捕获完整commit_write，没有改变功能RTL。4ns估算WNS=−0.988ns；未布局的net delay不是实测routing。
-
-以下 PCore 主体和七 Job 描述保留已完成的功能边界；迁移日志和上一轮七 Job 是历史证据，不是本轮同行 DEQACC 的整机回归。VPU/SFU 算术和外部供数由 TB 模拟。
-
-八核系统分工见 [DEA8 README](../README.md)，跨核归约见 [Reduce README](../reduce/README.md)。
-
-## 1. 单核方案与接口边界
-
-每核对应一个 256 维 Query head，并承担 K/V 的 32 维 shard、FFN 的 512 维 shard。Projection、Attention、G-U 三类路径共享 `dea8_matrix`，由 `dea8_pcore_control` 接收完整 Job 并调度矩阵、后处理、存储和输出。
-
-| 路径 | 当前职责 |
+| 文件 | 职责 |
 | --- | --- |
-| XBC / HBM | 接收共享激活与权重数据，供给 Projection 和 G-U |
-| QOZ / KVB | 保存本核 Q/O/Z，向 Attention 提供 Q 与 K/V 数据 |
-| Matrix / DEQACC | 双行 INT8 点积、反量化和 FP32 累加 |
-| VPU / SFU | command/data/done、ACC 与 workspace 接口；内部算术由外部单元实现 |
-| K/V 输出 | 内部 Tile sender → GCore，128-bit header + 136-bit 数据流，等待 commit |
-| O/Down 输出 | PCore → Reduce，128-bit header + 512-bit FP32 行流 |
+| `rtl/DEQACC_V1.sv` | V3兼容顶层：完整ACC、32lane、读写/commit接口 |
+| `rtl/deqacc_v1_control.sv` | 物理地址捕获、来源比较前移、身份/完成流水 |
+| `rtl/dequant_lane_v1.sv` | 两级反量化、normal/subnormal并行RNE |
+| `rtl/fp32_add_lane_v1.sv` | 四级FAR/CLOSE FP32、LZA与精确修正 |
+| `rtl/acc_slice_v1.sv` | 单个完整三bank、两parity ACC |
+| `rtl/deqacc_v2_fanout.sv`、`deqacc_v2_scale_ingress.sv` | 分级控制及scale输入 |
+| `rtl/deqacc_v2_timing_shell.sv` | BUFG和全接口launch/capture观测壳，额外FF不算核心级数 |
 
-K/V 完成需等待 sender 清空及目标 commit；O/Down 的 PCore 输出完成由最后一拍数据握手定义。Reduce 到 GCore 的最终 commit 由 Reduce 管理，因此本核 `done` 不等于全局归约结果已提交。
+V1/V2文件名保留为兼容名称，内容和冻结hash定义版本；不以文件后缀判断算法版本。正常filelist包含旧兼容模块，当前选择由`USE_DEQACC_V1=1`控制；切回A11会改变设计，不属于冻结V3。
 
-## 2. 七种 Job 已走通的流程
-
-固定顺序：`K → V → Q → Attention → O → G-U → Down`。
-
-| Job | 计算与本地后处理 | 结果去向 |
-| --- | --- | --- |
-| K | K projection、RoPE、量化 | GCore 的 K 目标对象 |
-| V | V projection、量化 | GCore 的 V 目标对象 |
-| Q | Q projection、RoPE、量化 | QOZ 的 Q 区域 |
-| Attention | 55 QK + 55 PV；在线 softmax、OACC 缩放、最终归一化与量化 | QOZ 的 O 区域 |
-| O | 读取本地 O，执行 O projection | Reduce 的 FP32 partial |
-| G-U | Gate/Up projection、GELU、逐元素乘法与量化 | QOZ 的 Z 区域 |
-| Down | 读取本地 Z，执行 Down projection | Reduce 的 FP32 partial |
-
-PCore 不承担十步去噪/18 层总控，也不承担全 hidden 维度的 RMSNorm、Residual 或 KV 全局管理。
-
-## 3. 已完成的实现与历史工程记录
-
-- 三类矩阵路径共享执行核心；QOZ 管理 Q → O → Z 生命周期
-- PCore 控制中心组织矩阵子任务、VPU/SFU 后处理和完整 Job 完成
-- `dea8_pcore_output`、`dea8_kv_tile_sender` 集成到 PCore，使用 Tile header/data/commit 协议
-- 七 Job TB 支持 FUNCTIONAL / PERFORMANCE / STRESS 三模式
-- TB 非矩阵模型：VPU32/SFU4 并行运行，请求/响应流水化；QK_POST 使用 16 行统计访问，P_POST 流式处理
-- VPU/SFU 完成等待独立排空各自通道，避免人为串行化
-- 迁移后的源文件清单、完整七 Job 和控制协议曾在旧工程路径仿真通过；当前 V2 仍需在可用的 XSim 环境中重新执行
-
-## 4. 历史验证结果（不作为 V2 结果）
-
-证据：[迁移后七 Job 日志](reports/pcore_control_after_migration.log)，2026-10-10 新路径运行，**FUNCTIONAL 模式**，时钟周期 4 ns。
-
-| Job | 总周期 | Matrix issues | 全 Job 矩阵占比 |
-| --- | ---: | ---: | ---: |
-| K | 3,791 | 3,328 | 87.78% |
-| V | 3,659 | 3,328 | 90.95% |
-| Q | 27,143 | 26,624 | 98.08% |
-| Attention | 49,257 | 45,760 | 92.90% |
-| O | 28,276 | 26,624 | 94.15% |
-| G-U | 107,448 | 106,496 | 99.11% |
-| Down | 54,900 | 53,248 | 96.99% |
-
-总工作量：265,408 issues；Attention 子任务：110。矩阵占比按 `matrix issues / Job 总周期` 统计，包含启动、后处理和外发尾部，不等同于逐 PE 有效 MAC 槽位利用率。
-
-FUNCTIONAL 有人工背压，K/V 还有当前 Tile sender 与 commit 开销；上表用于记录功能跑通状态。当前输出接口下的 PERFORMANCE 基线待重新运行，不用旧接口的性能结果代替。
-
-其他证据：
-
-- [控制协议日志](reports/pcore_protocol_after_migration.log)：前置条件、非法 Job、核身份、完成保持、迟到响应、FAULT 和双 flush ack 等检查 PASS
-- [迁移验证说明](reports/verification_after_layout.md)：目录/命名迁移与新路径运行情况；这里的 layout 指工程目录组织，不是芯片布局布线
-- [输出完整链日志](reports/pcore_output_full.log)：输出模块集成后的七 Job 记录；保留旧模块名，以新路径迁移日志为当前阅读入口
-
-以上为行为仿真，不代表真实 VPU/SFU 算术、HBM 带宽、八核联调或综合/P&R 时序签核。
-
-## 5. 文件入口
-
-| 路径 | 内容 |
-| --- | --- |
-| `rtl/dea8_pcore_control.sv` | PCore 顶层控制与单元接口 |
-| `rtl/dea8_pcore_exec.sv`、`rtl/dea8_matrix.sv` | 三类 Job 执行与共享矩阵通路 |
-| `rtl/dea8_qoz_manager.sv`、`rtl/dea8_qoz_store.sv` | Q/O/Z 所有权和本地存储 |
-| `rtl/dea8_pcore_output.sv`、`rtl/dea8_kv_tile_sender.sv` | K/V 与 O/Down 输出 |
-| `rtl/dea8_tile_link_pkg.sv` | 与 Reduce/GCore 共用的 header、commit 和布局定义 |
-| `tb/tb_pcore_control.sv` | 当前七 Job 数值与流水仿真主入口 |
-| `pcore_all.f` | 当前源文件编译清单 |
-| `legacy/` | 旧模块兼容回归材料 |
-
-详细说明：[PCore 控制中心](docs/PCore_Control_Center.md)、[PCore 外发与 Reduce](docs/PCore_Output_and_Reduce.md)。整体架构文档中的旧输出宽度与 Reduce 职责尚待同步。
-
-## 6. 如何运行
-
-从本目录执行，只跑当前七 Job TB：
+## 仿真与物理验证
 
 ```powershell
-$VivadoRoot = 'D:\Xilinx\Vivado\2022.2'
-& "$VivadoRoot\bin\xvlog.bat" -sv -f pcore_all.f "$VivadoRoot\data\verilog\src\glbl.v"
-# 编译成功后展开；O0 避开此前 XSim O2 在此 TB 上出现的内部断言
-& "$VivadoRoot\bin\xelab.bat" tb_pcore_control glbl -s pcore_7job --O0 --debug typical --mt off -timescale 1ns/1ps -L unisims_ver
-# 展开成功后运行；默认 FUNCTIONAL
-& "$VivadoRoot\bin\xsim.bat" pcore_7job -runall -log reports/pcore_7job.log
+# 短套件：算术、stream、动态M、64Tile Matrix、RAW负例
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run_deqacc_v3.ps1
+# 完整PCore七Job仅显式需要时运行，耗时较长
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run_deqacc_v3.ps1 -SevenJobs
+# 精简全流程，不生成逐lane/Pblock长统计
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run_deqacc_v3_route.ps1
 ```
 
-PERFORMANCE 建议用 XSim options 文件传参，避免 Windows PowerShell 5.1 对 `MODE=PERFORMANCE` 的参数拆分。文件内容：
+报告为`reports/v3_simulation/`和`reports/v3_postroute/`；每级logic/route/total/slack见`stages.csv`。时序是post-route STA，不是综合估算或硅片测量。
 
-```text
--runall
--testplusarg MODE=PERFORMANCE
-```
+冻结manifest为`V3_FROZEN.sha256.csv`。复现入口先验证冻结源hash，不会静默覆盖已存在证据。日志返回码0不代表测试成功，脚本同时核对PASS/Fatal/Error与物理裕度。
 
-保存为本地 `performance.options` 后执行：
+只核对冻结状态、不重跑仿真或实现：
 
 ```powershell
-& "$VivadoRoot\bin\xsim.bat" pcore_7job -f performance.options -log reports/pcore_7job_performance.log
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\freeze_deqacc_v3.ps1 -VerifyOnly
 ```
 
-加上 `-testplusarg ATTENTION_ONLY` 可聚焦 Attention。最终成功需同时确认返回码、无 Fatal/Error 和 `tb_pcore_control PASS`，不能只看 XSim 退出码。
+## 系统边界
 
-现有扩展入口：`run_pcore_xsim.ps1` 为多 TB 完整回归；`run_control.ps1` / `run_control_signoff.ps1` 包含控制、fault/cancel 和多 seed stress 等场景。只看七 Job 周期时，不需要默认运行这些长回归。
+完整PCore副本仍保留K/V/Q/Attention/O/G-U/Down控制、QOZ、VPU/SFU接口与输出。短套件覆盖DEQACC、真实Matrix和动态M，未重新跑V3完整七Job/八核系统；其余模块中的历史README只描述原接口边界，不扩展V3验收范围。
 
-## 7. 接下来做什么
-
-1. 重建当前输出接口下的七 Job PERFORMANCE 基线，重点分解 K/V 发送与 commit 尾部
-2. 核对 ALPHA_EXP/RECIP 的 SFU4 吞吐与 workspace 访问能否合理重叠
-3. 对接真实 VPU/SFU、GCore/HBM 与八核 Reduce，确认真实反压和跨模块完成条件
+修改仅在独立DEQACC目录，DEA8冻结。旧方案文档在`../history/`，旧区域实验的布线数据已删除；旧golden、A11源码与test-only发布参考保留。

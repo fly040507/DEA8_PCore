@@ -4,6 +4,8 @@ module tb_dynamic_frontend #(parameter bit LOCAL_TEST=0);
   logic clk=0;always #2 clk=~clk;
   logic reset=1,clear=0,job_valid=0,job_ready,busy,done_valid,done_ready=0,protocol_error;
   compute_job_t job='0,current;
+  logic gu_capture_ready=1;
+  logic launch_allow=1;compute_job_t done_work;
   b_source_e job_b_source=B_HBM;
   a_source_e job_a_source=A_XBC;
   logic local_cmd_valid=0,local_cmd_ready,local_rd_valid,local_rd_ready;

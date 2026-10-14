@@ -14,10 +14,13 @@ module dea8_local_memory (
   output logic out_valid,input logic out_ready,output local_response_t out_response,
   output logic qoz_active,qoz_complete,qoz_bound,
   output logic [1:0] pbuf_active,pbuf_complete,pbuf_bound,
+  output local_object_t qoz_object,output local_object_t pbuf_object[0:1],
   output logic protocol_error,empty
 );
   logic [1:0] ar,br,rr,wrdy,rdr,ov,oe,errors;
   local_response_t responses[0:1];
+  local_object_t qo[0:0];
+  assign qoz_object=qo[0];
   logic read_source_q,select_read,read_allowed,enabled;
   logic [$clog2(3)-1:0] outstanding;
   assign select_read=rd.kind==LOCAL_P;
@@ -54,7 +57,7 @@ module dea8_local_memory (
     .wr_valid(wr_valid&&enabled&&wr.kind!=LOCAL_P),.wr_ready(wrdy[0]),.wr,
     .rd_valid(rd_valid&&enabled&&read_allowed&&!select_read),.rd_ready(rdr[0]),.rd,
     .out_valid(ov[0]),.out_ready(out_ready&&enabled&&outstanding!=0&&!read_source_q),.out_response(responses[0]),
-    .active(qoz_active),.complete(qoz_complete),.bound(qoz_bound),.protocol_error(errors[0]),.empty(oe[0]));
+    .active(qoz_active),.complete(qoz_complete),.bound(qoz_bound),.object_state(qo),.protocol_error(errors[0]),.empty(oe[0]));
   dea8_quant_store #(.QOZ(0)) pbuf(.clk,.reset,.clear,
     .acquire_valid(acquire_valid&&enabled&&acquire_object.kind==LOCAL_P),.acquire_ready(ar[1]),.acquire_set,
     .acquire_object,.producer_token,
@@ -63,5 +66,5 @@ module dea8_local_memory (
     .wr_valid(wr_valid&&enabled&&wr.kind==LOCAL_P),.wr_ready(wrdy[1]),.wr,
     .rd_valid(rd_valid&&enabled&&read_allowed&&select_read),.rd_ready(rdr[1]),.rd,
     .out_valid(ov[1]),.out_ready(out_ready&&enabled&&outstanding!=0&&read_source_q),.out_response(responses[1]),
-    .active(pbuf_active),.complete(pbuf_complete),.bound(pbuf_bound),.protocol_error(errors[1]),.empty(oe[1]));
+    .active(pbuf_active),.complete(pbuf_complete),.bound(pbuf_bound),.object_state(pbuf_object),.protocol_error(errors[1]),.empty(oe[1]));
 endmodule

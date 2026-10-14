@@ -18,9 +18,11 @@ module dea8_quant_store #(
   input logic rd_valid,output logic rd_ready,input local_read_t rd,
   output logic out_valid,input logic out_ready,output local_response_t out_response,
   output logic [SETS-1:0] active,complete,bound,
+  output local_object_t object_state[0:SETS-1],
   output logic protocol_error,empty
 );
   local_object_t objects[SETS];
+  for(genvar s=0;s<SETS;s++)assign object_state[s]=objects[s];
   job_token_t writers[SETS],readers[SETS];
   logic [ROWS-1:0] written[SETS][TILES_PER_SET];
   logic [TILES_PER_SET-1:0] tile_done[SETS];

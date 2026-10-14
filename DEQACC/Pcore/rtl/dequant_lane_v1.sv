@@ -24,6 +24,31 @@ module dequant_lane_v1(
   logic signed [11:0] exponent_work;
   logic [31:0] magnitude;
   logic [31:0] next_value;
+  logic [24:0] normal_rounded,sub_rounded;
+  logic signed [11:0] normal_distance,sub_distance;
+
+  // Shift significand and GRS together. Each fixed barrel stage jams only
+  // discarded bits, avoiding a separate 32-way guard/sticky case network.
+  function automatic logic [34:0] right_jam35(input logic [34:0] value,input logic [5:0] amount);
+    logic [34:0] s1,s2,s4,s8,s16;
+    s1=amount[0]?{1'b0,value[34:2],|value[1:0]}:value;
+    s2=amount[1]?{2'b0,s1[34:3],|s1[2:0]}:s1;
+    s4=amount[2]?{4'b0,s2[34:5],|s2[4:0]}:s2;
+    s8=amount[3]?{8'b0,s4[34:9],|s4[8:0]}:s4;
+    s16=amount[4]?{16'b0,s8[34:17],|s8[16:0]}:s8;
+    return amount[5]?{32'b0,s16[34:33],|s16[32:0]}:s16;
+  endfunction
+  function automatic logic [24:0] round24(input logic [31:0] value,input logic signed [11:0] distance);
+    logic [34:0] shifted;
+    logic [5:0] amount;
+    if(distance<=0)begin
+      amount=6'(-distance);
+      // Legal conversion inputs never left-shift beyond the 24-bit result.
+      shifted={value,3'b0}<<amount;
+    end else if(distance>32)shifted=0;
+    else shifted=right_jam35({value,3'b0},6'(distance));
+    return {1'b0,shifted[26:3]}+25'(shifted[2]&&(shifted[1]||shifted[0]||shifted[3]));
+  endfunction
 
   function automatic logic [31:0] abs32(input logic signed [31:0] value);
     return value[31]?(~value+32'd1):value;
@@ -160,9 +185,13 @@ module dequant_lane_v1(
   always_comb begin
     magnitude=abs32(psum);
     exponent=$signed(base_q)+$signed({7'b0,lead_q});
-    shift_distance=(exponent<-126)?-($signed(base_q)+12'sd149):
-      $signed({7'b0,lead_q})-12'sd23;
-    rounded_shift=rne_fixed(mag_q,shift_distance);
+    normal_distance=$signed({7'b0,lead_q})-12'sd23;
+    sub_distance=-($signed(base_q)+12'sd149);
+    // Compute in parallel; exponent classification no longer precedes the
+    // barrel/rounder. Exactly one rounding is applied on the selected path.
+    normal_rounded=round24(mag_q,normal_distance);
+    sub_rounded=round24(mag_q,sub_distance);
+    rounded_shift={8'b0,normal_rounded};
     exponent_work=exponent;
     rounded_normal=rounded_shift;
     if(exponent>=-126 && rounded_shift[24]) begin
@@ -172,7 +201,7 @@ module dequant_lane_v1(
     next_value=0;
     if(bad_q) next_value=FP_QNAN;
     else if(zero_q) next_value=0;
-    else if(exponent<-126) next_value={sign_q,7'b0,rounded_shift[23:0]};
+    else if(exponent<-126) next_value={sign_q,7'b0,sub_rounded[23:0]};
     else begin
       next_value=exponent_work>127?{sign_q,FP_INF[30:0]}:
         {sign_q,8'(exponent_work+127),rounded_normal[22:0]};
