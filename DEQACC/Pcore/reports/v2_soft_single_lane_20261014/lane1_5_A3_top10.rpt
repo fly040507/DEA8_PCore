@@ -1,0 +1,768 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version      : Vivado v.2022.2 (win64) Build 3671981 Fri Oct 14 05:00:03 MDT 2022
+| Date              : Wed Oct 14 12:09:58 2026
+| Host              : FLY running 64-bit major release  (build 9200)
+| Command           : report_timing -to {{core/physical_regions[1].lanes[5].add/result_value_reg[0]} {core/physical_regions[1].lanes[5].add/result_value_reg[10]} {core/physical_regions[1].lanes[5].add/result_value_reg[11]} {core/physical_regions[1].lanes[5].add/result_value_reg[12]} {core/physical_regions[1].lanes[5].add/result_value_reg[13]} {core/physical_regions[1].lanes[5].add/result_value_reg[14]} {core/physical_regions[1].lanes[5].add/result_value_reg[15]} {core/physical_regions[1].lanes[5].add/result_value_reg[16]} {core/physical_regions[1].lanes[5].add/result_value_reg[17]} {core/physical_regions[1].lanes[5].add/result_value_reg[18]} {core/physical_regions[1].lanes[5].add/result_value_reg[19]} {core/physical_regions[1].lanes[5].add/result_value_reg[1]} {core/physical_regions[1].lanes[5].add/result_value_reg[20]} {core/physical_regions[1].lanes[5].add/result_value_reg[21]} {core/physical_regions[1].lanes[5].add/result_value_reg[22]} {core/physical_regions[1].lanes[5].add/result_value_reg[23]} {core/physical_regions[1].lanes[5].add/result_value_reg[24]} {core/physical_regions[1].lanes[5].add/result_value_reg[25]} {core/physical_regions[1].lanes[5].add/result_value_reg[26]} {core/physical_regions[1].lanes[5].add/result_value_reg[27]} {core/physical_regions[1].lanes[5].add/result_value_reg[28]} {core/physical_regions[1].lanes[5].add/result_value_reg[29]} {core/physical_regions[1].lanes[5].add/result_value_reg[2]} {core/physical_regions[1].lanes[5].add/result_value_reg[30]} {core/physical_regions[1].lanes[5].add/result_value_reg[31]} {core/physical_regions[1].lanes[5].add/result_value_reg[3]} {core/physical_regions[1].lanes[5].add/result_value_reg[4]} {core/physical_regions[1].lanes[5].add/result_value_reg[5]} {core/physical_regions[1].lanes[5].add/result_value_reg[6]} {core/physical_regions[1].lanes[5].add/result_value_reg[7]} {core/physical_regions[1].lanes[5].add/result_value_reg[8]} {core/physical_regions[1].lanes[5].add/result_value_reg[9]}} -delay_type max -max_paths 10 -nworst 1 -path_type full -input_pins -return_string
+| Design            : deqacc_v2_timing_shell
+| Device            : xcu50-fsvh2104
+| Speed File        : -2  PRODUCTION 1.30 05-01-2022
+| Temperature Grade : E
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Timing Report
+
+Slack (MET) :             1.205ns  (required time - arrival time)
+  Source:                 core/physical_regions[1].lanes[5].add/candidates_q_reg[close_path]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/physical_regions[1].lanes[5].add/result_value_reg[4]/R
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.592ns  (logic 0.525ns (20.254%)  route 2.067ns (79.746%))
+  Logic Levels:           4  (LUT3=1 LUT4=1 LUT6=2)
+  Clock Path Skew:        -0.094ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    2.069ns = ( 6.069 - 4.000 ) 
+    Source Clock Delay      (SCD):    2.336ns
+    Clock Pessimism Removal (CPR):    0.173ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    PBlock               Netlist Resource(s)
+  -------------------------------------------------------------------    ----------------------------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r                       
+                         propagated clock network latency
+                                                      2.336     2.336                         
+    SLICE_X91Y48         FDRE                         0.000     2.336 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/candidates_q_reg[close_path]/C
+    SLICE_X91Y48         FDRE (Prop_AFF_SLICEM_C_Q)
+                                                      0.077     2.413 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/candidates_q_reg[close_path]/Q
+                         net (fo=37, routed)          1.007     3.420                         core/physical_regions[1].lanes[5].add/candidates_q_reg[close_path_n_0_]
+    SLICE_X98Y63                                                      r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_3/I4
+    SLICE_X98Y63         LUT6 (Prop_G6LUT_SLICEL_I4_O)
+                                                      0.149     3.569 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_3/O
+                         net (fo=3, routed)           0.211     3.779                         core/physical_regions[1].lanes[5].add/result_value[30]_i_3_n_0
+    SLICE_X99Y60                                                      r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_7/I1
+    SLICE_X99Y60         LUT4 (Prop_B6LUT_SLICEM_I1_O)
+                                                      0.125     3.904 f  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_7/O
+                         net (fo=1, routed)           0.106     4.010                         core/physical_regions[1].lanes[5].add/result_value[30]_i_7_n_0
+    SLICE_X99Y60                                                      f  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_4/I4
+    SLICE_X99Y60         LUT6 (Prop_C6LUT_SLICEM_I4_O)
+                                                      0.123     4.133 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_4/O
+                         net (fo=32, routed)          0.219     4.352                         core/physical_regions[1].lanes[5].add/result_value[30]_i_4_n_0
+    SLICE_X98Y56                                                      r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[22]_i_1/I0
+    SLICE_X98Y56         LUT3 (Prop_B6LUT_SLICEL_I0_O)
+                                                      0.051     4.403 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[22]_i_1/O
+                         net (fo=23, routed)          0.525     4.928                         core/physical_regions[1].lanes[5].add/result_value[22]_i_1_n_0
+    SLICE_X93Y53         FDRE                                         r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value_reg[4]/R
+  -------------------------------------------------------------------    ----------------------------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r                       
+                         propagated clock network latency
+                                                      2.069     6.069                         
+                         clock pessimism              0.173     6.242                           
+                         clock uncertainty           -0.035     6.207                           
+    SLICE_X93Y53         FDRE (Setup_DFF_SLICEL_C_R)
+                                                     -0.074     6.133    deqacc_v2_soft_r0_c13
+                                                                                                core/physical_regions[1].lanes[5].add/result_value_reg[4]
+  -------------------------------------------------------------------
+                         required time                          6.133                           
+                         arrival time                          -4.928                           
+  -------------------------------------------------------------------
+                         slack                                  1.205                           
+
+Slack (MET) :             1.205ns  (required time - arrival time)
+  Source:                 core/physical_regions[1].lanes[5].add/candidates_q_reg[close_path]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/physical_regions[1].lanes[5].add/result_value_reg[6]/R
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.592ns  (logic 0.525ns (20.254%)  route 2.067ns (79.746%))
+  Logic Levels:           4  (LUT3=1 LUT4=1 LUT6=2)
+  Clock Path Skew:        -0.094ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    2.069ns = ( 6.069 - 4.000 ) 
+    Source Clock Delay      (SCD):    2.336ns
+    Clock Pessimism Removal (CPR):    0.173ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    PBlock               Netlist Resource(s)
+  -------------------------------------------------------------------    ----------------------------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r                       
+                         propagated clock network latency
+                                                      2.336     2.336                         
+    SLICE_X91Y48         FDRE                         0.000     2.336 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/candidates_q_reg[close_path]/C
+    SLICE_X91Y48         FDRE (Prop_AFF_SLICEM_C_Q)
+                                                      0.077     2.413 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/candidates_q_reg[close_path]/Q
+                         net (fo=37, routed)          1.007     3.420                         core/physical_regions[1].lanes[5].add/candidates_q_reg[close_path_n_0_]
+    SLICE_X98Y63                                                      r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_3/I4
+    SLICE_X98Y63         LUT6 (Prop_G6LUT_SLICEL_I4_O)
+                                                      0.149     3.569 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_3/O
+                         net (fo=3, routed)           0.211     3.779                         core/physical_regions[1].lanes[5].add/result_value[30]_i_3_n_0
+    SLICE_X99Y60                                                      r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_7/I1
+    SLICE_X99Y60         LUT4 (Prop_B6LUT_SLICEM_I1_O)
+                                                      0.125     3.904 f  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_7/O
+                         net (fo=1, routed)           0.106     4.010                         core/physical_regions[1].lanes[5].add/result_value[30]_i_7_n_0
+    SLICE_X99Y60                                                      f  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_4/I4
+    SLICE_X99Y60         LUT6 (Prop_C6LUT_SLICEM_I4_O)
+                                                      0.123     4.133 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_4/O
+                         net (fo=32, routed)          0.219     4.352                         core/physical_regions[1].lanes[5].add/result_value[30]_i_4_n_0
+    SLICE_X98Y56                                                      r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[22]_i_1/I0
+    SLICE_X98Y56         LUT3 (Prop_B6LUT_SLICEL_I0_O)
+                                                      0.051     4.403 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[22]_i_1/O
+                         net (fo=23, routed)          0.525     4.928                         core/physical_regions[1].lanes[5].add/result_value[22]_i_1_n_0
+    SLICE_X93Y53         FDRE                                         r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value_reg[6]/R
+  -------------------------------------------------------------------    ----------------------------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r                       
+                         propagated clock network latency
+                                                      2.069     6.069                         
+                         clock pessimism              0.173     6.242                           
+                         clock uncertainty           -0.035     6.207                           
+    SLICE_X93Y53         FDRE (Setup_CFF_SLICEL_C_R)
+                                                     -0.074     6.133    deqacc_v2_soft_r0_c13
+                                                                                                core/physical_regions[1].lanes[5].add/result_value_reg[6]
+  -------------------------------------------------------------------
+                         required time                          6.133                           
+                         arrival time                          -4.928                           
+  -------------------------------------------------------------------
+                         slack                                  1.205                           
+
+Slack (MET) :             1.205ns  (required time - arrival time)
+  Source:                 core/physical_regions[1].lanes[5].add/candidates_q_reg[close_path]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/physical_regions[1].lanes[5].add/result_value_reg[8]/R
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.592ns  (logic 0.525ns (20.254%)  route 2.067ns (79.746%))
+  Logic Levels:           4  (LUT3=1 LUT4=1 LUT6=2)
+  Clock Path Skew:        -0.094ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    2.069ns = ( 6.069 - 4.000 ) 
+    Source Clock Delay      (SCD):    2.336ns
+    Clock Pessimism Removal (CPR):    0.173ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    PBlock               Netlist Resource(s)
+  -------------------------------------------------------------------    ----------------------------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r                       
+                         propagated clock network latency
+                                                      2.336     2.336                         
+    SLICE_X91Y48         FDRE                         0.000     2.336 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/candidates_q_reg[close_path]/C
+    SLICE_X91Y48         FDRE (Prop_AFF_SLICEM_C_Q)
+                                                      0.077     2.413 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/candidates_q_reg[close_path]/Q
+                         net (fo=37, routed)          1.007     3.420                         core/physical_regions[1].lanes[5].add/candidates_q_reg[close_path_n_0_]
+    SLICE_X98Y63                                                      r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_3/I4
+    SLICE_X98Y63         LUT6 (Prop_G6LUT_SLICEL_I4_O)
+                                                      0.149     3.569 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_3/O
+                         net (fo=3, routed)           0.211     3.779                         core/physical_regions[1].lanes[5].add/result_value[30]_i_3_n_0
+    SLICE_X99Y60                                                      r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_7/I1
+    SLICE_X99Y60         LUT4 (Prop_B6LUT_SLICEM_I1_O)
+                                                      0.125     3.904 f  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_7/O
+                         net (fo=1, routed)           0.106     4.010                         core/physical_regions[1].lanes[5].add/result_value[30]_i_7_n_0
+    SLICE_X99Y60                                                      f  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_4/I4
+    SLICE_X99Y60         LUT6 (Prop_C6LUT_SLICEM_I4_O)
+                                                      0.123     4.133 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_4/O
+                         net (fo=32, routed)          0.219     4.352                         core/physical_regions[1].lanes[5].add/result_value[30]_i_4_n_0
+    SLICE_X98Y56                                                      r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[22]_i_1/I0
+    SLICE_X98Y56         LUT3 (Prop_B6LUT_SLICEL_I0_O)
+                                                      0.051     4.403 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[22]_i_1/O
+                         net (fo=23, routed)          0.525     4.928                         core/physical_regions[1].lanes[5].add/result_value[22]_i_1_n_0
+    SLICE_X93Y53         FDRE                                         r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value_reg[8]/R
+  -------------------------------------------------------------------    ----------------------------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r                       
+                         propagated clock network latency
+                                                      2.069     6.069                         
+                         clock pessimism              0.173     6.242                           
+                         clock uncertainty           -0.035     6.207                           
+    SLICE_X93Y53         FDRE (Setup_BFF_SLICEL_C_R)
+                                                     -0.074     6.133    deqacc_v2_soft_r0_c13
+                                                                                                core/physical_regions[1].lanes[5].add/result_value_reg[8]
+  -------------------------------------------------------------------
+                         required time                          6.133                           
+                         arrival time                          -4.928                           
+  -------------------------------------------------------------------
+                         slack                                  1.205                           
+
+Slack (MET) :             1.285ns  (required time - arrival time)
+  Source:                 core/physical_regions[1].lanes[5].add/candidates_q_reg[close_path]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/physical_regions[1].lanes[5].add/result_value_reg[9]/R
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.521ns  (logic 0.525ns (20.826%)  route 1.996ns (79.174%))
+  Logic Levels:           4  (LUT3=1 LUT4=1 LUT6=2)
+  Clock Path Skew:        -0.084ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    2.079ns = ( 6.079 - 4.000 ) 
+    Source Clock Delay      (SCD):    2.336ns
+    Clock Pessimism Removal (CPR):    0.173ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    PBlock               Netlist Resource(s)
+  -------------------------------------------------------------------    ----------------------------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r                       
+                         propagated clock network latency
+                                                      2.336     2.336                         
+    SLICE_X91Y48         FDRE                         0.000     2.336 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/candidates_q_reg[close_path]/C
+    SLICE_X91Y48         FDRE (Prop_AFF_SLICEM_C_Q)
+                                                      0.077     2.413 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/candidates_q_reg[close_path]/Q
+                         net (fo=37, routed)          1.007     3.420                         core/physical_regions[1].lanes[5].add/candidates_q_reg[close_path_n_0_]
+    SLICE_X98Y63                                                      r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_3/I4
+    SLICE_X98Y63         LUT6 (Prop_G6LUT_SLICEL_I4_O)
+                                                      0.149     3.569 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_3/O
+                         net (fo=3, routed)           0.211     3.779                         core/physical_regions[1].lanes[5].add/result_value[30]_i_3_n_0
+    SLICE_X99Y60                                                      r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_7/I1
+    SLICE_X99Y60         LUT4 (Prop_B6LUT_SLICEM_I1_O)
+                                                      0.125     3.904 f  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_7/O
+                         net (fo=1, routed)           0.106     4.010                         core/physical_regions[1].lanes[5].add/result_value[30]_i_7_n_0
+    SLICE_X99Y60                                                      f  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_4/I4
+    SLICE_X99Y60         LUT6 (Prop_C6LUT_SLICEM_I4_O)
+                                                      0.123     4.133 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_4/O
+                         net (fo=32, routed)          0.219     4.352                         core/physical_regions[1].lanes[5].add/result_value[30]_i_4_n_0
+    SLICE_X98Y56                                                      r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[22]_i_1/I0
+    SLICE_X98Y56         LUT3 (Prop_B6LUT_SLICEL_I0_O)
+                                                      0.051     4.403 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[22]_i_1/O
+                         net (fo=23, routed)          0.454     4.857                         core/physical_regions[1].lanes[5].add/result_value[22]_i_1_n_0
+    SLICE_X94Y53         FDRE                                         r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value_reg[9]/R
+  -------------------------------------------------------------------    ----------------------------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r                       
+                         propagated clock network latency
+                                                      2.079     6.079                         
+                         clock pessimism              0.173     6.252                           
+                         clock uncertainty           -0.035     6.216                           
+    SLICE_X94Y53         FDRE (Setup_DFF_SLICEM_C_R)
+                                                     -0.074     6.142    deqacc_v2_soft_r0_c13
+                                                                                                core/physical_regions[1].lanes[5].add/result_value_reg[9]
+  -------------------------------------------------------------------
+                         required time                          6.142                           
+                         arrival time                          -4.857                           
+  -------------------------------------------------------------------
+                         slack                                  1.285                           
+
+Slack (MET) :             1.300ns  (required time - arrival time)
+  Source:                 core/physical_regions[1].lanes[5].add/candidates_q_reg[close_path]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/physical_regions[1].lanes[5].add/result_value_reg[0]/R
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.566ns  (logic 0.525ns (20.459%)  route 2.041ns (79.541%))
+  Logic Levels:           4  (LUT3=1 LUT4=1 LUT6=2)
+  Clock Path Skew:        -0.024ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    2.137ns = ( 6.137 - 4.000 ) 
+    Source Clock Delay      (SCD):    2.336ns
+    Clock Pessimism Removal (CPR):    0.175ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    PBlock               Netlist Resource(s)
+  -------------------------------------------------------------------    ----------------------------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r                       
+                         propagated clock network latency
+                                                      2.336     2.336                         
+    SLICE_X91Y48         FDRE                         0.000     2.336 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/candidates_q_reg[close_path]/C
+    SLICE_X91Y48         FDRE (Prop_AFF_SLICEM_C_Q)
+                                                      0.077     2.413 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/candidates_q_reg[close_path]/Q
+                         net (fo=37, routed)          1.007     3.420                         core/physical_regions[1].lanes[5].add/candidates_q_reg[close_path_n_0_]
+    SLICE_X98Y63                                                      r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_3/I4
+    SLICE_X98Y63         LUT6 (Prop_G6LUT_SLICEL_I4_O)
+                                                      0.149     3.569 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_3/O
+                         net (fo=3, routed)           0.211     3.779                         core/physical_regions[1].lanes[5].add/result_value[30]_i_3_n_0
+    SLICE_X99Y60                                                      r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_7/I1
+    SLICE_X99Y60         LUT4 (Prop_B6LUT_SLICEM_I1_O)
+                                                      0.125     3.904 f  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_7/O
+                         net (fo=1, routed)           0.106     4.010                         core/physical_regions[1].lanes[5].add/result_value[30]_i_7_n_0
+    SLICE_X99Y60                                                      f  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_4/I4
+    SLICE_X99Y60         LUT6 (Prop_C6LUT_SLICEM_I4_O)
+                                                      0.123     4.133 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_4/O
+                         net (fo=32, routed)          0.219     4.352                         core/physical_regions[1].lanes[5].add/result_value[30]_i_4_n_0
+    SLICE_X98Y56                                                      r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[22]_i_1/I0
+    SLICE_X98Y56         LUT3 (Prop_B6LUT_SLICEL_I0_O)
+                                                      0.051     4.403 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[22]_i_1/O
+                         net (fo=23, routed)          0.499     4.902                         core/physical_regions[1].lanes[5].add/result_value[22]_i_1_n_0
+    SLICE_X99Y58         FDRE                                         r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value_reg[0]/R
+  -------------------------------------------------------------------    ----------------------------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r                       
+                         propagated clock network latency
+                                                      2.137     6.137                         
+                         clock pessimism              0.175     6.312                           
+                         clock uncertainty           -0.035     6.277                           
+    SLICE_X99Y58         FDRE (Setup_HFF_SLICEM_C_R)
+                                                     -0.074     6.203    deqacc_v2_soft_r0_c13
+                                                                                                core/physical_regions[1].lanes[5].add/result_value_reg[0]
+  -------------------------------------------------------------------
+                         required time                          6.203                           
+                         arrival time                          -4.902                           
+  -------------------------------------------------------------------
+                         slack                                  1.300                           
+
+Slack (MET) :             1.358ns  (required time - arrival time)
+  Source:                 core/physical_regions[1].lanes[5].add/candidates_q_reg[close_path]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/physical_regions[1].lanes[5].add/result_value_reg[21]/R
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.506ns  (logic 0.525ns (20.952%)  route 1.981ns (79.048%))
+  Logic Levels:           4  (LUT3=1 LUT4=1 LUT6=2)
+  Clock Path Skew:        -0.027ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    2.134ns = ( 6.134 - 4.000 ) 
+    Source Clock Delay      (SCD):    2.336ns
+    Clock Pessimism Removal (CPR):    0.175ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    PBlock               Netlist Resource(s)
+  -------------------------------------------------------------------    ----------------------------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r                       
+                         propagated clock network latency
+                                                      2.336     2.336                         
+    SLICE_X91Y48         FDRE                         0.000     2.336 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/candidates_q_reg[close_path]/C
+    SLICE_X91Y48         FDRE (Prop_AFF_SLICEM_C_Q)
+                                                      0.077     2.413 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/candidates_q_reg[close_path]/Q
+                         net (fo=37, routed)          1.007     3.420                         core/physical_regions[1].lanes[5].add/candidates_q_reg[close_path_n_0_]
+    SLICE_X98Y63                                                      r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_3/I4
+    SLICE_X98Y63         LUT6 (Prop_G6LUT_SLICEL_I4_O)
+                                                      0.149     3.569 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_3/O
+                         net (fo=3, routed)           0.211     3.779                         core/physical_regions[1].lanes[5].add/result_value[30]_i_3_n_0
+    SLICE_X99Y60                                                      r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_7/I1
+    SLICE_X99Y60         LUT4 (Prop_B6LUT_SLICEM_I1_O)
+                                                      0.125     3.904 f  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_7/O
+                         net (fo=1, routed)           0.106     4.010                         core/physical_regions[1].lanes[5].add/result_value[30]_i_7_n_0
+    SLICE_X99Y60                                                      f  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_4/I4
+    SLICE_X99Y60         LUT6 (Prop_C6LUT_SLICEM_I4_O)
+                                                      0.123     4.133 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_4/O
+                         net (fo=32, routed)          0.219     4.352                         core/physical_regions[1].lanes[5].add/result_value[30]_i_4_n_0
+    SLICE_X98Y56                                                      r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[22]_i_1/I0
+    SLICE_X98Y56         LUT3 (Prop_B6LUT_SLICEL_I0_O)
+                                                      0.051     4.403 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[22]_i_1/O
+                         net (fo=23, routed)          0.439     4.842                         core/physical_regions[1].lanes[5].add/result_value[22]_i_1_n_0
+    SLICE_X96Y59         FDRE                                         r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value_reg[21]/R
+  -------------------------------------------------------------------    ----------------------------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r                       
+                         propagated clock network latency
+                                                      2.134     6.134                         
+                         clock pessimism              0.175     6.309                           
+                         clock uncertainty           -0.035     6.274                           
+    SLICE_X96Y59         FDRE (Setup_DFF_SLICEL_C_R)
+                                                     -0.074     6.200    deqacc_v2_soft_r0_c13
+                                                                                                core/physical_regions[1].lanes[5].add/result_value_reg[21]
+  -------------------------------------------------------------------
+                         required time                          6.200                           
+                         arrival time                          -4.842                           
+  -------------------------------------------------------------------
+                         slack                                  1.358                           
+
+Slack (MET) :             1.367ns  (required time - arrival time)
+  Source:                 core/physical_regions[1].lanes[5].add/candidates_q_reg[close_path]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/physical_regions[1].lanes[5].add/result_value_reg[7]/R
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.437ns  (logic 0.525ns (21.545%)  route 1.912ns (78.455%))
+  Logic Levels:           4  (LUT3=1 LUT4=1 LUT6=2)
+  Clock Path Skew:        -0.086ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    2.077ns = ( 6.077 - 4.000 ) 
+    Source Clock Delay      (SCD):    2.336ns
+    Clock Pessimism Removal (CPR):    0.173ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    PBlock               Netlist Resource(s)
+  -------------------------------------------------------------------    ----------------------------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r                       
+                         propagated clock network latency
+                                                      2.336     2.336                         
+    SLICE_X91Y48         FDRE                         0.000     2.336 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/candidates_q_reg[close_path]/C
+    SLICE_X91Y48         FDRE (Prop_AFF_SLICEM_C_Q)
+                                                      0.077     2.413 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/candidates_q_reg[close_path]/Q
+                         net (fo=37, routed)          1.007     3.420                         core/physical_regions[1].lanes[5].add/candidates_q_reg[close_path_n_0_]
+    SLICE_X98Y63                                                      r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_3/I4
+    SLICE_X98Y63         LUT6 (Prop_G6LUT_SLICEL_I4_O)
+                                                      0.149     3.569 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_3/O
+                         net (fo=3, routed)           0.211     3.779                         core/physical_regions[1].lanes[5].add/result_value[30]_i_3_n_0
+    SLICE_X99Y60                                                      r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_7/I1
+    SLICE_X99Y60         LUT4 (Prop_B6LUT_SLICEM_I1_O)
+                                                      0.125     3.904 f  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_7/O
+                         net (fo=1, routed)           0.106     4.010                         core/physical_regions[1].lanes[5].add/result_value[30]_i_7_n_0
+    SLICE_X99Y60                                                      f  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_4/I4
+    SLICE_X99Y60         LUT6 (Prop_C6LUT_SLICEM_I4_O)
+                                                      0.123     4.133 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_4/O
+                         net (fo=32, routed)          0.219     4.352                         core/physical_regions[1].lanes[5].add/result_value[30]_i_4_n_0
+    SLICE_X98Y56                                                      r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[22]_i_1/I0
+    SLICE_X98Y56         LUT3 (Prop_B6LUT_SLICEL_I0_O)
+                                                      0.051     4.403 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[22]_i_1/O
+                         net (fo=23, routed)          0.370     4.773                         core/physical_regions[1].lanes[5].add/result_value[22]_i_1_n_0
+    SLICE_X93Y54         FDRE                                         r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value_reg[7]/R
+  -------------------------------------------------------------------    ----------------------------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r                       
+                         propagated clock network latency
+                                                      2.077     6.077                         
+                         clock pessimism              0.173     6.250                           
+                         clock uncertainty           -0.035     6.214                           
+    SLICE_X93Y54         FDRE (Setup_HFF_SLICEL_C_R)
+                                                     -0.074     6.140    deqacc_v2_soft_r0_c13
+                                                                                                core/physical_regions[1].lanes[5].add/result_value_reg[7]
+  -------------------------------------------------------------------
+                         required time                          6.140                           
+                         arrival time                          -4.773                           
+  -------------------------------------------------------------------
+                         slack                                  1.367                           
+
+Slack (MET) :             1.374ns  (required time - arrival time)
+  Source:                 core/physical_regions[1].lanes[5].add/candidates_q_reg[close_path]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/physical_regions[1].lanes[5].add/result_value_reg[12]/R
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.487ns  (logic 0.525ns (21.108%)  route 1.962ns (78.892%))
+  Logic Levels:           4  (LUT3=1 LUT4=1 LUT6=2)
+  Clock Path Skew:        -0.029ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    2.131ns = ( 6.131 - 4.000 ) 
+    Source Clock Delay      (SCD):    2.336ns
+    Clock Pessimism Removal (CPR):    0.175ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    PBlock               Netlist Resource(s)
+  -------------------------------------------------------------------    ----------------------------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r                       
+                         propagated clock network latency
+                                                      2.336     2.336                         
+    SLICE_X91Y48         FDRE                         0.000     2.336 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/candidates_q_reg[close_path]/C
+    SLICE_X91Y48         FDRE (Prop_AFF_SLICEM_C_Q)
+                                                      0.077     2.413 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/candidates_q_reg[close_path]/Q
+                         net (fo=37, routed)          1.007     3.420                         core/physical_regions[1].lanes[5].add/candidates_q_reg[close_path_n_0_]
+    SLICE_X98Y63                                                      r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_3/I4
+    SLICE_X98Y63         LUT6 (Prop_G6LUT_SLICEL_I4_O)
+                                                      0.149     3.569 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_3/O
+                         net (fo=3, routed)           0.211     3.779                         core/physical_regions[1].lanes[5].add/result_value[30]_i_3_n_0
+    SLICE_X99Y60                                                      r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_7/I1
+    SLICE_X99Y60         LUT4 (Prop_B6LUT_SLICEM_I1_O)
+                                                      0.125     3.904 f  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_7/O
+                         net (fo=1, routed)           0.106     4.010                         core/physical_regions[1].lanes[5].add/result_value[30]_i_7_n_0
+    SLICE_X99Y60                                                      f  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_4/I4
+    SLICE_X99Y60         LUT6 (Prop_C6LUT_SLICEM_I4_O)
+                                                      0.123     4.133 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_4/O
+                         net (fo=32, routed)          0.219     4.352                         core/physical_regions[1].lanes[5].add/result_value[30]_i_4_n_0
+    SLICE_X98Y56                                                      r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[22]_i_1/I0
+    SLICE_X98Y56         LUT3 (Prop_B6LUT_SLICEL_I0_O)
+                                                      0.051     4.403 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[22]_i_1/O
+                         net (fo=23, routed)          0.420     4.823                         core/physical_regions[1].lanes[5].add/result_value[22]_i_1_n_0
+    SLICE_X95Y52         FDRE                                         r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value_reg[12]/R
+  -------------------------------------------------------------------    ----------------------------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r                       
+                         propagated clock network latency
+                                                      2.131     6.131                         
+                         clock pessimism              0.175     6.307                           
+                         clock uncertainty           -0.035     6.271                           
+    SLICE_X95Y52         FDRE (Setup_HFF_SLICEM_C_R)
+                                                     -0.074     6.197    deqacc_v2_soft_r0_c13
+                                                                                                core/physical_regions[1].lanes[5].add/result_value_reg[12]
+  -------------------------------------------------------------------
+                         required time                          6.197                           
+                         arrival time                          -4.823                           
+  -------------------------------------------------------------------
+                         slack                                  1.374                           
+
+Slack (MET) :             1.442ns  (required time - arrival time)
+  Source:                 core/physical_regions[1].lanes[5].add/candidates_q_reg[close_path]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/physical_regions[1].lanes[5].add/result_value_reg[20]/R
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.431ns  (logic 0.525ns (21.595%)  route 1.906ns (78.405%))
+  Logic Levels:           4  (LUT3=1 LUT4=1 LUT6=2)
+  Clock Path Skew:        -0.018ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    2.143ns = ( 6.143 - 4.000 ) 
+    Source Clock Delay      (SCD):    2.336ns
+    Clock Pessimism Removal (CPR):    0.175ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    PBlock               Netlist Resource(s)
+  -------------------------------------------------------------------    ----------------------------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r                       
+                         propagated clock network latency
+                                                      2.336     2.336                         
+    SLICE_X91Y48         FDRE                         0.000     2.336 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/candidates_q_reg[close_path]/C
+    SLICE_X91Y48         FDRE (Prop_AFF_SLICEM_C_Q)
+                                                      0.077     2.413 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/candidates_q_reg[close_path]/Q
+                         net (fo=37, routed)          1.007     3.420                         core/physical_regions[1].lanes[5].add/candidates_q_reg[close_path_n_0_]
+    SLICE_X98Y63                                                      r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_3/I4
+    SLICE_X98Y63         LUT6 (Prop_G6LUT_SLICEL_I4_O)
+                                                      0.149     3.569 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_3/O
+                         net (fo=3, routed)           0.211     3.779                         core/physical_regions[1].lanes[5].add/result_value[30]_i_3_n_0
+    SLICE_X99Y60                                                      r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_7/I1
+    SLICE_X99Y60         LUT4 (Prop_B6LUT_SLICEM_I1_O)
+                                                      0.125     3.904 f  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_7/O
+                         net (fo=1, routed)           0.106     4.010                         core/physical_regions[1].lanes[5].add/result_value[30]_i_7_n_0
+    SLICE_X99Y60                                                      f  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_4/I4
+    SLICE_X99Y60         LUT6 (Prop_C6LUT_SLICEM_I4_O)
+                                                      0.123     4.133 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_4/O
+                         net (fo=32, routed)          0.219     4.352                         core/physical_regions[1].lanes[5].add/result_value[30]_i_4_n_0
+    SLICE_X98Y56                                                      r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[22]_i_1/I0
+    SLICE_X98Y56         LUT3 (Prop_B6LUT_SLICEL_I0_O)
+                                                      0.051     4.403 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[22]_i_1/O
+                         net (fo=23, routed)          0.364     4.767                         core/physical_regions[1].lanes[5].add/result_value[22]_i_1_n_0
+    SLICE_X97Y58         FDRE                                         r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value_reg[20]/R
+  -------------------------------------------------------------------    ----------------------------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r                       
+                         propagated clock network latency
+                                                      2.143     6.143                         
+                         clock pessimism              0.175     6.318                           
+                         clock uncertainty           -0.035     6.283                           
+    SLICE_X97Y58         FDRE (Setup_DFF_SLICEM_C_R)
+                                                     -0.074     6.209    deqacc_v2_soft_r0_c13
+                                                                                                core/physical_regions[1].lanes[5].add/result_value_reg[20]
+  -------------------------------------------------------------------
+                         required time                          6.209                           
+                         arrival time                          -4.767                           
+  -------------------------------------------------------------------
+                         slack                                  1.442                           
+
+Slack (MET) :             1.442ns  (required time - arrival time)
+  Source:                 core/physical_regions[1].lanes[5].add/candidates_q_reg[close_path]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/physical_regions[1].lanes[5].add/result_value_reg[22]/R
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.431ns  (logic 0.525ns (21.595%)  route 1.906ns (78.405%))
+  Logic Levels:           4  (LUT3=1 LUT4=1 LUT6=2)
+  Clock Path Skew:        -0.018ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    2.143ns = ( 6.143 - 4.000 ) 
+    Source Clock Delay      (SCD):    2.336ns
+    Clock Pessimism Removal (CPR):    0.175ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    PBlock               Netlist Resource(s)
+  -------------------------------------------------------------------    ----------------------------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r                       
+                         propagated clock network latency
+                                                      2.336     2.336                         
+    SLICE_X91Y48         FDRE                         0.000     2.336 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/candidates_q_reg[close_path]/C
+    SLICE_X91Y48         FDRE (Prop_AFF_SLICEM_C_Q)
+                                                      0.077     2.413 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/candidates_q_reg[close_path]/Q
+                         net (fo=37, routed)          1.007     3.420                         core/physical_regions[1].lanes[5].add/candidates_q_reg[close_path_n_0_]
+    SLICE_X98Y63                                                      r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_3/I4
+    SLICE_X98Y63         LUT6 (Prop_G6LUT_SLICEL_I4_O)
+                                                      0.149     3.569 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_3/O
+                         net (fo=3, routed)           0.211     3.779                         core/physical_regions[1].lanes[5].add/result_value[30]_i_3_n_0
+    SLICE_X99Y60                                                      r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_7/I1
+    SLICE_X99Y60         LUT4 (Prop_B6LUT_SLICEM_I1_O)
+                                                      0.125     3.904 f  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_7/O
+                         net (fo=1, routed)           0.106     4.010                         core/physical_regions[1].lanes[5].add/result_value[30]_i_7_n_0
+    SLICE_X99Y60                                                      f  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_4/I4
+    SLICE_X99Y60         LUT6 (Prop_C6LUT_SLICEM_I4_O)
+                                                      0.123     4.133 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[30]_i_4/O
+                         net (fo=32, routed)          0.219     4.352                         core/physical_regions[1].lanes[5].add/result_value[30]_i_4_n_0
+    SLICE_X98Y56                                                      r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[22]_i_1/I0
+    SLICE_X98Y56         LUT3 (Prop_B6LUT_SLICEL_I0_O)
+                                                      0.051     4.403 r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value[22]_i_1/O
+                         net (fo=23, routed)          0.364     4.767                         core/physical_regions[1].lanes[5].add/result_value[22]_i_1_n_0
+    SLICE_X97Y58         FDRE                                         r  deqacc_v2_soft_r0_c13
+                                                                                              core/physical_regions[1].lanes[5].add/result_value_reg[22]/R
+  -------------------------------------------------------------------    ----------------------------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r                       
+                         propagated clock network latency
+                                                      2.143     6.143                         
+                         clock pessimism              0.175     6.318                           
+                         clock uncertainty           -0.035     6.283                           
+    SLICE_X97Y58         FDRE (Setup_CFF_SLICEM_C_R)
+                                                     -0.074     6.209    deqacc_v2_soft_r0_c13
+                                                                                                core/physical_regions[1].lanes[5].add/result_value_reg[22]
+  -------------------------------------------------------------------
+                         required time                          6.209                           
+                         arrival time                          -4.767                           
+  -------------------------------------------------------------------
+                         slack                                  1.442                           
+
+
+
+
+

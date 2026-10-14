@@ -1,0 +1,83 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version      : Vivado v.2022.2 (win64) Build 3671981 Fri Oct 14 05:00:03 MDT 2022
+| Date              : Wed Oct 14 12:26:53 2026
+| Host              : FLY running 64-bit major release  (build 9200)
+| Command           : report_timing -to {core/memory/banks[2].parity[0].ram/independent_valid.initialized_q_reg/C} -max_paths 1 -delay_type max -from {core/memory/banks[2].parity[0].ram/independent_valid.initialized_q_reg/C} -path_type full -input_pins -return_string
+| Design            : deqacc_v2_timing_shell
+| Device            : xcu50-fsvh2104
+| Speed File        : -2  PRODUCTION 1.30 05-01-2022
+| Temperature Grade : E
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Timing Report
+
+Slack (MET) :             1.437ns  (required time - arrival time)
+  Source:                 core/memory/banks[2].parity[0].ram/independent_valid.initialized_q_reg/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            result_even_data_reg[15][8]/D
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.443ns  (logic 0.481ns (19.687%)  route 1.962ns (80.313%))
+  Logic Levels:           4  (LUT1=2 LUT3=1 LUT6=1)
+  Clock Path Skew:        -0.109ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    2.121ns = ( 6.121 - 4.000 ) 
+    Source Clock Delay      (SCD):    2.353ns
+    Clock Pessimism Removal (CPR):    0.123ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    PBlock               Netlist Resource(s)
+  -------------------------------------------------------------------    ----------------------------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r                       
+                         propagated clock network latency
+                                                      2.353     2.353                         
+    SLICE_X89Y55         FDRE                         0.000     2.353 r                       core/memory/banks[2].parity[0].ram/independent_valid.initialized_q_reg/C
+    SLICE_X89Y55         FDRE (Prop_GFF_SLICEL_C_Q)
+                                                      0.079     2.432 r                       core/memory/banks[2].parity[0].ram/independent_valid.initialized_q_reg/Q
+                         net (fo=2, routed)           0.303     2.735                         core/memory/banks[2].parity[0].ram/initialized_q
+    SLICE_X82Y59                                                      r                       core/memory/banks[2].parity[0].ram/output_rows[0].external_controls_i_1/I2
+    SLICE_X82Y59         LUT3 (Prop_E6LUT_SLICEL_I2_O)
+                                                      0.035     2.770 r                       core/memory/banks[2].parity[0].ram/output_rows[0].external_controls_i_1/O
+                         net (fo=4, routed)           0.427     3.197                         core/memory/output_rows[0].external_controls/root[2]
+    SLICE_X73Y44                                                      r                       core/memory/output_rows[0].external_controls/branches[3].bits[2].branch_buffer/I0
+    SLICE_X73Y44         LUT1 (Prop_A6LUT_SLICEL_I0_O)
+                                                      0.124     3.321 r                       core/memory/output_rows[0].external_controls/branches[3].bits[2].branch_buffer/O
+                         net (fo=4, routed)           0.647     3.968                         core/memory/output_rows[0].external_controls/branch[3][2]
+    SLICE_X92Y61                                                      r  deqacc_v2_soft_r0_c15
+                                                                                              core/memory/output_rows[0].external_controls/branches[3].leaves[3].bits[2].leaf_buffer/I0
+    SLICE_X92Y61         LUT1 (Prop_F5LUT_SLICEL_I0_O)
+                                                      0.118     4.086 r  deqacc_v2_soft_r0_c15
+                                                                                              core/memory/output_rows[0].external_controls/branches[3].leaves[3].bits[2].leaf_buffer/O
+                         net (fo=32, routed)          0.532     4.618                         core/memory/banks[0].parity[0].ram/result_even_data_reg[15][0][2]
+    SLICE_X95Y68                                                      r                       core/memory/banks[0].parity[0].ram/result_even_data[15][8]_i_1/I5
+    SLICE_X95Y68         LUT6 (Prop_A6LUT_SLICEM_I5_O)
+                                                      0.125     4.743 r                       core/memory/banks[0].parity[0].ram/result_even_data[15][8]_i_1/O
+                         net (fo=1, routed)           0.053     4.796                         even_i[15][8]
+    SLICE_X95Y68         FDRE                                         r                       result_even_data_reg[15][8]/D
+  -------------------------------------------------------------------    ----------------------------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r                       
+                         propagated clock network latency
+                                                      2.121     6.121                         
+                         clock pessimism              0.123     6.244                           
+                         clock uncertainty           -0.035     6.208                           
+    SLICE_X95Y68         FDRE (Setup_AFF_SLICEM_C_D)
+                                                      0.025     6.233                           result_even_data_reg[15][8]
+  -------------------------------------------------------------------
+                         required time                          6.233                           
+                         arrival time                          -4.796                           
+  -------------------------------------------------------------------
+                         slack                                  1.437                           
+
+
+
+
+

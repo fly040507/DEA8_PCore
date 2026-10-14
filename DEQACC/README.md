@@ -1,5 +1,7 @@
 # DEA8：八核 VLA 计算工程
 
+2026-10-14 Single-Lane Soft实验完成：[四版对照](DEQACC_V2_SingleLaneSoft对照报告.md)。同网表WNS=−0.225ns、TNS=−84.415ns，不优于No-Pblock；lane跨度缩小、局部A0/A1内部路由下降，但Q1/A2变差，最高region CLB密度升至91.40%。建议下一轮Q1优化仍以No-Pblock为物理基线；不改功能RTL。
+
 2026-10-14新增8×4硬区域对照：[8区域/4lane报告](DEQACC_V2_8x4区域对照报告.md)。同网表WNS=−0.358ns，CLB区域最高73.64%，好于原4×8 Hard、弱于No-Pblock；功能RTL未改，三版均未4ns setup签核。
 
 最新对照（2026-10-14）：同一个综合DCP取消四个硬Pblock后，WNS从−0.685ns改善到−0.222ns，TNS减少95.95%，最高clock-region CLB占用从100%降至74.17%，没有新增SLR crossing。见 [No-Pblock对照报告](DEQACC_V2_NoPblock对照报告.md)。功能RTL未改；4ns仍未通过，后续优化建议采用自由布局作为物理基线。

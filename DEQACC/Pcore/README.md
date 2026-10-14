@@ -2,6 +2,8 @@
 
 ## DEQACC 开发副本当前状态（2026-10-13）
 
+2026-10-14单lane Soft对照完成，WNS=−0.225ns/TNS=−84.415ns，setup失败1051端点；不优于No-Pblock。32个IS_SOFT均为1，实际outside2.081%，lane空间跨度减小但局部密度重新升高。详细见 [Single-Lane Soft对照报告](../DEQACC_V2_SingleLaneSoft对照报告.md)。入口`run_deqacc_v2_single_lane_soft.ps1`；`-ReportOnly -Tag v2_soft_single_lane_20261014`只补报告，逐lane详细utilization默认关闭。
+
 2026-10-14新增8个硬区域、每组4个同行lane对照，WNS=−0.358ns/TNS=−310.534ns，最高CLB区域占用73.64%。比4×8 Hard改善，No-Pblock仍最佳。见 [8×4对照报告](../DEQACC_V2_8x4区域对照报告.md)；入口`run_deqacc_v2_nopblock.ps1 -FourLane`，不改RTL。
 
 2026-10-14同网表No-Pblock对照完成：WNS=−0.222ns、TNS=−61.556ns、setup失败842端点；最高region CLB占用74.17%、SLR crossing=0。相比Hard显著改善但未签核250MHz。详细结果见 [No-Pblock对照](../DEQACC_V2_NoPblock对照报告.md)，入口`run_deqacc_v2_nopblock.ps1`。本次只做物理对照，没有改功能RTL或默认Hard约束脚本。

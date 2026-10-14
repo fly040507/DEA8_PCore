@@ -1,0 +1,241 @@
+# Single-lane locality derived from a routed No-Pblock design, not an evenly
+# partitioned device. All resource counts are primitive-level, not logical bits.
+namespace eval deqacc_v2_single_lane_soft {
+    proc select {pattern} {
+        global soft_cells soft_names
+        set found {}
+        foreach c $soft_cells n $soft_names {if {[regexp $pattern $n]} {lappend found $c}}
+        return $found
+    }
+    proc members {row col} {
+        set g [expr {$row*2+$col/8}];set lane [expr {$col%8}]
+        set result [select [format {^core/physical_regions\[%d\]\.lanes\[%d\][./]} $g $lane]]
+        if {![llength $result]} {error "Missing datapath row=$row col=$col"}
+        # Only lane-specific leaves; shared four/eight-lane branch roots and
+        # central compare, scale bias and RAM stay outside these Pblocks.
+        set patterns [list \
+            [format {^core/control_fanout/branches\[%d\]\.leaves\[%d\][./]} $g $lane] \
+            [format {^core/row_forward\[%d\]\.fanout/branches\[%d\]\.leaves\[%d\][./]} $row [expr {$col/4}] [expr {$col%4}]] \
+            [format {^core/memory/output_rows\[%d\]\.(old_controls|external_controls)/branches\[%d\]\.leaves\[%d\][./]} $row [expr {$col/4}] [expr {$col%4}]] \
+            [format {^core/scale_ingress/rows\[%d\]\.branches\[%d\]\.columns\[%d\][./]} $row [expr {$col/4}] [expr {$col%4}]]]
+        foreach p $patterns {set result [concat $result [select $p]]}
+        return [lsort -unique $result]
+    }
+    proc stage {name} {
+        foreach {label pattern} {
+            Q0 {quant/(mag_q|lead_q|base_q|sign_q|zero_q|bad_q|valid_q)_reg}
+            Q1 {quant/(partial_value|out_valid)_reg}
+            A0 {add/order_q_reg} A1 {add/arithmetic_q_reg}
+            A2 {add/candidates_q_reg} A3 {add/(result_value|out_valid)_reg}
+            C {\.c_q_reg}
+        } {if {[regexp $pattern $name]} {return $label}}
+        return COMB_LEAF
+    }
+    proc median {values} {
+        set v [lsort -integer $values];set n [llength $v]
+        if {!$n} {error "Empty coordinate sample"}
+        return [expr {int(([lindex $v [expr {($n-1)/2}]]+[lindex $v [expr {$n/2}]])/2)}]
+    }
+    proc inventory {} {
+        global soft_cells soft_names soft_refs soft_locs soft_coordinates
+        set soft_cells [get_cells -hier -filter {IS_PRIMITIVE == 1}]
+        set soft_names [get_property NAME $soft_cells];set soft_refs [get_property REF_NAME $soft_cells]
+        set soft_locs [get_property LOC $soft_cells]
+        set soft_coordinates [dict create]
+        set sites [get_sites -filter {SITE_TYPE =~ SLICE*}]
+        set owners [dict create]
+        foreach cr [get_clock_regions] {dict set owners $cr [get_property NAME [get_slrs -of_objects $cr]]}
+        foreach site $sites n [get_property NAME $sites] cr [get_property CLOCK_REGION $sites] {
+            regexp {SLICE_X([0-9]+)Y([0-9]+)} $n unused x y
+            dict set soft_coordinates $n [list $x $y $cr [dict get $owners $cr]]
+        }
+    }
+    proc measure {report prefix {membership_mode 0}} {
+        global soft_cells soft_names soft_refs soft_locs soft_coordinates
+        inventory
+        set f [open [file join $report ${prefix}_lane_stage_placement.csv] w]
+        puts $f "row,col,stage,primitive_count,x_min,x_max,y_min,y_max,x_span,y_span,clock_regions,cross_region"
+        set aggregate [dict create];set occupancy [dict create];set lutsite [dict create]
+        foreach c $soft_cells n $soft_names ref $soft_refs loc $soft_locs {
+            if {![dict exists $soft_coordinates $loc]} {continue}
+            set xy [dict get $soft_coordinates $loc]
+            dict set occupancy $loc 1
+            if {[string match LUT* $ref]||[string match SRL* $ref]||[string match RAMD* $ref]||[string match RAMS* $ref]} {dict incr lutsite $loc}
+            if {![regexp {^core/physical_regions\[([0-3])\]\.lanes\[([0-7])\][./]} $n unused g lane]} {continue}
+            set row [expr {$g/2}];set col [expr {($g%2)*8+$lane}]
+            foreach s [list [stage $n] ALL] {
+                set key $row,$col,$s
+                dict lappend aggregate $key $xy
+            }
+        }
+        dict for {key coordinates} $aggregate {
+            lassign [split $key ,] row col s
+            set xs {};set ys {};set crs {}
+            foreach v $coordinates {lappend xs [lindex $v 0];lappend ys [lindex $v 1];lappend crs [lindex $v 2]}
+            set xs [lsort -integer $xs];set ys [lsort -integer $ys];set crs [lsort -unique $crs]
+            set xmin [lindex $xs 0];set xmax [lindex $xs end];set ymin [lindex $ys 0];set ymax [lindex $ys end]
+            puts $f "$row,$col,$s,[llength $coordinates],$xmin,$xmax,$ymin,$ymax,[expr {$xmax-$xmin}],[expr {$ymax-$ymin}],[join $crs {;}],[expr {[llength $crs]>1}]"
+        }
+        close $f
+        return [list $aggregate $occupancy $lutsite]
+    }
+    proc derive {natural_dcp report} {
+        global soft_cells soft_names soft_refs soft_locs soft_coordinates
+        open_checkpoint $natural_dcp
+        lassign [measure $report natural] aggregate occupancy lutsite
+        set lane_luts [dict create]
+        for {set row 0} {$row<2} {incr row} {for {set col 0} {$col<16} {incr col} {
+            set lut 0
+            foreach c [members $row $col] {if {[regexp {^(LUT|SRL|RAMD|RAMS)} [get_property REF_NAME $c]]} {incr lut}}
+            dict set lane_luts $row,$col $lut
+        }}
+        set f [open [file join $report soft_region_plan.csv] w]
+        puts $f "row,col,pblock,slr,x_min,x_max,y_min,y_max,available_CLB,lane_LUT,own_LUT_percent,natural_CLB_percent,natural_LUT_percent"
+        # Use natural median (all lane primitives), shape following its spread.
+        # Expand in-place until own LUT <=60%, occupied baseline CLB <=65%,
+        # baseline LUT <=65%. Existing neighboring logic is counted, not hidden.
+        for {set row 0} {$row<2} {incr row} {for {set col 0} {$col<16} {incr col} {
+            set coordinates [dict get $aggregate $row,$col,ALL]
+            set xs {};set ys {};set slrs [dict create]
+            foreach v $coordinates {lappend xs [lindex $v 0];lappend ys [lindex $v 1];dict incr slrs [lindex $v 3]}
+            set owner {};set count -1
+            dict for {slr n} $slrs {if {$n>$count} {set owner $slr;set count $n}}
+            set cx [median $xs];set cy [median $ys]
+            set region_sites [dict create];set ownerxs {};set ownerys {}
+            dict for {site v} $soft_coordinates {if {[lindex $v 3] eq $owner} {
+                dict set region_sites $site $v;lappend ownerxs [lindex $v 0];lappend ownerys [lindex $v 1]
+            }}
+            set ownerxs [lsort -integer $ownerxs];set ownerys [lsort -integer $ownerys]
+            set maxx [lindex $ownerxs end];set minx [lindex $ownerxs 0];set maxy [lindex $ownerys end];set miny [lindex $ownerys 0]
+            set lut [dict get $lane_luts $row,$col]
+            set hw 6;set hh 12
+            for {set attempt 0} {$attempt<150} {incr attempt} {
+                set x0 [expr {max($minx,$cx-$hw)}];set x1 [expr {min($maxx,$cx+$hw)}]
+                set y0 [expr {max($miny,$cy-$hh)}];set y1 [expr {min($maxy,$cy+$hh)}]
+                set cap 0;set used 0;set usedlut 0
+                dict for {site v} $region_sites {
+                    lassign $v x y
+                    if {$x<$x0||$x>$x1||$y<$y0||$y>$y1} {continue}
+                    incr cap
+                    if {[dict exists $occupancy $site]} {incr used}
+                    if {[dict exists $lutsite $site]} {incr usedlut [dict get $lutsite $site]}
+                }
+                if {$cap && 100.0*$lut/(8*$cap)<=60 && 100.0*$used/$cap<=65 && 100.0*$usedlut/(8*$cap)<=65} {break}
+                incr hw 2;incr hh 2
+            }
+            if {!$cap||$attempt==150} {error "Cannot derive roomy region row=$row col=$col"}
+            puts $f "$row,$col,deqacc_v2_soft_r${row}_c${col},$owner,$x0,$x1,$y0,$y1,$cap,$lut,[format %.2f [expr {100.0*$lut/(8*$cap)}]],[format %.2f [expr {100.0*$used/$cap}]],[format %.2f [expr {100.0*$usedlut/(8*$cap)}]]"
+        }}
+        close $f
+        close_design
+    }
+    proc apply {report} {
+        global soft_cells soft_names
+        set soft_cells [get_cells -hier -filter {IS_PRIMITIVE == 1}];set soft_names [get_property NAME $soft_cells]
+        set f [open [file join $report soft_region_plan.csv] r]
+        set lines [split [string trim [read $f]] \n];close $f
+        set assigned [dict create]
+        foreach line [lrange $lines 1 end] {
+            lassign [split $line ,] row col name slr x0 x1 y0 y1
+            set local [members $row $col]
+            foreach c $local {
+                if {[dict exists $assigned $c]} {error "Overlapping member: $c"}
+                if {[string match *memory/banks* $c]||[string match core/control/* $c]} {error "Central cell in lane region: $c"}
+                dict set assigned $c $name
+            }
+            create_pblock $name
+            add_cells_to_pblock [get_pblocks $name] $local
+            resize_pblock [get_pblocks $name] -add SLICE_X${x0}Y${y0}:SLICE_X${x1}Y${y1}
+            set_property CONTAIN_ROUTING false [get_pblocks $name]
+            set_property EXCLUDE_PLACEMENT false [get_pblocks $name]
+            set_property IS_SOFT true [get_pblocks $name]
+            if {![get_property IS_SOFT [get_pblocks $name]]} {error "Lane region unexpectedly hard"}
+            puts "SOFT_LANE row=$row col=$col cells=[llength $local] range=SLICE_X${x0}Y${y0}:SLICE_X${x1}Y${y1}"
+        }
+        if {[llength [get_pblocks]]!=32} {error "Expected 32 soft regions"}
+    }
+    proc placement_report {report {detailed_lanes {}}} {
+        global soft_coordinates soft_cells soft_names soft_refs soft_locs
+        lassign [measure $report soft] aggregate occupied lutsite
+        puts "SOFT_CENSUS inventory complete"
+        # Resolve declared primitive/hierarchical roots once, then walk each
+        # primitive's ancestors. Avoid O(32 * 80k * root_count) string scans.
+        set root_owner [dict create];set local_lists [dict create]
+        foreach pb [get_pblocks] {
+            foreach root [get_property NAME [get_cells -of_objects $pb]] {
+                if {[dict exists $root_owner $root]} {error "Duplicate declared Pblock root $root"}
+                dict set root_owner $root $pb
+            }
+        }
+        foreach c $soft_cells n $soft_names ref $soft_refs loc $soft_locs {
+            set ancestor $n
+            while {$ancestor ne ""} {
+                if {[dict exists $root_owner $ancestor]} {
+                    set pb [dict get $root_owner $ancestor]
+                    dict lappend local_lists $pb [list $c $n $ref $loc]
+                    break
+                }
+                set slash [string last / $ancestor]
+                if {$slash<0} {break}
+                set ancestor [string range $ancestor 0 [expr {$slash-1}]]
+            }
+        }
+        puts "SOFT_CENSUS hierarchy membership expanded"
+        set out [open [file join $report soft_pblock_actual.csv] w]
+        puts $out "pblock,IS_SOFT,cells,LUT,FF,inside,outside,available_CLB,actual_occupied_CLB,actual_CLB_percent,actual_LUT_percent,member_inside_CLB,member_CLB_percent,CONTAIN_ROUTING,EXCLUDE_PLACEMENT"
+        set stages [open [file join $report soft_stage_inside_outside.csv] w]
+        puts $stages "pblock,stage,inside,outside"
+        set f [open [file join $report soft_region_plan.csv] r]
+        set lines [split [string trim [read $f]] \n];close $f
+        foreach line [lrange $lines 1 end] {
+            lassign [split $line ,] row col name slr x0 x1 y0 y1
+            puts "SOFT_CENSUS measuring $name"
+            set inside 0;set outside 0;set lut 0;set ff 0;set ownsites [dict create];set stagecounts [dict create]
+            # Vivado collapses add/quant primitive membership into hierarchy
+            # roots when saving XDC/DCP. A direct -of_objects query therefore
+            # misses thousands of descendants; expand those roots explicitly.
+            set local [dict get $local_lists $name]
+            set expected_g [expr {$row*2+$col/8}];set expected_n [expr {$col%8}]
+            foreach record $local {
+                lassign $record c n ref loc
+                if {[regexp {^core/physical_regions\[([0-3])\]\.lanes\[([0-7])\][./]} $n unused g lane]} {
+                    if {$g!=$expected_g||$lane!=$expected_n} {error "Foreign lane in $name: $n"}
+                } elseif {[string match core/control/* $n]||[string match core/memory/banks* $n]} {
+                    error "Central memory/control in $name: $n"
+                }
+                if {[regexp {^(LUT|SRL|RAMD|RAMS)} $ref]} {incr lut}
+                if {[string match FD* $ref]} {incr ff}
+                set isin 0
+                if {[dict exists $soft_coordinates $loc]} {
+                    lassign [dict get $soft_coordinates $loc] x y
+                    set isin [expr {$x>=$x0&&$x<=$x1&&$y>=$y0&&$y<=$y1}]
+                }
+                if {$isin} {incr inside;dict set ownsites $loc 1} else {incr outside}
+                dict incr stagecounts [stage $n],[expr {$isin?"inside":"outside"}]
+            }
+            set cap 0;set used 0;set usedlut 0
+            dict for {site v} $soft_coordinates {
+                lassign $v x y
+                if {$x<$x0||$x>$x1||$y<$y0||$y>$y1} {continue}
+                incr cap
+                if {[dict exists $occupied $site]} {incr used}
+                if {[dict exists $lutsite $site]} {incr usedlut [dict get $lutsite $site]}
+            }
+            if {![get_property IS_SOFT [get_pblocks $name]]||[get_property CONTAIN_ROUTING [get_pblocks $name]]} {error "Non-soft lane configuration: $name"}
+            puts $out "$name,[get_property IS_SOFT [get_pblocks $name]],[llength $local],$lut,$ff,$inside,$outside,$cap,$used,[format %.2f [expr {100.0*$used/$cap}]],[format %.2f [expr {100.0*$usedlut/(8*$cap)}]],[dict size $ownsites],[format %.2f [expr {100.0*[dict size $ownsites]/$cap}]],[get_property CONTAIN_ROUTING [get_pblocks $name]],[get_property EXCLUDE_PLACEMENT [get_pblocks $name]]"
+            foreach s {Q0 Q1 A0 A1 A2 A3 C COMB_LEAF} {
+                set in 0;set ex 0
+                if {[dict exists $stagecounts $s,inside]} {set in [dict get $stagecounts $s,inside]}
+                if {[dict exists $stagecounts $s,outside]} {set ex [dict get $stagecounts $s,outside]}
+                puts $stages "$name,$s,$in,$ex"
+            }
+            # Default is lightweight census only. An explicit list may request
+            # detailed utilization for an anomalous lane, never all 32 by default.
+            if {[lsearch -exact $detailed_lanes $name]>=0} {
+                report_utilization -pblocks [get_pblocks $name] -file [file join $report ${name}_utilization.rpt]
+            }
+            flush $out;flush $stages
+        }
+        close $out;close $stages
+    }
+}
