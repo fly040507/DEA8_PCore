@@ -1,0 +1,458 @@
+#-----------------------------------------------------------
+# Vivado v2022.2 (64-bit)
+# SW Build 3671981 on Fri Oct 14 05:00:03 MDT 2022
+# IP Build 3669848 on Fri Oct 14 08:30:02 MDT 2022
+# Start of session at: Wed Oct 14 10:12:19 2026
+# Process ID: 23024
+# Current directory: C:/Users/fly04/Desktop/VLA/DEQACC/Pcore
+# Command line: vivado.exe -mode batch -source synth_deqacc_v2.tcl -log reports/v2_hard8x4_reports_20261014.log -journal reports/v2_hard8x4_reports_20261014.jou -tclargs C:/Users/fly04/Desktop/VLA/DEQACC/Pcore v2_hard8x4_20261014 report_route
+# Log file: C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/reports/v2_hard8x4_reports_20261014.log
+# Journal file: C:/Users/fly04/Desktop/VLA/DEQACC/Pcore\reports/v2_hard8x4_reports_20261014.jou
+# Running On: FLY, OS: Windows, CPU Frequency: 2688 MHz, CPU Physical cores: 14, Host memory: 34071 MB
+#-----------------------------------------------------------
+source synth_deqacc_v2.tcl
+# set root [file normalize [lindex $argv 0]]
+# set tag [lindex $argv 1]
+# if {$tag eq ""} {error "Expected a unique report tag"}
+# set report [file join $root reports $tag]
+# set routed_report [expr {[llength $argv]>2 && [lindex $argv 2] eq "report_route"}]
+# set report_only [expr {$routed_report || ([llength $argv]>2 && [lindex $argv 2] eq "report_only")}]
+# if {!$report_only && [file exists $report]} {error "Report directory already exists: $report"}
+# if {!$report_only} {file mkdir $report}
+# set sources {
+#     rtl/pcore_pkg.sv rtl/dea8_fp32_pkg.sv rtl/deqacc_v1_pkg.sv
+#     rtl/dea8_acc_store.sv rtl/deqacc_v2_fanout.sv rtl/deqacc_v2_scale_ingress.sv
+#     rtl/dequant_lane_v1.sv rtl/fp32_add_lane_v1.sv rtl/acc_slice_v1.sv
+#     rtl/deqacc_v1_control.sv rtl/DEQACC_V1.sv rtl/deqacc_v2_timing_shell.sv
+# }
+# if {!$report_only} {
+# set manifest [open [file join $report source_sha256.csv] w]
+# puts $manifest "file,sha256"
+# foreach name [concat $sources {core_clock.xdc deqacc_v2_locality.tcl synth_deqacc_v2.tcl}] {
+#     set hash [exec certutil -hashfile [file join $root $name] SHA256]
+#     if {![regexp {\n([0-9a-fA-F]{64})\r?\n} $hash unused digest]} {error "Hash failed: $name"}
+#     puts $manifest "$name,$digest"
+# }
+# close $manifest
+# foreach name $sources {read_verilog -sv [file join $root $name]}
+# read_xdc [file join $root core_clock.xdc]
+# synth_design -top deqacc_v2_timing_shell -part xcu50-fsvh2104-2-e -mode out_of_context -flatten_hierarchy rebuilt
+# write_checkpoint -force [file join $report synthesized.dcp]
+# } else {
+#     open_checkpoint [file join $report [expr {$routed_report?"routed.dcp":"synthesized.dcp"}]]
+# }
+Command: open_checkpoint C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/reports/v2_hard8x4_20261014/routed.dcp
+
+Starting open_checkpoint Task
+
+Time (s): cpu = 00:00:00 ; elapsed = 00:00:00.033 . Memory (MB): peak = 330.090 ; gain = 0.000
+INFO: [Device 21-403] Loading part xcu50-fsvh2104-2-e
+Netlist sorting complete. Time (s): cpu = 00:00:00 ; elapsed = 00:00:00.387 . Memory (MB): peak = 1864.219 ; gain = 0.000
+INFO: [Netlist 29-17] Analyzing 1421 Unisim elements for replacement
+INFO: [Netlist 29-28] Unisim Transformation completed in 0 CPU seconds
+INFO: [Project 1-479] Netlist was created with Vivado 2022.2
+INFO: [Project 1-570] Preparing netlist for logic optimization
+INFO: [Timing 38-478] Restoring timing data from binary archive.
+INFO: [Timing 38-479] Binary timing data restore complete.
+INFO: [Project 1-856] Restoring constraints from binary archive.
+INFO: [Project 1-853] Binary constraint restore complete.
+Reading XDEF placement.
+Reading placer database...
+Reading XDEF routing.
+Read XDEF Files: Time (s): cpu = 00:00:05 ; elapsed = 00:00:05 . Memory (MB): peak = 2582.102 ; gain = 95.156
+Restored from archive | CPU: 5.000000 secs | Memory: 0.000000 MB |
+Finished XDEF File Restore: Time (s): cpu = 00:00:05 ; elapsed = 00:00:05 . Memory (MB): peak = 2582.102 ; gain = 95.156
+Netlist sorting complete. Time (s): cpu = 00:00:00 ; elapsed = 00:00:00.012 . Memory (MB): peak = 2892.207 ; gain = 0.000
+INFO: [Project 1-111] Unisim Transformation Summary:
+  A total of 148 instances were transformed.
+  RAM32M16 => RAM32M16 (RAMD32(x14), RAMS32(x2)): 148 instances
+
+INFO: [Project 1-604] Checkpoint was created with Vivado v2022.2 (64-bit) build 3671981
+OpenCheckpoint Checksum | Checksum: 1bc34de1f
+----- Checksum: PlaceDB: 8907881a ShapeSum: 3bc25da1 RouteDB: f76af864 
+open_checkpoint: Time (s): cpu = 00:00:40 ; elapsed = 00:00:44 . Memory (MB): peak = 2892.207 ; gain = 2562.117
+# report_timing_summary -delay_type min_max -max_paths 30 -report_unconstrained -file [file join $report [expr {$routed_report?"timing_summary_postroute.rpt":"timing_summary_synth.rpt"}]]
+INFO: [Timing 38-91] UpdateTimingParams: Speed grade: -2, Temperature grade: E, Delay Type: min_max.
+INFO: [Timing 38-191] Multithreading enabled for timing update using a maximum of 2 CPUs
+report_timing_summary: Time (s): cpu = 00:00:21 ; elapsed = 00:00:13 . Memory (MB): peak = 3165.391 ; gain = 273.184
+# report_utilization -file [file join $report utilization.rpt]
+# report_utilization -hierarchical -hierarchical_depth 6 -file [file join $report utilization_hierarchical.rpt]
+# report_high_fanout_nets -max_nets 100 -timing -load_types -file [file join $report fanout.rpt]
+INFO: [Timing 38-91] UpdateTimingParams: Speed grade: -2, Temperature grade: E, Delay Type: max.
+INFO: [Timing 38-191] Multithreading enabled for timing update using a maximum of 2 CPUs
+INFO: [Timing 38-78] ReportTimingParams: -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+report_high_fanout_nets: Time (s): cpu = 00:00:06 ; elapsed = 00:00:05 . Memory (MB): peak = 3168.430 ; gain = 0.000
+report_high_fanout_nets: Time (s): cpu = 00:00:06 ; elapsed = 00:00:05 . Memory (MB): peak = 3168.430 ; gain = 0.000
+# report_drc -file [file join $report drc.rpt]
+Command: report_drc -file C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/reports/v2_hard8x4_20261014/drc.rpt
+INFO: [IP_Flow 19-234] Refreshing IP repositories
+INFO: [IP_Flow 19-1704] No user IP repositories specified
+INFO: [IP_Flow 19-2313] Loaded Vivado IP repository 'D:/Xilinx/Vivado/2022.2/data/ip'.
+INFO: [DRC 23-27] Running DRC with 2 threads
+INFO: [Vivado_Tcl 2-168] The results of DRC are in file C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/reports/v2_hard8x4_20261014/drc.rpt.
+report_drc completed successfully
+report_drc: Time (s): cpu = 00:00:21 ; elapsed = 00:00:11 . Memory (MB): peak = 3376.422 ; gain = 207.992
+# check_timing -verbose -file [file join $report check_timing.rpt]
+# set primitive_objects [get_cells -hierarchical -filter {IS_PRIMITIVE == 1}]
+# set primitive_names [get_property NAME $primitive_objects]
+# set primitive_refs [get_property REF_NAME $primitive_objects]
+# proc primitives {pattern} {
+#     global primitive_objects primitive_names primitive_refs
+#     set result {}
+#     # Match full NAME properties in Tcl: Vivado -hierarchical search patterns
+#     # otherwise interpret hierarchy separators differently across netlists.
+#     foreach cell $primitive_objects name $primitive_names ref $primitive_refs {
+#         if {[regexp {_reg(\.|\\|\[|$)} $pattern] && ![string match FD* $ref] && ![string match SRL* $ref]} {continue}
+#         if {[regexp $pattern $name]} {lappend result $cell}
+#     }
+#     return $result
+# }
+# set Q0 [primitives {^core/physical_regions\[[0-3]\]\.lanes\[[0-7]\]\.quant/(mag_q|lead_q|base_q|sign_q|zero_q|bad_q|valid_q)_reg.*}]
+# set Q1 [primitives {^core/physical_regions\[[0-3]\]\.lanes\[[0-7]\]\.quant/(partial_value|out_valid)_reg.*}]
+# set A0 [primitives {^core/physical_regions\[[0-3]\]\.lanes\[[0-7]\]\.add/order_q_reg.*}]
+# set A1 [primitives {^core/physical_regions\[[0-3]\]\.lanes\[[0-7]\]\.add/arithmetic_q_reg.*}]
+# set A2 [primitives {^core/physical_regions\[[0-3]\]\.lanes\[[0-7]\]\.add/candidates_q_reg.*}]
+# set A3 [primitives {^core/physical_regions\[[0-3]\]\.lanes\[[0-7]\]\.add/(result_value|out_valid)_reg.*}]
+# set C [primitives {^core/physical_regions\[[0-3]\]\.lanes\[[0-7]\]\.c_q_reg.*}]
+# set memory [primitives {^core/memory/.*}]
+# set spine [primitives {^core/control/.*}]
+# set launch [primitives {^(rsp_q|rsp_valid_q|reset_q|clear_q|owner_q|rd_valid_q|sel_q|addr_q|wr_valid_q|wr_q)_reg.*}]
+# set capture [primitives {^(result_rd_ready|vpu_wr_ready|result_rd_data_valid|commit_valid|done|commit_write_valid|commit_meta|commit_write|result_even_data|result_odd_data)_reg.*}]
+# set all [get_cells -hierarchical -filter {IS_PRIMITIVE == 1}]
+# set names [get_property NAME $all];
+# set refs [get_property REF_NAME $all]
+# set census [open [file join $report primitive_cells.csv] w]
+# puts $census "cell,ref_name"
+# foreach name $names ref $refs {puts $census "$name,$ref"}
+# close $census
+# set endpoints [open [file join $report endpoint_coverage.csv] w]
+# puts $endpoints "stage,primitive_count"
+# foreach stage {Q0 Q1 A0 A1 A2 A3 C} {
+#     if {![llength [set $stage]]} {error "No synthesized endpoint cells for $stage; inspect primitive_cells.csv"}
+#     puts $endpoints "$stage,[llength [set $stage]]"
+# }
+# close $endpoints
+# set csv [open [file join $report path_delays.csv] w]
+# puts $csv "group,paths,logic_ns,[expr {$routed_report?"routed_net_ns":"estimated_net_ns"}],total_ns,slack_ns,logic_levels,startpoint,endpoint"
+# proc characterize {name to {from {}}} {
+#     global report csv
+#     if {![llength $to]} {error "Missing endpoint group: $name"}
+#     set options [list -to $to -delay_type max -max_paths 10 -nworst 1]
+#     if {[llength $from]} {lappend options -from $from}
+#     set paths [get_timing_paths {*}$options]
+#     if {![llength $paths]} {
+#         puts $csv "$name,0,NA,NA,NA,NA,NA,NA,NA"
+#     return
+#     }
+#     set text [report_timing {*}$options -path_type full -input_pins -return_string]
+#     set f [open [file join $report ${name}_top10.rpt] w];puts $f $text;close $f
+#     if {![regexp {Data Path Delay:\s+([0-9.]+)ns\s+\(logic ([0-9.]+)ns[^\n]*route ([0-9.]+)ns} $text unused total logic net]} {
+#         error "Cannot parse timing group $name"
+#     }
+#     set p [lindex $paths 0]
+#     puts $csv "$name,[llength $paths],$logic,$net,$total,[get_property SLACK $p],[get_property LOGIC_LEVELS $p],[get_property STARTPOINT_PIN $p],[get_property ENDPOINT_PIN $p]"
+# }
+# foreach stage {Q0 Q1 A0 A1 A2 A3 C} {characterize $stage [set $stage]}
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+# characterize INPUT_to_Q0 $Q0 $launch
+INFO: [Timing 38-78] ReportTimingParams: -from_pins  -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+# foreach {name from to} {Q0_to_Q1 Q0 Q1 Q1_to_A0 Q1 A0 A0_to_A1 A0 A1 A1_to_A2 A1 A2 A2_to_A3 A2 A3 A3_to_C A3 C} {
+#     characterize $name [set $to] [set $from]
+# }
+INFO: [Timing 38-78] ReportTimingParams: -from_pins  -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -from_pins  -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -from_pins  -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -from_pins  -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -from_pins  -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -from_pins  -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+# characterize A3_feedback_to_A0 $A0 $A3
+INFO: [Timing 38-78] ReportTimingParams: -from_pins  -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+# characterize C_feedback_to_A0 $A0 $C
+INFO: [Timing 38-78] ReportTimingParams: -from_pins  -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+# characterize ACC_read_to_A0 $A0 $memory
+INFO: [Timing 38-78] ReportTimingParams: -from_pins  -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+# characterize ACC_incoming $memory
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+# characterize A3_to_ACC_write $memory $A3
+INFO: [Timing 38-78] ReportTimingParams: -from_pins  -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+# characterize CONTROL_incoming $spine
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+# characterize CONTROL_to_A0 $A0 $spine
+INFO: [Timing 38-78] ReportTimingParams: -from_pins  -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+# characterize OUTPUT_capture $capture
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+# characterize RESET_to_core [concat $Q0 $Q1 $A0 $A1 $A2 $A3 $C $memory $spine] [primitives {^(reset_q|clear_q)_reg.*}]
+INFO: [Timing 38-78] ReportTimingParams: -from_pins  -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+# foreach {name pattern} {
+#     Q0_magnitude {^core/physical_regions.*quant/mag_q_reg.*}
+#     Q0_lead {^core/physical_regions.*quant/lead_q_reg.*}
+#     Q0_base {^core/physical_regions.*quant/base_q_reg.*}
+#     A1_FAR {^core/physical_regions.*add/arithmetic_q_reg\[far_raw\].*}
+#     A1_CLOSE_subtract {^core/physical_regions.*add/arithmetic_q_reg\[close_raw\].*}
+#     A1_CLOSE_LZA {^core/physical_regions.*add/arithmetic_q_reg\[close_shift\].*}
+#     A2_FAR {^core/physical_regions.*add/candidates_q_reg\[far_round\].*}
+#     A2_CLOSE {^core/physical_regions.*add/candidates_q_reg\[close_round\].*}
+#     A2_FAR_mant0 {^core/physical_regions.*add/candidates_q_reg\[far_round\]\[mant0\].*}
+#     A2_FAR_mant1 {^core/physical_regions.*add/candidates_q_reg\[far_round\]\[mant1\].*}
+#     A2_CLOSE_mant0 {^core/physical_regions.*add/candidates_q_reg\[close_round\]\[mant0\].*}
+#     A2_CLOSE_mant1 {^core/physical_regions.*add/candidates_q_reg\[close_round\]\[mant1\].*}
+#     A2_round_predicate {^core/physical_regions.*add/candidates_q_reg\[(far|close)_round\]\[round_up\].*}
+#     Q1_mantissa {^core/physical_regions.*quant/partial_value_reg\[([0-9]|1[0-9]|2[0-2])\].*}
+#     Q1_exponent {^core/physical_regions.*quant/partial_value_reg\[(2[3-9]|30)\].*}
+#     A0_order_data {^core/physical_regions.*add/order_q_reg\[pre\]\[(big_x|small_x|exponent|sign_result)\].*}
+#     A0_distance {^core/physical_regions.*add/order_q_reg\[distance.*}
+#     A1_SRL_sideband {^core/physical_regions.*add/arithmetic_q_reg.*_srl.*}
+# } {characterize $name [primitives $pattern]}
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+# set result_registers [primitives {^core/physical_regions.*add/result_value_reg.*}]
+# characterize A3_data_pin [get_pins -of_objects $result_registers -filter {REF_PIN_NAME == D}]
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+# characterize C_data_pin [get_pins -of_objects $C -filter {REF_PIN_NAME == D}]
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+# for {set g 0} {$g<4} {incr g} {
+#     for {set n 0} {$n<8} {incr n} {
+#         foreach {stage suffix} {
+#             Q0 {quant/(mag_q|lead_q|base_q|sign_q|zero_q|bad_q|valid_q)_reg.*}
+#             Q1 {quant/(partial_value|out_valid)_reg.*}
+#             A0 {add/order_q_reg.*} A1 {add/arithmetic_q_reg.*}
+#             A2 {add/candidates_q_reg.*} A3 {add/(result_value|out_valid)_reg.*}
+#             C {c_q_reg.*}
+#         } {
+#             set pattern [format {^core/physical_regions\[%d\]\.lanes\[%d\]\.%s} $g $n $suffix]
+#             characterize lane${g}_${n}_${stage} [primitives $pattern]
+#         }
+#     }
+# }
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Common 17-14] Message 'Timing 38-78' appears 100 times and further instances of the messages will be disabled. Use the Tcl command set_msg_config to change the current settings.
+# close $csv
+# source [file join $root deqacc_v2_locality.tcl]
+## namespace eval deqacc_v2_locality {
+##     proc quote {text} {
+##         return [regsub -all {[][\\.^$*+?()|]} $text {\\&}]
+##     }
+## 
+##     proc choose_clock_regions {{requested {}}} {
+##         if {[llength $requested]} {
+##             if {[llength $requested] != 4 || [llength [lsort -unique $requested]] != 4} {
+##                 error "Specify four distinct clock regions in row0-left/right, row1-left/right order"
+##             }
+##             set owners {}
+##             foreach name $requested {
+##                 set cr [get_clock_regions -quiet $name]
+##                 if {[llength $cr] != 1} {error "Unknown clock region: $name"}
+##                 lappend owners [get_property NAME [get_slrs -of_objects $cr]]
+##             }
+##             if {[llength [lsort -unique $owners]] != 1} {error "V2 locality regions must share one SLR"}
+##             return $requested
+##         }
+## 
+##         # Choose an adjacent 2x2 square near the middle of one actual SLR.
+##         # No U50 SLICE coordinate or clock-region count is hard-coded.
+##         foreach slr [get_slrs] {
+##             set regions [get_clock_regions -of_objects $slr]
+##             set points [dict create]
+##             set xs {}; set ys {}
+##             foreach cr $regions {
+##                 set name [get_property NAME $cr]
+##                 if {![regexp {^X([0-9]+)Y([0-9]+)$} $name unused x y]} {continue}
+##                 dict set points $x,$y $name
+##                 lappend xs $x; lappend ys $y
+##             }
+##             if {![llength $xs]} {continue}
+##             set xs [lsort -integer -unique $xs]; set ys [lsort -integer -unique $ys]
+##             set cx [expr {([lindex $xs 0]+[lindex $xs end])/2.0}]
+##             set cy [expr {([lindex $ys 0]+[lindex $ys end])/2.0}]
+##             set best {}; set score 1e30
+##             foreach x $xs {
+##                 foreach y $ys {
+##                     set x1 [expr {$x+1}]; set y1 [expr {$y+1}]
+##                     if {![dict exists $points $x,$y] || ![dict exists $points $x1,$y] || ![dict exists $points $x,$y1] ||
+##                         ![dict exists $points $x1,$y1]} {continue}
+##                     set candidate [list [dict get $points $x,$y] [dict get $points $x1,$y] \
+##                         [dict get $points $x,$y1] [dict get $points $x1,$y1]]
+##                     set distance [expr {abs($x+0.5-$cx)+abs($y+0.5-$cy)}]
+##                     if {$distance < $score} {set score $distance; set best $candidate}
+##                 }
+##             }
+##             if {[llength $best]} {return $best}
+##         }
+##         error "No adjacent 2x2 clock-region square in one SLR; provide four explicit regions"
+##     }
+## 
+##     proc primitives {pattern} {
+##         return [get_cells -quiet -hierarchical -regexp -filter {IS_PRIMITIVE} $pattern]
+##     }
+## 
+##     proc regional_cells {core region} {
+##         set scope [expr {$core eq "" ? "" : "[quote $core]/"}]
+##         set row [expr {$region/2}]
+##         set first_branch [expr {($region%2)*2}]
+##         set cells {}
+##         for {set n 0} {$n < 8} {incr n} {
+##             set pattern [format {^%sphysical_regions\[%d\]\.lanes\[%d\][./].*} $scope $region $n]
+##             set lane [primitives $pattern]
+##             if {![llength $lane]} {error "V2 locality missing row=$row region=$region lane=$n under '$core'"}
+##             set cells [concat $cells $lane]
+##         }
+##         set controls [primitives [format {^%scontrol_fanout/branches\[%d\][./].*} $scope $region]]
+##         if {![llength $controls]} {error "V2 locality missing region=$region common control buffers"}
+##         set cells [concat $cells $controls]
+##         for {set g $first_branch} {$g < $first_branch+2} {incr g} {
+##             foreach pattern [list \
+##                 [format {^%sscale_ingress/rows\[%d\]\.branches\[%d\][./].*} $scope $row $g] \
+##                 [format {^%srow_forward\[%d\]\.fanout/branches\[%d\][./].*} $scope $row $g] \
+##                 [format {^%smemory/output_rows\[%d\]\.old_controls/branches\[%d\][./].*} $scope $row $g] \
+##                 [format {^%smemory/output_rows\[%d\]\.external_controls/branches\[%d\][./].*} $scope $row $g]] {
+##                 set local [primitives $pattern]
+##                 if {![llength $local]} {error "V2 locality missing local endpoints: $pattern"}
+##                 set cells [concat $cells $local]
+##             }
+##         }
+##         return [lsort -unique $cells]
+##     }
+## 
+##     proc apply {{core ""} {clock_regions {}}} {
+##         set regions [choose_clock_regions $clock_regions]
+##         set grouped {}; set assigned [dict create]
+##         # Validate every selector before creating any Pblock. Wrong/old
+##         # netlists fail instead of silently constraining an empty collection.
+##         for {set g 0} {$g < 4} {incr g} {
+##             set cells [regional_cells $core $g]
+##             foreach cell $cells {
+##                 if {[dict exists $assigned $cell]} {error "V2 locality overlapping region membership: $cell"}
+##                 if {[string match *memory/banks* $cell]} {error "ACC RAM must not enter lane Pblocks"}
+##                 dict set assigned $cell $g
+##             }
+##             lappend grouped $cells
+##         }
+##         set tag [regsub -all {[^A-Za-z0-9_]} $core _]
+##         if {$tag ne ""} {append tag _}
+##         for {set g 0} {$g < 4} {incr g} {
+##             set name deqacc_v2_${tag}region${g}
+##             if {[llength [get_pblocks -quiet $name]]} {error "Pblock already exists: $name"}
+##         }
+##         for {set g 0} {$g < 4} {incr g} {
+##             set name deqacc_v2_${tag}region${g}
+##             set cr [lindex $regions $g]
+##             create_pblock $name
+##             add_cells_to_pblock [get_pblocks $name] [lindex $grouped $g]
+##             resize_pblock [get_pblocks $name] -add CLOCKREGION_${cr}:CLOCKREGION_${cr}
+##             set_property EXCLUDE_PLACEMENT FALSE [get_pblocks $name]
+##             set_property CONTAIN_ROUTING FALSE [get_pblocks $name]
+##             # Set hardness last: containment setters can restore softness.
+##             set_property IS_SOFT FALSE [get_pblocks $name]
+##             if {[get_property IS_SOFT [get_pblocks $name]]} {error "Pblock is unexpectedly soft: $name"}
+##             puts "V2_LOCALITY region=$g clock_region=$cr lanes=8 cells=[llength [lindex $grouped $g]] hard=1 ACC_RAM=excluded"
+##         }
+##         return $regions
+##     }
+## }
+# proc deqacc_v2_locality::primitives {pattern} {return [::primitives $pattern]}
+# if {$routed_report} {
+#     set regions {}
+#     foreach p [get_pblocks -quiet] {lappend regions [get_property GRID_RANGES $p]}
+# } else {
+#     set regions [deqacc_v2_locality::apply core]
+# }
+# set f [open [file join $report pblocks.csv] w]
+# puts $f "pblock,hard,clock_region,selected_primitive_members,grid_ranges"
+# foreach p [get_pblocks -quiet] {
+#     puts $f "$p,[expr {![get_property IS_SOFT $p]}],[get_property GRID_RANGES $p],[llength [get_cells -of_objects $p]],[get_property GRID_RANGES $p]"
+# }
+# close $f
+# if {!$routed_report} {
+#     write_checkpoint -force [file join $report synthesized_with_locality.dcp]
+#     write_xdc -force [file join $report synthesized_constraints.xdc]
+# }
+# set f [open [file join $report run_info.txt] w]
+# if {$routed_report} {
+#     puts $f "Vivado: [version -short]\nPart: [get_property PART [current_design]]\nState: routed OOC checkpoint\nClock: 4.000 ns with actual BUFG\nCore: seven stages; launch/capture excluded from latency\nNet delays: routed device timing, NOT synthesis net estimates\nPblocks: $regions\nStatic timing, not silicon measurement."
+# } else {
+#     puts $f "Vivado: [version -short]\nPart: [get_property PART [current_design]]\nFlow: synth_design only, out_of_context\nClock: 4.000 ns\nCore: seven stages, II=1, dependent interval >=4\nExternal launch/capture: characterization only, not core latency\nNet delays: unplaced synthesis estimates, NOT post-route measurements\nLocality clock regions: $regions\nNo place/route/phys_opt run."
+# }
+# close $f
+# set f [open [file join $report report_script_sha256.txt] w]
+# puts $f [exec certutil -hashfile [file join $root synth_deqacc_v2.tcl] SHA256]
+# close $f
+# puts "V2_REPORT_COMPLETE routed=$routed_report $report"
+V2_REPORT_COMPLETE routed=1 C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/reports/v2_hard8x4_20261014
+INFO: [Common 17-206] Exiting Vivado at Wed Oct 14 10:17:35 2026...

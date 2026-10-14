@@ -1,6 +1,7 @@
 param(
     [string]$VivadoRoot = 'D:\Xilinx\Vivado\2022.2',
-    [string[]]$Tests = @('tb_dynamic_pe', 'tb_deqacc_v1_arithmetic', 'tb_dynamic_deqacc', 'tb_dynamic_compute')
+    [string[]]$Tests = @('tb_dynamic_pcore_control', 'tb_dynamic_projection_scheduler', 'tb_dynamic_projection_post', 'tb_dynamic_v_pair', 'tb_dynamic_kv_output', 'tb_dynamic_kv_projection', 'tb_dynamic_q_projection', 'tb_dynamic_profile', 'tb_dynamic_a_queue', 'tb_dynamic_local_memory', 'tb_dynamic_local_loader', 'tb_dynamic_local_compute', 'tb_dynamic_frontend', 'tb_dynamic_pe', 'tb_deqacc_v1_arithmetic', 'tb_dynamic_deqacc', 'tb_dynamic_compute'),
+    [ValidateSet('O0','O2')][string]$Optimization = 'O2'
 )
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
@@ -30,12 +31,12 @@ function Invoke-VivadoTool([string]$Tool, [string]$Arguments, [string]$LogName, 
     if ($ExpectedRaw) {
         $fatals = [regex]::Matches($text, '(?im)^\s*Fatal:.*$')
         if ($fatals.Count -ne 1 -or $text -notmatch 'Fatal: V1 accumulator RAW: dependent input interval below four cycles' -or
-            $text -match '(?im)\bERROR:|^\s*Error:|\bPASS\b') {
+            $text -match '(?im)\bERROR:|^\s*Error:|\bFATAL_ERROR:|EXCEPTION_ACCESS_VIOLATION|Assertion failed:|\bPASS\b') {
             throw "Unexpected RAW-negative result; see reports/$LogName"
         }
         return $text
     }
-    if ($code -ne 0 -or $text -match '(?im)\bFatal:|\bERROR:|^\s*Error:') {
+    if ($code -ne 0 -or $text -match '(?im)\bFatal:|\bFATAL_ERROR:|\bERROR:|^\s*Error:|EXCEPTION_ACCESS_VIOLATION|Assertion failed:') {
         throw "$Tool failed; see reports/$LogName"
     }
     Write-Host "$Tool completed; reports/$LogName"
@@ -48,7 +49,7 @@ try {
     $null = Invoke-VivadoTool 'xvlog' ('--sv --work ' + $library + ' ' + ($sources -join ' ') + ' "' + $glbl + '"') "compile_$stamp.log"
     foreach ($top in $Tests) {
         $snapshot = "${top}_$stamp"
-        $null = Invoke-VivadoTool 'xelab' ("$library.$top $library.glbl -L unisims_ver --O2 --debug typical --mt off -timescale 1ns/1ps --snapshot $snapshot") "${top}_elaborate_$stamp.log"
+        $null = Invoke-VivadoTool 'xelab' ("$library.$top $library.glbl -L unisims_ver --$Optimization --debug typical --mt off -timescale 1ns/1ps --snapshot $snapshot") "${top}_elaborate_$stamp.log"
         $output = Invoke-VivadoTool 'xsim' ("$snapshot -runall") "${top}_run_$stamp.log"
         if ($output -notmatch ([regex]::Escape($top) + ' PASS\b')) {
             throw "$top produced no PASS marker"
@@ -56,7 +57,7 @@ try {
         $line = [regex]::Match($output, "(?m)^$top PASS.*$").Value
         $results.Add($line)
         Write-Host $line
-        if ($top -eq 'tb_dynamic_compute') {
+        if ($top -in @('tb_dynamic_compute','tb_dynamic_frontend','tb_dynamic_local_compute','tb_dynamic_q_projection','tb_dynamic_kv_projection')) {
             [regex]::Matches($output, '(?m)^CASE .*') | ForEach-Object { $results.Add($_.Value) }
         }
         if ($top -eq 'tb_dynamic_deqacc') {

@@ -1,0 +1,859 @@
+#-----------------------------------------------------------
+# Vivado v2022.2 (64-bit)
+# SW Build 3671981 on Fri Oct 14 05:00:03 MDT 2022
+# IP Build 3669848 on Fri Oct 14 08:30:02 MDT 2022
+# Start of session at: Tue Oct 13 21:46:55 2026
+# Process ID: 40684
+# Current directory: C:/Users/fly04/Desktop/VLA/DEQACC/Pcore
+# Command line: vivado.exe -mode batch -source synth_deqacc_v2.tcl -log reports/v2_synth_20261013.log -journal reports/v2_synth_20261013.jou -tclargs C:/Users/fly04/Desktop/VLA/DEQACC/Pcore v2_synth_20261013
+# Log file: C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/reports/v2_synth_20261013.log
+# Journal file: C:/Users/fly04/Desktop/VLA/DEQACC/Pcore\reports/v2_synth_20261013.jou
+# Running On: FLY, OS: Windows, CPU Frequency: 2688 MHz, CPU Physical cores: 14, Host memory: 34071 MB
+#-----------------------------------------------------------
+source synth_deqacc_v2.tcl
+# set root [file normalize [lindex $argv 0]]
+# set tag [lindex $argv 1]
+# if {$tag eq ""} {error "Expected a unique report tag"}
+# set report [file join $root reports $tag]
+# if {[file exists $report]} {error "Report directory already exists: $report"}
+# file mkdir $report
+# set sources {
+#     rtl/pcore_pkg.sv rtl/dea8_fp32_pkg.sv rtl/deqacc_v1_pkg.sv
+#     rtl/dea8_acc_store.sv rtl/deqacc_v2_fanout.sv rtl/deqacc_v2_scale_ingress.sv
+#     rtl/dequant_lane_v1.sv rtl/fp32_add_lane_v1.sv rtl/acc_slice_v1.sv
+#     rtl/deqacc_v1_control.sv rtl/DEQACC_V1.sv rtl/deqacc_v2_timing_shell.sv
+# }
+# set manifest [open [file join $report source_sha256.csv] w]
+# puts $manifest "file,sha256"
+# foreach name [concat $sources {core_clock.xdc deqacc_v2_locality.tcl synth_deqacc_v2.tcl}] {
+#     set hash [exec certutil -hashfile [file join $root $name] SHA256]
+#     if {![regexp {\n([0-9a-fA-F]{64})\r?\n} $hash unused digest]} {error "Hash failed: $name"}
+#     puts $manifest "$name,$digest"
+# }
+# close $manifest
+# foreach name $sources {read_verilog -sv [file join $root $name]}
+# read_xdc [file join $root core_clock.xdc]
+# synth_design -top deqacc_v2_timing_shell -part xcu50-fsvh2104-2-e -mode out_of_context -flatten_hierarchy rebuilt
+Command: synth_design -top deqacc_v2_timing_shell -part xcu50-fsvh2104-2-e -mode out_of_context -flatten_hierarchy rebuilt
+Starting synth_design
+Attempting to get a license for feature 'Synthesis' and/or device 'xcu50'
+INFO: [Common 17-349] Got license for feature 'Synthesis' and/or device 'xcu50'
+INFO: [Device 21-403] Loading part xcu50-fsvh2104-2-e
+INFO: [Synth 8-7079] Multithreading enabled for synth_design using a maximum of 2 processes.
+INFO: [Synth 8-7078] Launching helper process for spawning children vivado processes
+INFO: [Synth 8-7075] Helper process launched with PID 33764
+INFO: [Synth 8-11241] undeclared symbol 'REGCCE', assumed default net type 'wire' [D:/Xilinx/Vivado/2022.2/data/verilog/src/unimacro/BRAM_SINGLE_MACRO.v:2170]
+WARNING: [Synth 8-11067] parameter 'TILE' declared inside package 'pcore_pkg' shall be treated as localparam [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/pcore_pkg.sv:2]
+WARNING: [Synth 8-11067] parameter 'ROWS' declared inside package 'pcore_pkg' shall be treated as localparam [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/pcore_pkg.sv:2]
+WARNING: [Synth 8-11067] parameter 'ROW_LANES' declared inside package 'pcore_pkg' shall be treated as localparam [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/pcore_pkg.sv:2]
+WARNING: [Synth 8-11067] parameter 'PAIRS' declared inside package 'pcore_pkg' shall be treated as localparam [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/pcore_pkg.sv:3]
+WARNING: [Synth 8-11067] parameter 'INT_BITS' declared inside package 'pcore_pkg' shall be treated as localparam [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/pcore_pkg.sv:4]
+WARNING: [Synth 8-11067] parameter 'SCALE_BITS' declared inside package 'pcore_pkg' shall be treated as localparam [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/pcore_pkg.sv:4]
+WARNING: [Synth 8-11067] parameter 'PSUM_BITS' declared inside package 'pcore_pkg' shall be treated as localparam [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/pcore_pkg.sv:4]
+WARNING: [Synth 8-11067] parameter 'FP_BITS' declared inside package 'pcore_pkg' shall be treated as localparam [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/pcore_pkg.sv:4]
+WARNING: [Synth 8-11067] parameter 'DATA_BITS' declared inside package 'pcore_pkg' shall be treated as localparam [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/pcore_pkg.sv:5]
+WARNING: [Synth 8-11067] parameter 'TILE_BITS' declared inside package 'pcore_pkg' shall be treated as localparam [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/pcore_pkg.sv:6]
+WARNING: [Synth 8-11067] parameter 'PAIR_BITS' declared inside package 'pcore_pkg' shall be treated as localparam [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/pcore_pkg.sv:6]
+WARNING: [Synth 8-11067] parameter 'EPOCH_BITS' declared inside package 'pcore_pkg' shall be treated as localparam [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/pcore_pkg.sv:6]
+WARNING: [Synth 8-11067] parameter 'MATRIX_TILE_COUNT_BITS' declared inside package 'pcore_pkg' shall be treated as localparam [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/pcore_pkg.sv:7]
+WARNING: [Synth 8-11067] parameter 'LOGICAL_ID_BITS' declared inside package 'pcore_pkg' shall be treated as localparam [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/pcore_pkg.sv:8]
+WARNING: [Synth 8-11067] parameter 'AFIFO_DEPTH' declared inside package 'pcore_pkg' shall be treated as localparam [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/pcore_pkg.sv:9]
+WARNING: [Synth 8-11067] parameter 'BFIFO_DEPTH' declared inside package 'pcore_pkg' shall be treated as localparam [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/pcore_pkg.sv:9]
+WARNING: [Synth 8-11067] parameter 'KV_BLOCKS' declared inside package 'pcore_pkg' shall be treated as localparam [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/pcore_pkg.sv:10]
+WARNING: [Synth 8-11067] parameter 'ATTN_K_TILES' declared inside package 'pcore_pkg' shall be treated as localparam [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/pcore_pkg.sv:11]
+WARNING: [Synth 8-11067] parameter 'ATTN_ISSUES' declared inside package 'pcore_pkg' shall be treated as localparam [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/pcore_pkg.sv:12]
+WARNING: [Synth 8-11067] parameter 'MXU_PIPE_STAGES' declared inside package 'pcore_pkg' shall be treated as localparam [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/pcore_pkg.sv:13]
+WARNING: [Synth 8-11067] parameter 'USE_DEQACC_V1' declared inside package 'pcore_pkg' shall be treated as localparam [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/pcore_pkg.sv:16]
+WARNING: [Synth 8-11067] parameter 'DEQACC_PIPE_STAGES' declared inside package 'pcore_pkg' shall be treated as localparam [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/pcore_pkg.sv:17]
+WARNING: [Synth 8-11067] parameter 'MXU_TAIL_EDGES' declared inside package 'pcore_pkg' shall be treated as localparam [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/pcore_pkg.sv:18]
+WARNING: [Synth 8-11067] parameter 'DEQACC_COMMIT_CYCLES' declared inside package 'pcore_pkg' shall be treated as localparam [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/pcore_pkg.sv:19]
+WARNING: [Synth 8-11067] parameter 'ATTN_NOMINAL_SLOT' declared inside package 'pcore_pkg' shall be treated as localparam [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/pcore_pkg.sv:20]
+WARNING: [Synth 8-11067] parameter 'MATRIX_STEADY_BUDGET' declared inside package 'pcore_pkg' shall be treated as localparam [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/pcore_pkg.sv:22]
+WARNING: [Synth 8-11067] parameter 'MATRIX_COLD_BUDGET' declared inside package 'pcore_pkg' shall be treated as localparam [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/pcore_pkg.sv:23]
+WARNING: [Synth 8-11067] parameter 'DOT_EXP_OFFSET' declared inside package 'pcore_pkg' shall be treated as localparam [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/pcore_pkg.sv:24]
+WARNING: [Synth 8-11067] parameter 'EXP_FOLD_BITS' declared inside package 'pcore_pkg' shall be treated as localparam [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/pcore_pkg.sv:24]
+WARNING: [Synth 8-11067] parameter 'XBC_GROUPS' declared inside package 'pcore_pkg' shall be treated as localparam [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/pcore_pkg.sv:25]
+WARNING: [Synth 8-11067] parameter 'QOZ_Q_TILES' declared inside package 'pcore_pkg' shall be treated as localparam [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/pcore_pkg.sv:54]
+WARNING: [Synth 8-11067] parameter 'QOZ_O_TILES' declared inside package 'pcore_pkg' shall be treated as localparam [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/pcore_pkg.sv:54]
+WARNING: [Synth 8-11067] parameter 'QOZ_Z_TILES' declared inside package 'pcore_pkg' shall be treated as localparam [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/pcore_pkg.sv:54]
+WARNING: [Synth 8-11067] parameter 'V1_PIPE_STAGES' declared inside package 'deqacc_v1_pkg' shall be treated as localparam [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/deqacc_v1_pkg.sv:3]
+---------------------------------------------------------------------------------
+Starting RTL Elaboration : Time (s): cpu = 00:00:03 ; elapsed = 00:00:04 . Memory (MB): peak = 2189.996 ; gain = 403.727
+---------------------------------------------------------------------------------
+INFO: [Synth 8-6157] synthesizing module 'deqacc_v2_timing_shell' [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/deqacc_v2_timing_shell.sv:6]
+INFO: [Synth 8-6157] synthesizing module 'DEQACC_V1' [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/DEQACC_V1.sv:4]
+INFO: [Synth 8-6157] synthesizing module 'deqacc_v2_fanout' [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/deqacc_v2_fanout.sv:3]
+	Parameter WIDTH bound to: 32'sb00000000000000000000000000000010 
+	Parameter BRANCHES bound to: 32'sb00000000000000000000000000000100 
+	Parameter LEAVES_PER_BRANCH bound to: 32'sb00000000000000000000000000000100 
+INFO: [Synth 8-6157] synthesizing module 'LUT1' [D:/Xilinx/Vivado/2022.2/scripts/rt/data/unisim_comp.v:78971]
+	Parameter INIT bound to: 2'b10 
+INFO: [Synth 8-6155] done synthesizing module 'LUT1' (0#1) [D:/Xilinx/Vivado/2022.2/scripts/rt/data/unisim_comp.v:78971]
+INFO: [Synth 8-6155] done synthesizing module 'deqacc_v2_fanout' (0#1) [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/deqacc_v2_fanout.sv:3]
+INFO: [Synth 8-6157] synthesizing module 'dequant_lane_v1' [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/dequant_lane_v1.sv:8]
+INFO: [Synth 8-6155] done synthesizing module 'dequant_lane_v1' (0#1) [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/dequant_lane_v1.sv:8]
+INFO: [Synth 8-6157] synthesizing module 'fp32_add_lane_v1' [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/fp32_add_lane_v1.sv:5]
+INFO: [Synth 8-6155] done synthesizing module 'fp32_add_lane_v1' (0#1) [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/fp32_add_lane_v1.sv:5]
+INFO: [Synth 8-6157] synthesizing module 'deqacc_v1_control' [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/deqacc_v1_control.sv:4]
+INFO: [Synth 8-6155] done synthesizing module 'deqacc_v1_control' (0#1) [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/deqacc_v1_control.sv:4]
+INFO: [Synth 8-6157] synthesizing module 'deqacc_v2_fanout__parameterized0' [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/deqacc_v2_fanout.sv:3]
+	Parameter WIDTH bound to: 32'sb00000000000000000000000000000100 
+	Parameter BRANCHES bound to: 32'sb00000000000000000000000000000100 
+	Parameter LEAVES_PER_BRANCH bound to: 32'sb00000000000000000000000000001000 
+INFO: [Synth 8-6155] done synthesizing module 'deqacc_v2_fanout__parameterized0' (0#1) [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/deqacc_v2_fanout.sv:3]
+INFO: [Synth 8-6157] synthesizing module 'deqacc_v2_scale_ingress' [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/deqacc_v2_scale_ingress.sv:5]
+INFO: [Synth 8-6157] synthesizing module 'deqacc_v2_base_add' [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/deqacc_v2_scale_ingress.sv:55]
+INFO: [Synth 8-6155] done synthesizing module 'deqacc_v2_base_add' (0#1) [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/deqacc_v2_scale_ingress.sv:55]
+INFO: [Synth 8-6155] done synthesizing module 'deqacc_v2_scale_ingress' (0#1) [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/deqacc_v2_scale_ingress.sv:5]
+INFO: [Synth 8-6157] synthesizing module 'acc_slice_v1' [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/acc_slice_v1.sv:8]
+INFO: [Synth 8-6157] synthesizing module 'dea8_acc_bank' [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/dea8_acc_store.sv:5]
+	Parameter DEPTH bound to: 32'sb00000000000000000000000000011010 
+	Parameter WIDTH bound to: 32'sb00000000000000000000001000000000 
+	Parameter SHARED_VALIDITY bound to: 1'b0 
+	Parameter STYLE bound to: distributed - type: string 
+INFO: [Synth 8-6155] done synthesizing module 'dea8_acc_bank' (0#1) [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/dea8_acc_store.sv:5]
+INFO: [Synth 8-6157] synthesizing module 'dea8_acc_bank__parameterized0' [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/dea8_acc_store.sv:5]
+	Parameter DEPTH bound to: 32'sb00000000000000000000000000011001 
+	Parameter WIDTH bound to: 32'sb00000000000000000000001000000000 
+	Parameter SHARED_VALIDITY bound to: 1'b0 
+	Parameter STYLE bound to: distributed - type: string 
+INFO: [Synth 8-6155] done synthesizing module 'dea8_acc_bank__parameterized0' (0#1) [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/dea8_acc_store.sv:5]
+INFO: [Synth 8-6157] synthesizing module 'dea8_acc_bank__parameterized1' [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/dea8_acc_store.sv:5]
+	Parameter DEPTH bound to: 32'sb00000000000000000000000110100000 
+	Parameter WIDTH bound to: 32'sb00000000000000000000001000000000 
+	Parameter SHARED_VALIDITY bound to: 1'b0 
+	Parameter STYLE bound to: block - type: string 
+INFO: [Synth 8-6155] done synthesizing module 'dea8_acc_bank__parameterized1' (0#1) [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/dea8_acc_store.sv:5]
+INFO: [Synth 8-6157] synthesizing module 'dea8_acc_bank__parameterized2' [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/dea8_acc_store.sv:5]
+	Parameter DEPTH bound to: 32'sb00000000000000000000000110010000 
+	Parameter WIDTH bound to: 32'sb00000000000000000000001000000000 
+	Parameter SHARED_VALIDITY bound to: 1'b0 
+	Parameter STYLE bound to: block - type: string 
+INFO: [Synth 8-6155] done synthesizing module 'dea8_acc_bank__parameterized2' (0#1) [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/dea8_acc_store.sv:5]
+INFO: [Synth 8-6157] synthesizing module 'deqacc_v2_fanout__parameterized1' [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/deqacc_v2_fanout.sv:3]
+	Parameter WIDTH bound to: 32'sb00000000000000000000000000000011 
+	Parameter BRANCHES bound to: 32'sb00000000000000000000000000000100 
+	Parameter LEAVES_PER_BRANCH bound to: 32'sb00000000000000000000000000000100 
+INFO: [Synth 8-6155] done synthesizing module 'deqacc_v2_fanout__parameterized1' (0#1) [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/deqacc_v2_fanout.sv:3]
+INFO: [Synth 8-6155] done synthesizing module 'acc_slice_v1' (0#1) [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/acc_slice_v1.sv:8]
+INFO: [Synth 8-6155] done synthesizing module 'DEQACC_V1' (0#1) [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/DEQACC_V1.sv:4]
+INFO: [Synth 8-6155] done synthesizing module 'deqacc_v2_timing_shell' (0#1) [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/deqacc_v2_timing_shell.sv:6]
+WARNING: [Synth 8-3936] Found unconnected internal register 'rounded_normal_reg' and it is trimmed from '33' to '23' bits. [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/dequant_lane_v1.sv:167]
+WARNING: [Synth 8-3936] Found unconnected internal register 'close_norm_reg' and it is trimmed from '28' to '27' bits. [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/fp32_add_lane_v1.sv:147]
+WARNING: [Synth 8-3936] Found unconnected internal register 'close_pre_norm_reg' and it is trimmed from '28' to '27' bits. [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/fp32_add_lane_v1.sv:144]
+WARNING: [Synth 8-3936] Found unconnected internal register 'far_norm_reg' and it is trimmed from '28' to '27' bits. [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/rtl/fp32_add_lane_v1.sv:132]
+WARNING: [Synth 8-7129] Port rd_initialized in module dea8_acc_bank__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_addr[9] in module dea8_acc_bank__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_addr[8] in module dea8_acc_bank__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_addr[7] in module dea8_acc_bank__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_addr[6] in module dea8_acc_bank__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_addr[5] in module dea8_acc_bank__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_addr[4] in module dea8_acc_bank__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_addr[3] in module dea8_acc_bank__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_addr[2] in module dea8_acc_bank__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_addr[1] in module dea8_acc_bank__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_addr[0] in module dea8_acc_bank__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_lane[3] in module dea8_acc_bank__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_lane[2] in module dea8_acc_bank__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_lane[1] in module dea8_acc_bank__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_lane[0] in module dea8_acc_bank__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port rd_initialized in module dea8_acc_bank__parameterized1 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_addr[9] in module dea8_acc_bank__parameterized1 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_addr[8] in module dea8_acc_bank__parameterized1 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_addr[7] in module dea8_acc_bank__parameterized1 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_addr[6] in module dea8_acc_bank__parameterized1 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_addr[5] in module dea8_acc_bank__parameterized1 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_addr[4] in module dea8_acc_bank__parameterized1 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_addr[3] in module dea8_acc_bank__parameterized1 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_addr[2] in module dea8_acc_bank__parameterized1 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_addr[1] in module dea8_acc_bank__parameterized1 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_addr[0] in module dea8_acc_bank__parameterized1 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_lane[3] in module dea8_acc_bank__parameterized1 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_lane[2] in module dea8_acc_bank__parameterized1 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_lane[1] in module dea8_acc_bank__parameterized1 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_lane[0] in module dea8_acc_bank__parameterized1 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port rd_initialized in module dea8_acc_bank__parameterized0 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_addr[9] in module dea8_acc_bank__parameterized0 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_addr[8] in module dea8_acc_bank__parameterized0 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_addr[7] in module dea8_acc_bank__parameterized0 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_addr[6] in module dea8_acc_bank__parameterized0 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_addr[5] in module dea8_acc_bank__parameterized0 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_addr[4] in module dea8_acc_bank__parameterized0 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_addr[3] in module dea8_acc_bank__parameterized0 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_addr[2] in module dea8_acc_bank__parameterized0 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_addr[1] in module dea8_acc_bank__parameterized0 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_addr[0] in module dea8_acc_bank__parameterized0 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_lane[3] in module dea8_acc_bank__parameterized0 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_lane[2] in module dea8_acc_bank__parameterized0 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_lane[1] in module dea8_acc_bank__parameterized0 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_lane[0] in module dea8_acc_bank__parameterized0 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port rd_initialized in module dea8_acc_bank is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_addr[9] in module dea8_acc_bank is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_addr[8] in module dea8_acc_bank is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_addr[7] in module dea8_acc_bank is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_addr[6] in module dea8_acc_bank is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_addr[5] in module dea8_acc_bank is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_addr[4] in module dea8_acc_bank is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_addr[3] in module dea8_acc_bank is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_addr[2] in module dea8_acc_bank is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_addr[1] in module dea8_acc_bank is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_addr[0] in module dea8_acc_bank is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_lane[3] in module dea8_acc_bank is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_lane[2] in module dea8_acc_bank is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_lane[1] in module dea8_acc_bank is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_lane[0] in module dea8_acc_bank is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_sel[1] in module acc_slice_v1 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_sel[0] in module acc_slice_v1 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dbg_parity in module acc_slice_v1 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port rsp[psum][1][15][31] in module deqacc_v1_control is either unconnected or has no load
+WARNING: [Synth 8-7129] Port rsp[psum][1][15][30] in module deqacc_v1_control is either unconnected or has no load
+WARNING: [Synth 8-7129] Port rsp[psum][1][15][29] in module deqacc_v1_control is either unconnected or has no load
+WARNING: [Synth 8-7129] Port rsp[psum][1][15][28] in module deqacc_v1_control is either unconnected or has no load
+WARNING: [Synth 8-7129] Port rsp[psum][1][15][27] in module deqacc_v1_control is either unconnected or has no load
+WARNING: [Synth 8-7129] Port rsp[psum][1][15][26] in module deqacc_v1_control is either unconnected or has no load
+WARNING: [Synth 8-7129] Port rsp[psum][1][15][25] in module deqacc_v1_control is either unconnected or has no load
+WARNING: [Synth 8-7129] Port rsp[psum][1][15][24] in module deqacc_v1_control is either unconnected or has no load
+WARNING: [Synth 8-7129] Port rsp[psum][1][15][23] in module deqacc_v1_control is either unconnected or has no load
+WARNING: [Synth 8-7129] Port rsp[psum][1][15][22] in module deqacc_v1_control is either unconnected or has no load
+WARNING: [Synth 8-7129] Port rsp[psum][1][15][21] in module deqacc_v1_control is either unconnected or has no load
+WARNING: [Synth 8-7129] Port rsp[psum][1][15][20] in module deqacc_v1_control is either unconnected or has no load
+WARNING: [Synth 8-7129] Port rsp[psum][1][15][19] in module deqacc_v1_control is either unconnected or has no load
+WARNING: [Synth 8-7129] Port rsp[psum][1][15][18] in module deqacc_v1_control is either unconnected or has no load
+WARNING: [Synth 8-7129] Port rsp[psum][1][15][17] in module deqacc_v1_control is either unconnected or has no load
+WARNING: [Synth 8-7129] Port rsp[psum][1][15][16] in module deqacc_v1_control is either unconnected or has no load
+WARNING: [Synth 8-7129] Port rsp[psum][1][15][15] in module deqacc_v1_control is either unconnected or has no load
+WARNING: [Synth 8-7129] Port rsp[psum][1][15][14] in module deqacc_v1_control is either unconnected or has no load
+WARNING: [Synth 8-7129] Port rsp[psum][1][15][13] in module deqacc_v1_control is either unconnected or has no load
+WARNING: [Synth 8-7129] Port rsp[psum][1][15][12] in module deqacc_v1_control is either unconnected or has no load
+WARNING: [Synth 8-7129] Port rsp[psum][1][15][11] in module deqacc_v1_control is either unconnected or has no load
+WARNING: [Synth 8-7129] Port rsp[psum][1][15][10] in module deqacc_v1_control is either unconnected or has no load
+WARNING: [Synth 8-7129] Port rsp[psum][1][15][9] in module deqacc_v1_control is either unconnected or has no load
+WARNING: [Synth 8-7129] Port rsp[psum][1][15][8] in module deqacc_v1_control is either unconnected or has no load
+WARNING: [Synth 8-7129] Port rsp[psum][1][15][7] in module deqacc_v1_control is either unconnected or has no load
+WARNING: [Synth 8-7129] Port rsp[psum][1][15][6] in module deqacc_v1_control is either unconnected or has no load
+WARNING: [Synth 8-7129] Port rsp[psum][1][15][5] in module deqacc_v1_control is either unconnected or has no load
+WARNING: [Synth 8-7129] Port rsp[psum][1][15][4] in module deqacc_v1_control is either unconnected or has no load
+WARNING: [Synth 8-7129] Port rsp[psum][1][15][3] in module deqacc_v1_control is either unconnected or has no load
+WARNING: [Synth 8-7129] Port rsp[psum][1][15][2] in module deqacc_v1_control is either unconnected or has no load
+WARNING: [Synth 8-7129] Port rsp[psum][1][15][1] in module deqacc_v1_control is either unconnected or has no load
+WARNING: [Synth 8-7129] Port rsp[psum][1][15][0] in module deqacc_v1_control is either unconnected or has no load
+WARNING: [Synth 8-7129] Port rsp[psum][1][14][31] in module deqacc_v1_control is either unconnected or has no load
+WARNING: [Synth 8-7129] Port rsp[psum][1][14][30] in module deqacc_v1_control is either unconnected or has no load
+WARNING: [Synth 8-7129] Port rsp[psum][1][14][29] in module deqacc_v1_control is either unconnected or has no load
+WARNING: [Synth 8-7129] Port rsp[psum][1][14][28] in module deqacc_v1_control is either unconnected or has no load
+WARNING: [Synth 8-7129] Port rsp[psum][1][14][27] in module deqacc_v1_control is either unconnected or has no load
+INFO: [Common 17-14] Message 'Synth 8-7129' appears 100 times and further instances of the messages will be disabled. Use the Tcl command set_msg_config to change the current settings.
+---------------------------------------------------------------------------------
+Finished RTL Elaboration : Time (s): cpu = 00:00:05 ; elapsed = 00:00:06 . Memory (MB): peak = 2325.867 ; gain = 539.598
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Handling Custom Attributes
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Handling Custom Attributes : Time (s): cpu = 00:00:05 ; elapsed = 00:00:06 . Memory (MB): peak = 2343.770 ; gain = 557.500
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished RTL Optimization Phase 1 : Time (s): cpu = 00:00:05 ; elapsed = 00:00:06 . Memory (MB): peak = 2343.770 ; gain = 557.500
+---------------------------------------------------------------------------------
+Netlist sorting complete. Time (s): cpu = 00:00:00 ; elapsed = 00:00:00.458 . Memory (MB): peak = 2355.832 ; gain = 0.000
+INFO: [Project 1-570] Preparing netlist for logic optimization
+
+Processing XDC Constraints
+Initializing timing engine
+Parsing XDC File [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/core_clock.xdc]
+Finished Parsing XDC File [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/core_clock.xdc]
+Completed Processing XDC Constraints
+
+Netlist sorting complete. Time (s): cpu = 00:00:00 ; elapsed = 00:00:00.006 . Memory (MB): peak = 2513.566 ; gain = 0.000
+INFO: [Project 1-111] Unisim Transformation Summary:
+No Unisim elements were transformed.
+
+Constraint Validation Runtime : Time (s): cpu = 00:00:00 ; elapsed = 00:00:00.332 . Memory (MB): peak = 2513.566 ; gain = 0.000
+INFO: [Synth 8-11241] undeclared symbol 'REGCCE', assumed default net type 'wire' [D:/Xilinx/Vivado/2022.2/data/verilog/src/unimacro/BRAM_SINGLE_MACRO.v:2170]
+---------------------------------------------------------------------------------
+Finished Constraint Validation : Time (s): cpu = 00:00:20 ; elapsed = 00:00:21 . Memory (MB): peak = 2513.566 ; gain = 727.297
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Loading Part and Timing Information
+---------------------------------------------------------------------------------
+Loading part: xcu50-fsvh2104-2-e
+INFO: [Synth 8-6742] Reading net delay rules and data
+---------------------------------------------------------------------------------
+Finished Loading Part and Timing Information : Time (s): cpu = 00:00:20 ; elapsed = 00:00:21 . Memory (MB): peak = 2513.566 ; gain = 727.297
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Applying 'set_property' XDC Constraints
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished applying 'set_property' XDC Constraints : Time (s): cpu = 00:00:20 ; elapsed = 00:00:21 . Memory (MB): peak = 2513.566 ; gain = 727.297
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished RTL Optimization Phase 2 : Time (s): cpu = 00:00:21 ; elapsed = 00:00:22 . Memory (MB): peak = 2513.566 ; gain = 727.297
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start RTL Component Statistics 
+---------------------------------------------------------------------------------
+Detailed RTL Component Info : 
++---Adders : 
+	   2 Input   33 Bit       Adders := 32    
+	   2 Input   32 Bit       Adders := 32    
+	   3 Input   28 Bit       Adders := 64    
+	   2 Input   25 Bit       Adders := 64    
+	   2 Input   12 Bit       Adders := 160   
+	   3 Input   12 Bit       Adders := 2     
+	   2 Input    9 Bit       Adders := 128   
+	   4 Input    9 Bit       Adders := 32    
+	   2 Input    8 Bit       Adders := 32    
+	   3 Input    8 Bit       Adders := 32    
+	   2 Input    6 Bit       Adders := 32    
+	   2 Input    5 Bit       Adders := 32    
++---XORs : 
+	   2 Input     28 Bit         XORs := 64    
+	   2 Input      1 Bit         XORs := 32    
++---Registers : 
+	              512 Bit    Registers := 6     
+	              416 Bit    Registers := 1     
+	              400 Bit    Registers := 1     
+	               32 Bit    Registers := 448   
+	               28 Bit    Registers := 128   
+	               26 Bit    Registers := 2     
+	               25 Bit    Registers := 2     
+	               24 Bit    Registers := 128   
+	               12 Bit    Registers := 32    
+	               10 Bit    Registers := 4     
+	                9 Bit    Registers := 192   
+	                8 Bit    Registers := 50    
+	                6 Bit    Registers := 44    
+	                5 Bit    Registers := 73    
+	                4 Bit    Registers := 9     
+	                3 Bit    Registers := 9     
+	                2 Bit    Registers := 35    
+	                1 Bit    Registers := 977   
++---RAMs : 
+	             208K Bit	(416 X 512 bit)          RAMs := 1     
+	             200K Bit	(400 X 512 bit)          RAMs := 1     
++---Muxes : 
+	   2 Input  512 Bit        Muxes := 12    
+	   2 Input  416 Bit        Muxes := 1     
+	   2 Input  400 Bit        Muxes := 1     
+	   2 Input   33 Bit        Muxes := 288   
+	   2 Input   32 Bit        Muxes := 417   
+	   5 Input   31 Bit        Muxes := 32    
+	   2 Input   28 Bit        Muxes := 256   
+	   2 Input   27 Bit        Muxes := 256   
+	   2 Input   26 Bit        Muxes := 2     
+	   2 Input   25 Bit        Muxes := 2     
+	   2 Input   24 Bit        Muxes := 224   
+	   2 Input   23 Bit        Muxes := 32    
+	   2 Input   16 Bit        Muxes := 64    
+	   2 Input   12 Bit        Muxes := 32    
+	   2 Input   10 Bit        Muxes := 18    
+	   3 Input   10 Bit        Muxes := 1     
+	   2 Input    9 Bit        Muxes := 160   
+	   2 Input    8 Bit        Muxes := 224   
+	   2 Input    5 Bit        Muxes := 32    
+	   2 Input    4 Bit        Muxes := 64    
+	   2 Input    2 Bit        Muxes := 64    
+	   2 Input    1 Bit        Muxes := 104   
+---------------------------------------------------------------------------------
+Finished RTL Component Statistics 
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Part Resource Summary
+---------------------------------------------------------------------------------
+Part Resources:
+DSPs: 5952 (col length:93)
+BRAMs: 2688 (col length: RAMB18 192 RAMB36 96)
+---------------------------------------------------------------------------------
+Finished Part Resource Summary
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Cross Boundary and Area Optimization
+---------------------------------------------------------------------------------
+INFO: [Synth 8-3886] merging instance 'control/meta_pipe_reg[1][nt][0]' (FD) to 'control/oacc_addr_return[-1111111111]__2'
+INFO: [Synth 8-3886] merging instance 'control/meta_pipe_reg[1][nt][1]' (FD) to 'control/oacc_addr_return[-1111111110]__2'
+INFO: [Synth 8-3886] merging instance 'control/meta_pipe_reg[1][nt][2]' (FD) to 'control/oacc_addr_return[-1111111109]__2'
+INFO: [Synth 8-3886] merging instance 'control/meta_pipe_reg[1][nt][3]' (FD) to 'control/oacc_addr_return[-1111111108]__2'
+INFO: [Synth 8-3886] merging instance 'control/meta_pipe_reg[1][nt][4]' (FD) to 'control/oacc_addr_return[-1111111107]__2'
+INFO: [Synth 8-3886] merging instance 'control/meta_pipe_reg[1][nt][5]' (FD) to 'control/oacc_addr_return[-1111111106]__0'
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[0].lanes[1].add /\order_q_reg[pre][exponent][8] )
+INFO: [Synth 8-3886] merging instance 'physical_regions[0].lanes[1].add/order_q_reg[pre][big_x][27]' (FD) to 'physical_regions[0].lanes[1].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3886] merging instance 'physical_regions[0].lanes[1].add/order_q_reg[pre][big_x][0]' (FD) to 'physical_regions[0].lanes[1].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3886] merging instance 'physical_regions[0].lanes[1].add/order_q_reg[pre][small_x][0]' (FD) to 'physical_regions[0].lanes[1].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3886] merging instance 'physical_regions[0].lanes[1].add/order_q_reg[pre][big_x][1]' (FD) to 'physical_regions[0].lanes[1].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3886] merging instance 'physical_regions[0].lanes[1].add/order_q_reg[pre][small_x][1]' (FD) to 'physical_regions[0].lanes[1].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3886] merging instance 'physical_regions[0].lanes[1].add/order_q_reg[pre][big_x][2]' (FD) to 'physical_regions[0].lanes[1].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3886] merging instance 'physical_regions[0].lanes[1].add/order_q_reg[pre][small_x][2]' (FD) to 'physical_regions[0].lanes[1].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3886] merging instance 'physical_regions[0].lanes[1].add/order_q_reg[pre][small_x][27]' (FD) to 'physical_regions[0].lanes[1].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3886] merging instance 'control/oacc_addr_return[-1111111108]__6' (FD) to 'control/meta_pipe_reg[5][pair_idx][3]'
+INFO: [Synth 8-3886] merging instance 'control/oacc_addr_return[-1111111109]__6' (FD) to 'control/meta_pipe_reg[5][pair_idx][2]'
+INFO: [Synth 8-3886] merging instance 'control/oacc_addr_return[-1111111111]__6' (FD) to 'control/meta_pipe_reg[5][pair_idx][0]'
+INFO: [Synth 8-3886] merging instance 'control/oacc_addr_return[-1111111110]__6' (FD) to 'control/meta_pipe_reg[5][pair_idx][1]'
+INFO: [Synth 8-3886] merging instance 'control/oacc_addr_return[-1111111107]__6' (FD) to 'control/meta_pipe_reg[5][pair_idx][4]'
+INFO: [Synth 8-3886] merging instance 'control/oacc_addr_return[-1111111108]__3' (FD) to 'control/meta_pipe_reg[0][pair_idx][3]'
+INFO: [Synth 8-3886] merging instance 'control/oacc_addr_return[-1111111109]__3' (FD) to 'control/meta_pipe_reg[0][pair_idx][2]'
+INFO: [Synth 8-3886] merging instance 'control/oacc_addr_return[-1111111111]__3' (FD) to 'control/meta_pipe_reg[0][pair_idx][0]'
+INFO: [Synth 8-3886] merging instance 'control/oacc_addr_return[-1111111110]__3' (FD) to 'control/meta_pipe_reg[0][pair_idx][1]'
+INFO: [Synth 8-3886] merging instance 'control/oacc_addr_return[-1111111107]__3' (FD) to 'control/meta_pipe_reg[0][pair_idx][4]'
+INFO: [Synth 8-3886] merging instance 'control/oacc_addr_return[-1111111108]__0' (FD) to 'control/meta_pipe_reg[4][pair_idx][3]'
+INFO: [Synth 8-3886] merging instance 'control/oacc_addr_return[-1111111109]__0' (FD) to 'control/meta_pipe_reg[4][pair_idx][2]'
+INFO: [Synth 8-3886] merging instance 'control/oacc_addr_return[-1111111111]__0' (FD) to 'control/meta_pipe_reg[4][pair_idx][0]'
+INFO: [Synth 8-3886] merging instance 'control/oacc_addr_return[-1111111110]__0' (FD) to 'control/meta_pipe_reg[4][pair_idx][1]'
+INFO: [Synth 8-3886] merging instance 'control/oacc_addr_return[-1111111107]__0' (FD) to 'control/meta_pipe_reg[4][pair_idx][4]'
+INFO: [Synth 8-3886] merging instance 'control/oacc_addr_return[-1111111111]__5' (FD) to 'control/commit_meta_reg[nt][0]'
+INFO: [Synth 8-3886] merging instance 'control/oacc_addr_return[-1111111110]__5' (FD) to 'control/commit_meta_reg[nt][1]'
+INFO: [Synth 8-3886] merging instance 'control/oacc_addr_return[-1111111109]__5' (FD) to 'control/commit_meta_reg[nt][2]'
+INFO: [Synth 8-3886] merging instance 'control/oacc_addr_return[-1111111108]__5' (FD) to 'control/commit_meta_reg[nt][3]'
+INFO: [Synth 8-3886] merging instance 'control/oacc_addr_return[-1111111108]__7' (FD) to 'control/commit_meta_reg[pair_idx][3]'
+INFO: [Synth 8-3886] merging instance 'control/oacc_addr_return[-1111111109]__7' (FD) to 'control/commit_meta_reg[pair_idx][2]'
+INFO: [Synth 8-3886] merging instance 'control/oacc_addr_return[-1111111107]__5' (FD) to 'control/commit_meta_reg[nt][4]'
+INFO: [Synth 8-3886] merging instance 'control/oacc_addr_return[-1111111111]__7' (FD) to 'control/commit_meta_reg[pair_idx][0]'
+INFO: [Synth 8-3886] merging instance 'control/oacc_addr_return[-1111111106]__1' (FD) to 'control/commit_meta_reg[nt][5]'
+INFO: [Synth 8-3886] merging instance 'control/oacc_addr_return[-1111111110]__7' (FD) to 'control/commit_meta_reg[pair_idx][1]'
+INFO: [Synth 8-3886] merging instance 'control/oacc_addr_return[-1111111107]__7' (FD) to 'control/commit_meta_reg[pair_idx][4]'
+INFO: [Synth 8-3886] merging instance 'control/meta_pipe_reg[1][pair_idx][0]' (FD) to 'control/oacc_addr_return[-1111111111]__4'
+INFO: [Synth 8-3886] merging instance 'control/oacc_addr_return[-1111111111]' (FD) to 'control/meta_pipe_reg[5][nt][0]'
+INFO: [Synth 8-3886] merging instance 'control/meta_pipe_reg[1][pair_idx][1]' (FD) to 'control/oacc_addr_return[-1111111110]__4'
+INFO: [Synth 8-3886] merging instance 'control/oacc_addr_return[-1111111110]' (FD) to 'control/meta_pipe_reg[5][nt][1]'
+INFO: [Synth 8-3886] merging instance 'control/meta_pipe_reg[1][pair_idx][2]' (FD) to 'control/oacc_addr_return[-1111111109]__4'
+INFO: [Synth 8-3886] merging instance 'control/oacc_addr_return[-1111111109]' (FD) to 'control/meta_pipe_reg[5][nt][2]'
+INFO: [Synth 8-3886] merging instance 'control/meta_pipe_reg[1][pair_idx][3]' (FD) to 'control/oacc_addr_return[-1111111108]__4'
+INFO: [Synth 8-3886] merging instance 'control/oacc_addr_return[-1111111108]' (FD) to 'control/meta_pipe_reg[5][nt][3]'
+INFO: [Synth 8-3886] merging instance 'control/meta_pipe_reg[1][pair_idx][4]' (FD) to 'control/oacc_addr_return[-1111111107]__4'
+INFO: [Synth 8-3886] merging instance 'control/oacc_addr_return[-1111111108]__1' (FD) to 'control/meta_pipe_reg[5][pair_idx][3]'
+INFO: [Synth 8-3886] merging instance 'control/oacc_addr_return[-1111111109]__1' (FD) to 'control/meta_pipe_reg[5][pair_idx][2]'
+INFO: [Synth 8-3886] merging instance 'control/oacc_addr_return[-1111111107]' (FD) to 'control/meta_pipe_reg[5][nt][4]'
+INFO: [Synth 8-3886] merging instance 'control/oacc_addr_return[-1111111111]__1' (FD) to 'control/meta_pipe_reg[5][pair_idx][0]'
+INFO: [Synth 8-3886] merging instance 'control/oacc_addr_return[-1111111106]' (FD) to 'control/meta_pipe_reg[5][nt][5]'
+INFO: [Synth 8-3886] merging instance 'control/oacc_addr_return[-1111111110]__1' (FD) to 'control/meta_pipe_reg[5][pair_idx][1]'
+INFO: [Synth 8-3886] merging instance 'control/oacc_addr_return[-1111111107]__1' (FD) to 'control/meta_pipe_reg[5][pair_idx][4]'
+INFO: [Synth 8-3886] merging instance 'physical_regions[0].lanes[1].add/arithmetic_q_reg[exponent][8]' (FD) to 'physical_regions[0].lanes[1].add/arithmetic_q_reg[close_raw][0]'
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[0].lanes[1].add /\arithmetic_q_reg[close_raw][0] )
+INFO: [Synth 8-3886] merging instance 'physical_regions[0].lanes[1].add/arithmetic_q_reg[close_raw][0]' (FD) to 'physical_regions[0].lanes[1].add/arithmetic_q_reg[close_raw][1]'
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[0].lanes[1].add /\arithmetic_q_reg[close_raw][1] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[0].lanes[2].add /\order_q_reg[pre][exponent][8] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[0].lanes[3].add /\order_q_reg[pre][exponent][8] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[0].lanes[2].add /\arithmetic_q_reg[close_raw][0] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[0].lanes[3].add /\arithmetic_q_reg[close_raw][0] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[0].lanes[2].add /\arithmetic_q_reg[close_raw][1] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[0].lanes[3].add /\arithmetic_q_reg[close_raw][1] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[0].lanes[4].add /\order_q_reg[pre][exponent][8] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[0].lanes[5].add /\order_q_reg[pre][exponent][8] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[0].lanes[6].add /\order_q_reg[pre][exponent][8] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[0].lanes[4].add /\arithmetic_q_reg[close_raw][0] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[0].lanes[5].add /\arithmetic_q_reg[close_raw][0] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[0].lanes[6].add /\arithmetic_q_reg[close_raw][0] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[0].lanes[4].add /\arithmetic_q_reg[close_raw][1] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[0].lanes[5].add /\arithmetic_q_reg[close_raw][1] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[0].lanes[6].add /\arithmetic_q_reg[close_raw][1] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[1].lanes[0].add /\order_q_reg[pre][exponent][8] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[1].lanes[1].add /\order_q_reg[pre][exponent][8] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[1].lanes[2].add /\order_q_reg[pre][exponent][8] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[1].lanes[0].add /\arithmetic_q_reg[close_raw][0] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[1].lanes[1].add /\arithmetic_q_reg[close_raw][0] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[1].lanes[2].add /\arithmetic_q_reg[close_raw][0] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[1].lanes[0].add /\arithmetic_q_reg[close_raw][1] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[1].lanes[1].add /\arithmetic_q_reg[close_raw][1] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[1].lanes[2].add /\arithmetic_q_reg[close_raw][1] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[0].lanes[7].add /\order_q_reg[pre][exponent][8] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[1].lanes[5].add /\order_q_reg[pre][exponent][8] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[1].lanes[4].add /\order_q_reg[pre][exponent][8] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[1].lanes[3].add /\order_q_reg[pre][exponent][8] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[0].lanes[7].add /\arithmetic_q_reg[close_raw][0] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[1].lanes[5].add /\arithmetic_q_reg[close_raw][0] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[1].lanes[4].add /\arithmetic_q_reg[close_raw][0] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[1].lanes[3].add /\arithmetic_q_reg[close_raw][0] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[0].lanes[7].add /\arithmetic_q_reg[close_raw][1] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[1].lanes[5].add /\arithmetic_q_reg[close_raw][1] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[1].lanes[4].add /\arithmetic_q_reg[close_raw][1] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[1].lanes[3].add /\arithmetic_q_reg[close_raw][1] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[0].lanes[0].add /\order_q_reg[pre][exponent][8] )
+INFO: [Synth 8-3886] merging instance 'physical_regions[0].lanes[0].add/order_q_reg[pre][big_x][27]' (FD) to 'physical_regions[0].lanes[0].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3886] merging instance 'physical_regions[0].lanes[0].add/order_q_reg[pre][big_x][0]' (FD) to 'physical_regions[0].lanes[0].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3886] merging instance 'physical_regions[0].lanes[0].add/order_q_reg[pre][small_x][0]' (FD) to 'physical_regions[0].lanes[0].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3886] merging instance 'physical_regions[0].lanes[0].add/order_q_reg[pre][big_x][1]' (FD) to 'physical_regions[0].lanes[0].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3886] merging instance 'physical_regions[0].lanes[0].add/order_q_reg[pre][small_x][1]' (FD) to 'physical_regions[0].lanes[0].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3886] merging instance 'physical_regions[0].lanes[0].add/order_q_reg[pre][big_x][2]' (FD) to 'physical_regions[0].lanes[0].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3886] merging instance 'physical_regions[0].lanes[0].add/order_q_reg[pre][small_x][2]' (FD) to 'physical_regions[0].lanes[0].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3886] merging instance 'physical_regions[0].lanes[0].add/order_q_reg[pre][small_x][27]' (FD) to 'physical_regions[0].lanes[0].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[2].lanes[1].add /\order_q_reg[pre][exponent][8] )
+INFO: [Synth 8-3886] merging instance 'physical_regions[2].lanes[1].add/order_q_reg[pre][big_x][27]' (FD) to 'physical_regions[2].lanes[1].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3886] merging instance 'physical_regions[2].lanes[1].add/order_q_reg[pre][big_x][0]' (FD) to 'physical_regions[2].lanes[1].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3886] merging instance 'physical_regions[2].lanes[1].add/order_q_reg[pre][small_x][0]' (FD) to 'physical_regions[2].lanes[1].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3886] merging instance 'physical_regions[2].lanes[1].add/order_q_reg[pre][big_x][1]' (FD) to 'physical_regions[2].lanes[1].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3886] merging instance 'physical_regions[2].lanes[1].add/order_q_reg[pre][small_x][1]' (FD) to 'physical_regions[2].lanes[1].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3886] merging instance 'physical_regions[2].lanes[1].add/order_q_reg[pre][big_x][2]' (FD) to 'physical_regions[2].lanes[1].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3886] merging instance 'physical_regions[2].lanes[1].add/order_q_reg[pre][small_x][2]' (FD) to 'physical_regions[2].lanes[1].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3886] merging instance 'physical_regions[2].lanes[1].add/order_q_reg[pre][small_x][27]' (FD) to 'physical_regions[2].lanes[1].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[2].lanes[0].add /\order_q_reg[pre][exponent][8] )
+INFO: [Synth 8-3886] merging instance 'physical_regions[2].lanes[0].add/order_q_reg[pre][big_x][27]' (FD) to 'physical_regions[2].lanes[0].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3886] merging instance 'physical_regions[2].lanes[0].add/order_q_reg[pre][big_x][0]' (FD) to 'physical_regions[2].lanes[0].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3886] merging instance 'physical_regions[2].lanes[0].add/order_q_reg[pre][small_x][0]' (FD) to 'physical_regions[2].lanes[0].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3886] merging instance 'physical_regions[2].lanes[0].add/order_q_reg[pre][big_x][1]' (FD) to 'physical_regions[2].lanes[0].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3886] merging instance 'physical_regions[2].lanes[0].add/order_q_reg[pre][small_x][1]' (FD) to 'physical_regions[2].lanes[0].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3886] merging instance 'physical_regions[2].lanes[0].add/order_q_reg[pre][big_x][2]' (FD) to 'physical_regions[2].lanes[0].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3886] merging instance 'physical_regions[2].lanes[0].add/order_q_reg[pre][small_x][2]' (FD) to 'physical_regions[2].lanes[0].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3886] merging instance 'physical_regions[2].lanes[0].add/order_q_reg[pre][small_x][27]' (FD) to 'physical_regions[2].lanes[0].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[1].lanes[7].add /\order_q_reg[pre][exponent][8] )
+INFO: [Synth 8-3886] merging instance 'physical_regions[1].lanes[7].add/order_q_reg[pre][big_x][27]' (FD) to 'physical_regions[1].lanes[7].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3886] merging instance 'physical_regions[1].lanes[7].add/order_q_reg[pre][big_x][0]' (FD) to 'physical_regions[1].lanes[7].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3886] merging instance 'physical_regions[1].lanes[7].add/order_q_reg[pre][small_x][0]' (FD) to 'physical_regions[1].lanes[7].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3886] merging instance 'physical_regions[1].lanes[7].add/order_q_reg[pre][big_x][1]' (FD) to 'physical_regions[1].lanes[7].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3886] merging instance 'physical_regions[1].lanes[7].add/order_q_reg[pre][small_x][1]' (FD) to 'physical_regions[1].lanes[7].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3886] merging instance 'physical_regions[1].lanes[7].add/order_q_reg[pre][big_x][2]' (FD) to 'physical_regions[1].lanes[7].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3886] merging instance 'physical_regions[1].lanes[7].add/order_q_reg[pre][small_x][2]' (FD) to 'physical_regions[1].lanes[7].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3886] merging instance 'physical_regions[1].lanes[7].add/order_q_reg[pre][small_x][27]' (FD) to 'physical_regions[1].lanes[7].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[1].lanes[6].add /\order_q_reg[pre][exponent][8] )
+INFO: [Synth 8-3886] merging instance 'physical_regions[1].lanes[6].add/order_q_reg[pre][big_x][27]' (FD) to 'physical_regions[1].lanes[6].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3886] merging instance 'physical_regions[1].lanes[6].add/order_q_reg[pre][big_x][0]' (FD) to 'physical_regions[1].lanes[6].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3886] merging instance 'physical_regions[1].lanes[6].add/order_q_reg[pre][small_x][0]' (FD) to 'physical_regions[1].lanes[6].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3886] merging instance 'physical_regions[1].lanes[6].add/order_q_reg[pre][big_x][1]' (FD) to 'physical_regions[1].lanes[6].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3886] merging instance 'physical_regions[1].lanes[6].add/order_q_reg[pre][small_x][1]' (FD) to 'physical_regions[1].lanes[6].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3886] merging instance 'physical_regions[1].lanes[6].add/order_q_reg[pre][big_x][2]' (FD) to 'physical_regions[1].lanes[6].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3886] merging instance 'physical_regions[1].lanes[6].add/order_q_reg[pre][small_x][2]' (FD) to 'physical_regions[1].lanes[6].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3886] merging instance 'physical_regions[1].lanes[6].add/order_q_reg[pre][small_x][27]' (FD) to 'physical_regions[1].lanes[6].add/arithmetic_q_reg[exponent][8]'
+INFO: [Synth 8-3886] merging instance 'physical_regions[0].lanes[0].add/arithmetic_q_reg[exponent][8]' (FD) to 'physical_regions[0].lanes[0].add/arithmetic_q_reg[close_raw][0]'
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[0].lanes[0].add /\arithmetic_q_reg[close_raw][0] )
+INFO: [Synth 8-3886] merging instance 'physical_regions[2].lanes[1].add/arithmetic_q_reg[exponent][8]' (FD) to 'physical_regions[2].lanes[1].add/arithmetic_q_reg[close_raw][0]'
+INFO: [Common 17-14] Message 'Synth 8-3886' appears 100 times and further instances of the messages will be disabled. Use the Tcl command set_msg_config to change the current settings.
+INFO: [Common 17-14] Message 'Synth 8-3886' appears 100 times and further instances of the messages will be disabled. Use the Tcl command set_msg_config to change the current settings.
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[2].lanes[1].add /\arithmetic_q_reg[close_raw][0] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[2].lanes[0].add /\arithmetic_q_reg[close_raw][0] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[1].lanes[7].add /\arithmetic_q_reg[close_raw][0] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[1].lanes[6].add /\arithmetic_q_reg[close_raw][0] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[0].lanes[0].add /\arithmetic_q_reg[close_raw][1] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[2].lanes[1].add /\arithmetic_q_reg[close_raw][1] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[2].lanes[0].add /\arithmetic_q_reg[close_raw][1] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[1].lanes[7].add /\arithmetic_q_reg[close_raw][1] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[1].lanes[6].add /\arithmetic_q_reg[close_raw][1] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[2].lanes[2].add /\order_q_reg[pre][exponent][8] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[2].lanes[3].add /\order_q_reg[pre][exponent][8] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[2].lanes[4].add /\order_q_reg[pre][exponent][8] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[2].lanes[5].add /\order_q_reg[pre][exponent][8] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[2].lanes[6].add /\order_q_reg[pre][exponent][8] )
+INFO: [Common 17-14] Message 'Synth 8-3886' appears 100 times and further instances of the messages will be disabled. Use the Tcl command set_msg_config to change the current settings.
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[2].lanes[7].add /\order_q_reg[pre][exponent][8] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[2].lanes[2].add /\arithmetic_q_reg[close_raw][0] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[2].lanes[3].add /\arithmetic_q_reg[close_raw][0] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[2].lanes[4].add /\arithmetic_q_reg[close_raw][0] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[2].lanes[5].add /\arithmetic_q_reg[close_raw][0] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[2].lanes[6].add /\arithmetic_q_reg[close_raw][0] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[2].lanes[7].add /\arithmetic_q_reg[close_raw][0] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[2].lanes[2].add /\arithmetic_q_reg[close_raw][1] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[2].lanes[3].add /\arithmetic_q_reg[close_raw][1] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[2].lanes[4].add /\arithmetic_q_reg[close_raw][1] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[2].lanes[5].add /\arithmetic_q_reg[close_raw][1] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[2].lanes[6].add /\arithmetic_q_reg[close_raw][1] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[2].lanes[7].add /\arithmetic_q_reg[close_raw][1] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[3].lanes[5].add /\order_q_reg[pre][exponent][8] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[3].lanes[4].add /\order_q_reg[pre][exponent][8] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[3].lanes[3].add /\order_q_reg[pre][exponent][8] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[3].lanes[2].add /\order_q_reg[pre][exponent][8] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[3].lanes[1].add /\order_q_reg[pre][exponent][8] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[3].lanes[0].add /\order_q_reg[pre][exponent][8] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[3].lanes[5].add /\arithmetic_q_reg[close_raw][0] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[3].lanes[4].add /\arithmetic_q_reg[close_raw][0] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[3].lanes[3].add /\arithmetic_q_reg[close_raw][0] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[3].lanes[2].add /\arithmetic_q_reg[close_raw][0] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[3].lanes[1].add /\arithmetic_q_reg[close_raw][0] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[3].lanes[0].add /\arithmetic_q_reg[close_raw][0] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[3].lanes[5].add /\arithmetic_q_reg[close_raw][1] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[3].lanes[4].add /\arithmetic_q_reg[close_raw][1] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[3].lanes[3].add /\arithmetic_q_reg[close_raw][1] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[3].lanes[2].add /\arithmetic_q_reg[close_raw][1] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[3].lanes[1].add /\arithmetic_q_reg[close_raw][1] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\physical_regions[3].lanes[0].add /\arithmetic_q_reg[close_raw][1] )
+---------------------------------------------------------------------------------
+Finished Cross Boundary and Area Optimization : Time (s): cpu = 00:01:00 ; elapsed = 00:01:34 . Memory (MB): peak = 2513.566 ; gain = 727.297
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start ROM, RAM, DSP, Shift Register and Retiming Reporting
+---------------------------------------------------------------------------------
+
+Block RAM: Preliminary Mapping Report (see note below)
++--------------------------------+------------+------------------------+---+---+------------------------+---+---+------------------+--------+--------+-----------------+
+|Module Name                     | RTL Object | PORT A (Depth x Width) | W | R | PORT B (Depth x Width) | W | R | Ports driving FF | RAMB18 | RAMB36 | Cascade Heights | 
++--------------------------------+------------+------------------------+---+---+------------------------+---+---+------------------+--------+--------+-----------------+
+|memory/\banks[2].parity[0].ram  | mem_reg    | 416 x 512(READ_FIRST)  | W |   | 416 x 512(WRITE_FIRST) |   | R | Port A and B     | 1      | 7      |                 | 
+|memory/\banks[2].parity[1].ram  | mem_reg    | 400 x 512(READ_FIRST)  | W |   | 400 x 512(WRITE_FIRST) |   | R | Port A and B     | 1      | 7      |                 | 
++--------------------------------+------------+------------------------+---+---+------------------------+---+---+------------------+--------+--------+-----------------+
+
+Note: The table above is a preliminary report that shows the Block RAMs at the current stage of the synthesis flow. Some Block RAMs may be reimplemented as non Block RAM primitives later in the synthesis flow. Multiple instantiated Block RAMs are reported only once. 
+
+Distributed RAM: Preliminary Mapping Report (see note below)
++--------------------------------+------------+----------------+----------------------+----------------+
+|Module Name                     | RTL Object | Inference      | Size (Depth x Width) | Primitives     | 
++--------------------------------+------------+----------------+----------------------+----------------+
+|memory/\banks[0].parity[0].ram  | mem_reg    | User Attribute | 32 x 512             | RAM32M16 x 37  | 
+|memory/\banks[0].parity[1].ram  | mem_reg    | User Attribute | 32 x 512             | RAM32M16 x 37  | 
+|memory/\banks[1].parity[0].ram  | mem_reg    | User Attribute | 32 x 512             | RAM32M16 x 37  | 
+|memory/\banks[1].parity[1].ram  | mem_reg    | User Attribute | 32 x 512             | RAM32M16 x 37  | 
++--------------------------------+------------+----------------+----------------------+----------------+
+
+Note: The table above is a preliminary report that shows the Distributed RAMs at the current stage of the synthesis flow. Some Distributed RAMs may be reimplemented as non Distributed RAM primitives later in the synthesis flow. Multiple instantiated RAMs are reported only once.
+---------------------------------------------------------------------------------
+Finished ROM, RAM, DSP, Shift Register and Retiming Reporting
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Applying XDC Timing Constraints
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Applying XDC Timing Constraints : Time (s): cpu = 00:01:12 ; elapsed = 00:01:48 . Memory (MB): peak = 2897.895 ; gain = 1111.625
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Timing Optimization
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Timing Optimization : Time (s): cpu = 00:01:57 ; elapsed = 00:02:34 . Memory (MB): peak = 3061.926 ; gain = 1275.656
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start ROM, RAM, DSP, Shift Register and Retiming Reporting
+---------------------------------------------------------------------------------
+
+Block RAM: Final Mapping Report
++--------------------------------+------------+------------------------+---+---+------------------------+---+---+------------------+--------+--------+-----------------+
+|Module Name                     | RTL Object | PORT A (Depth x Width) | W | R | PORT B (Depth x Width) | W | R | Ports driving FF | RAMB18 | RAMB36 | Cascade Heights | 
++--------------------------------+------------+------------------------+---+---+------------------------+---+---+------------------+--------+--------+-----------------+
+|memory/\banks[2].parity[0].ram  | mem_reg    | 416 x 512(READ_FIRST)  | W |   | 416 x 512(WRITE_FIRST) |   | R | Port A and B     | 1      | 7      |                 | 
+|memory/\banks[2].parity[1].ram  | mem_reg    | 400 x 512(READ_FIRST)  | W |   | 400 x 512(WRITE_FIRST) |   | R | Port A and B     | 1      | 7      |                 | 
++--------------------------------+------------+------------------------+---+---+------------------------+---+---+------------------+--------+--------+-----------------+
+
+
+Distributed RAM: Final Mapping Report
++--------------------------------+------------+----------------+----------------------+----------------+
+|Module Name                     | RTL Object | Inference      | Size (Depth x Width) | Primitives     | 
++--------------------------------+------------+----------------+----------------------+----------------+
+|memory/\banks[0].parity[0].ram  | mem_reg    | User Attribute | 32 x 512             | RAM32M16 x 37  | 
+|memory/\banks[0].parity[1].ram  | mem_reg    | User Attribute | 32 x 512             | RAM32M16 x 37  | 
+|memory/\banks[1].parity[0].ram  | mem_reg    | User Attribute | 32 x 512             | RAM32M16 x 37  | 
+|memory/\banks[1].parity[1].ram  | mem_reg    | User Attribute | 32 x 512             | RAM32M16 x 37  | 
++--------------------------------+------------+----------------+----------------------+----------------+
+
+---------------------------------------------------------------------------------
+Finished ROM, RAM, DSP, Shift Register and Retiming Reporting
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Technology Mapping
+---------------------------------------------------------------------------------
+INFO: [Synth 8-7052] The timing for the instance corei_10/core/memory/banks[2].parity[0].ram/mem_reg_0 (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+INFO: [Synth 8-7052] The timing for the instance corei_10/core/memory/banks[2].parity[0].ram/mem_reg_1 (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+INFO: [Synth 8-7052] The timing for the instance corei_10/core/memory/banks[2].parity[0].ram/mem_reg_2 (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+INFO: [Synth 8-7052] The timing for the instance corei_10/core/memory/banks[2].parity[0].ram/mem_reg_3 (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+INFO: [Synth 8-7052] The timing for the instance corei_10/core/memory/banks[2].parity[0].ram/mem_reg_4 (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+INFO: [Synth 8-7052] The timing for the instance corei_10/core/memory/banks[2].parity[0].ram/mem_reg_5 (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+INFO: [Synth 8-7052] The timing for the instance corei_10/core/memory/banks[2].parity[0].ram/mem_reg_6 (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+INFO: [Synth 8-7052] The timing for the instance corei_10/core/memory/banks[2].parity[0].ram/mem_reg_7 (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+INFO: [Synth 8-7052] The timing for the instance corei_10/core/memory/banks[2].parity[1].ram/mem_reg_0 (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+INFO: [Synth 8-7052] The timing for the instance corei_10/core/memory/banks[2].parity[1].ram/mem_reg_1 (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+INFO: [Synth 8-7052] The timing for the instance corei_10/core/memory/banks[2].parity[1].ram/mem_reg_2 (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+INFO: [Synth 8-7052] The timing for the instance corei_10/core/memory/banks[2].parity[1].ram/mem_reg_3 (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+INFO: [Synth 8-7052] The timing for the instance corei_10/core/memory/banks[2].parity[1].ram/mem_reg_4 (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+INFO: [Synth 8-7052] The timing for the instance corei_10/core/memory/banks[2].parity[1].ram/mem_reg_5 (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+INFO: [Synth 8-7052] The timing for the instance corei_10/core/memory/banks[2].parity[1].ram/mem_reg_6 (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+INFO: [Synth 8-7052] The timing for the instance corei_10/core/memory/banks[2].parity[1].ram/mem_reg_7 (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+---------------------------------------------------------------------------------
+Finished Technology Mapping : Time (s): cpu = 00:02:10 ; elapsed = 00:02:59 . Memory (MB): peak = 3070.980 ; gain = 1284.711
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start IO Insertion
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Flattening Before IO Insertion
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Flattening Before IO Insertion
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Final Netlist Cleanup
+---------------------------------------------------------------------------------
+INFO: [Synth 8-7052] The timing for the instance core/memory/banks[2].parity[0].ram/mem_reg_0 (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+INFO: [Synth 8-7052] The timing for the instance core/memory/banks[2].parity[0].ram/mem_reg_1 (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+INFO: [Synth 8-7052] The timing for the instance core/memory/banks[2].parity[0].ram/mem_reg_2 (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+INFO: [Synth 8-7052] The timing for the instance core/memory/banks[2].parity[0].ram/mem_reg_3 (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+INFO: [Synth 8-7052] The timing for the instance core/memory/banks[2].parity[0].ram/mem_reg_4 (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+INFO: [Synth 8-7052] The timing for the instance core/memory/banks[2].parity[0].ram/mem_reg_5 (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+INFO: [Synth 8-7052] The timing for the instance core/memory/banks[2].parity[0].ram/mem_reg_6 (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+INFO: [Synth 8-7052] The timing for the instance core/memory/banks[2].parity[0].ram/mem_reg_7 (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+INFO: [Synth 8-7052] The timing for the instance core/memory/banks[2].parity[1].ram/mem_reg_0 (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+INFO: [Synth 8-7052] The timing for the instance core/memory/banks[2].parity[1].ram/mem_reg_1 (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+INFO: [Synth 8-7052] The timing for the instance core/memory/banks[2].parity[1].ram/mem_reg_2 (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+INFO: [Synth 8-7052] The timing for the instance core/memory/banks[2].parity[1].ram/mem_reg_3 (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+INFO: [Synth 8-7052] The timing for the instance core/memory/banks[2].parity[1].ram/mem_reg_4 (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+INFO: [Synth 8-7052] The timing for the instance core/memory/banks[2].parity[1].ram/mem_reg_5 (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+INFO: [Synth 8-7052] The timing for the instance core/memory/banks[2].parity[1].ram/mem_reg_6 (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+INFO: [Synth 8-7052] The timing for the instance core/memory/banks[2].parity[1].ram/mem_reg_7 (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+---------------------------------------------------------------------------------
+Finished Final Netlist Cleanup
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished IO Insertion : Time (s): cpu = 00:02:17 ; elapsed = 00:03:07 . Memory (MB): peak = 3070.980 ; gain = 1284.711
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Renaming Generated Instances
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Renaming Generated Instances : Time (s): cpu = 00:02:17 ; elapsed = 00:03:07 . Memory (MB): peak = 3070.980 ; gain = 1284.711
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Rebuilding User Hierarchy
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Rebuilding User Hierarchy : Time (s): cpu = 00:02:21 ; elapsed = 00:03:11 . Memory (MB): peak = 3070.980 ; gain = 1284.711
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Renaming Generated Ports
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Renaming Generated Ports : Time (s): cpu = 00:02:21 ; elapsed = 00:03:11 . Memory (MB): peak = 3070.980 ; gain = 1284.711
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Handling Custom Attributes
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Handling Custom Attributes : Time (s): cpu = 00:02:23 ; elapsed = 00:03:12 . Memory (MB): peak = 3070.980 ; gain = 1284.711
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Renaming Generated Nets
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Renaming Generated Nets : Time (s): cpu = 00:02:23 ; elapsed = 00:03:12 . Memory (MB): peak = 3070.980 ; gain = 1284.711
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start ROM, RAM, DSP, Shift Register and Retiming Reporting
+---------------------------------------------------------------------------------
+
+Static Shift Register Report:
++-----------------------+--------------------------------------------+--------+-------+--------------+--------------------+-------------------+--------+---------+
+|Module Name            | RTL Name                                   | Length | Width | Reset Signal | Pull out first Reg | Pull out last Reg | SRL16E | SRLC32E | 
++-----------------------+--------------------------------------------+--------+-------+--------------+--------------------+-------------------+--------+---------+
+|fp32_add_lane_v1       | candidates_q_reg[close_path]               | 3      | 1184  | NO           | NO                 | YES               | 1184   | 0       | 
+|deqacc_v2_timing_shell | core/control/meta_pipe_reg[5][last]        | 6      | 1     | NO           | NO                 | YES               | 1      | 0       | 
+|deqacc_v2_timing_shell | core/control/meta_pipe_reg[5][pair_idx][0] | 4      | 11    | NO           | NO                 | YES               | 11     | 0       | 
+|deqacc_v2_timing_shell | core/control/rows_pipe_reg[5][1]           | 6      | 2     | NO           | NO                 | YES               | 2      | 0       | 
+|deqacc_v2_timing_shell | commit_meta_reg[epoch][3]                  | 8      | 28    | NO           | NO                 | YES               | 28     | 0       | 
+|deqacc_v2_timing_shell | commit_meta_reg[add_old]                   | 6      | 1     | NO           | NO                 | YES               | 1      | 0       | 
++-----------------------+--------------------------------------------+--------+-------+--------------+--------------------+-------------------+--------+---------+
+
+---------------------------------------------------------------------------------
+Finished ROM, RAM, DSP, Shift Register and Retiming Reporting
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Writing Synthesis Report
+---------------------------------------------------------------------------------
+
+Report BlackBoxes: 
++-+--------------+----------+
+| |BlackBox name |Instances |
++-+--------------+----------+
++-+--------------+----------+
+
+Report Cell Usage: 
++------+---------+------+
+|      |Cell     |Count |
++------+---------+------+
+|1     |CARRY8   |  1124|
+|2     |LUT1     |  1874|
+|3     |LUT2     |  2026|
+|4     |LUT3     | 13164|
+|5     |LUT4     |  5397|
+|6     |LUT5     |  7090|
+|7     |LUT6     | 19098|
+|8     |MUXF7    |   104|
+|9     |MUXF8    |    45|
+|10    |RAM32M16 |   148|
+|11    |RAMB18E2 |     2|
+|12    |RAMB36E2 |    14|
+|13    |SRL16E   |  1227|
+|14    |FDRE     | 24660|
+|15    |FDSE     |   352|
++------+---------+------+
+---------------------------------------------------------------------------------
+Finished Writing Synthesis Report : Time (s): cpu = 00:02:23 ; elapsed = 00:03:13 . Memory (MB): peak = 3070.980 ; gain = 1284.711
+---------------------------------------------------------------------------------
+Synthesis finished with 0 errors, 0 critical warnings and 93 warnings.
+Synthesis Optimization Runtime : Time (s): cpu = 00:02:07 ; elapsed = 00:03:04 . Memory (MB): peak = 3070.980 ; gain = 1114.914
+Synthesis Optimization Complete : Time (s): cpu = 00:02:23 ; elapsed = 00:03:14 . Memory (MB): peak = 3070.980 ; gain = 1284.711
+INFO: [Project 1-571] Translating synthesized netlist
+Netlist sorting complete. Time (s): cpu = 00:00:00 ; elapsed = 00:00:00.648 . Memory (MB): peak = 3093.543 ; gain = 0.000
+INFO: [Netlist 29-17] Analyzing 1421 Unisim elements for replacement
+INFO: [Netlist 29-28] Unisim Transformation completed in 1 CPU seconds
+INFO: [Project 1-570] Preparing netlist for logic optimization
+Parsing XDC File [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/core_clock.xdc]
+Finished Parsing XDC File [C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/core_clock.xdc]
+INFO: [Opt 31-138] Pushed 0 inverter(s) to 0 load pin(s).
+Netlist sorting complete. Time (s): cpu = 00:00:00 ; elapsed = 00:00:00.015 . Memory (MB): peak = 3192.898 ; gain = 0.000
+INFO: [Project 1-111] Unisim Transformation Summary:
+  A total of 148 instances were transformed.
+  RAM32M16 => RAM32M16 (RAMD32(x14), RAMS32(x2)): 148 instances
+
+Synth Design complete, checksum: bd7efa0
+INFO: [Common 17-83] Releasing license: Synthesis
+275 Infos, 138 Warnings, 0 Critical Warnings and 0 Errors encountered.
+synth_design completed successfully
+synth_design: Time (s): cpu = 00:02:42 ; elapsed = 00:03:36 . Memory (MB): peak = 3192.898 ; gain = 2810.453
+# write_checkpoint -force [file join $report synthesized.dcp]
+INFO: [Timing 38-35] Done setting XDC timing constraints.
+INFO: [Timing 38-480] Writing timing data to binary archive.
+INFO: [Common 17-1381] The checkpoint 'C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/reports/v2_synth_20261013/synthesized.dcp' has been generated.
+write_checkpoint: Time (s): cpu = 00:00:12 ; elapsed = 00:00:08 . Memory (MB): peak = 3314.715 ; gain = 121.816
+# report_timing_summary -delay_type min_max -max_paths 30 -report_unconstrained -file [file join $report timing_summary_synth.rpt]
+INFO: [Timing 38-91] UpdateTimingParams: Speed grade: -2, Temperature grade: E, Delay Type: min_max.
+INFO: [Timing 38-191] Multithreading enabled for timing update using a maximum of 2 CPUs
+WARNING: [Timing 38-242] The property HD.CLK_SRC of clock port "clk" is not set. In out-of-context mode, this prevents timing estimation for clock delay/skew
+Resolution: Set the HD.CLK_SRC property of the out-of-context port to the location of the clock buffer instance in the top-level design
+report_timing_summary: Time (s): cpu = 00:00:26 ; elapsed = 00:00:25 . Memory (MB): peak = 4302.898 ; gain = 988.184
+# report_utilization -file [file join $report utilization.rpt]
+# report_utilization -hierarchical -hierarchical_depth 6 -file [file join $report utilization_hierarchical.rpt]
+# report_high_fanout_nets -max_nets 100 -timing -load_types -file [file join $report fanout.rpt]
+INFO: [Vivado 12-2782] More distribution information is available when run post-place
+INFO: [Timing 38-91] UpdateTimingParams: Speed grade: -2, Temperature grade: E, Delay Type: max.
+INFO: [Timing 38-191] Multithreading enabled for timing update using a maximum of 2 CPUs
+INFO: [Timing 38-78] ReportTimingParams: -max_paths 10 -nworst 1 -delay_type max -sort_by slack.
+report_high_fanout_nets: Time (s): cpu = 00:00:05 ; elapsed = 00:00:03 . Memory (MB): peak = 4302.898 ; gain = 0.000
+# report_drc -file [file join $report drc.rpt]
+Command: report_drc -file C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/reports/v2_synth_20261013/drc.rpt
+INFO: [IP_Flow 19-234] Refreshing IP repositories
+INFO: [IP_Flow 19-1704] No user IP repositories specified
+INFO: [IP_Flow 19-2313] Loaded Vivado IP repository 'D:/Xilinx/Vivado/2022.2/data/ip'.
+INFO: [DRC 23-27] Running DRC with 2 threads
+INFO: [Vivado_Tcl 2-168] The results of DRC are in file C:/Users/fly04/Desktop/VLA/DEQACC/Pcore/reports/v2_synth_20261013/drc.rpt.
+report_drc completed successfully
+# check_timing -verbose -file [file join $report check_timing.rpt]
+# proc primitives {pattern} {
+#     return [get_cells -quiet -hierarchical -regexp -filter {IS_PRIMITIVE == 1} $pattern]
+# }
+# set Q0 [primitives {^core/physical_regions\[[0-3]\]\.lanes\[[0-7]\]/quant/(mag_q|lead_q|base_q|sign_q|zero_q|bad_q|valid_q)_reg.*}]
+# set Q1 [primitives {^core/physical_regions\[[0-3]\]\.lanes\[[0-7]\]/quant/(partial_value|out_valid)_reg.*}]
+# set A0 [primitives {^core/physical_regions\[[0-3]\]\.lanes\[[0-7]\]/add/order_q_reg.*}]
+# set A1 [primitives {^core/physical_regions\[[0-3]\]\.lanes\[[0-7]\]/add/arithmetic_q_reg.*}]
+# set A2 [primitives {^core/physical_regions\[[0-3]\]\.lanes\[[0-7]\]/add/candidates_q_reg.*}]
+# set A3 [primitives {^core/physical_regions\[[0-3]\]\.lanes\[[0-7]\]/add/(result_value|out_valid)_reg.*}]
+# set C [primitives {^core/physical_regions\[[0-3]\]\.lanes\[[0-7]\]/c_q_reg.*}]
+# set memory [primitives {^core/memory/.*}]
+# set spine [primitives {^core/control/.*}]
+# set launch [primitives {^(rsp_q|rsp_valid_q|reset_q|clear_q|owner_q|rd_valid_q|sel_q|addr_q|wr_valid_q|wr_q)_reg.*}]
+# set capture [primitives {^(result_rd_ready|vpu_wr_ready|result_rd_data_valid|commit_valid|done|commit_write_valid|commit_meta|commit_write|result_even_data|result_odd_data)_reg.*}]
+# set all [get_cells -hierarchical -filter {IS_PRIMITIVE == 1}]
+# set names [get_property NAME $all];
+# set refs [get_property REF_NAME $all]
+# set census [open [file join $report primitive_cells.csv] w]
+# puts $census "cell,ref_name"
+# foreach name $names ref $refs {puts $census "$name,$ref"}
+# close $census
+# set endpoints [open [file join $report endpoint_coverage.csv] w]
+# puts $endpoints "stage,primitive_count"
+# foreach stage {Q0 Q1 A0 A1 A2 A3 C} {
+#     if {![llength [set $stage]]} {error "No synthesized endpoint cells for $stage; inspect primitive_cells.csv"}
+#     puts $endpoints "$stage,[llength [set $stage]]"
+# }
+No synthesized endpoint cells for Q0; inspect primitive_cells.csv
+    while executing
+"error "No synthesized endpoint cells for $stage; inspect primitive_cells.csv""
+    invoked from within
+"if {![llength [set $stage]]} {error "No synthesized endpoint cells for $stage; inspect primitive_cells.csv"}"
+    ("foreach" body line 2)
+    invoked from within
+"foreach stage {Q0 Q1 A0 A1 A2 A3 C} {
+    if {![llength [set $stage]]} {error "No synthesized endpoint cells for $stage; inspect primitive_cells.csv"}..."
+    (file "synth_deqacc_v2.tcl" line 56)
+INFO: [Common 17-206] Exiting Vivado at Tue Oct 13 21:51:22 2026...

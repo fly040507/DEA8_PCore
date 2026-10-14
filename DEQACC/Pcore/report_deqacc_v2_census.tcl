@@ -14,9 +14,8 @@ source [file join $root deqacc_v2_locality.tcl]
 proc deqacc_v2_locality::primitives {pattern} {return [::primitives $pattern]}
 set f [open [file join $report pblocks.csv] w]
 puts $f "pblock,hard,grid_ranges,selected_primitive_members"
-for {set g 0} {$g<4} {incr g} {
-    set p [get_pblocks deqacc_v2_core_region$g]
-    set members [deqacc_v2_locality::regional_cells core $g]
+foreach p [get_pblocks -quiet] {
+    set members [get_cells -of_objects $p]
     puts $f "$p,[expr {![get_property IS_SOFT $p]}],[get_property GRID_RANGES $p],[llength $members]"
 }
 close $f
@@ -52,7 +51,7 @@ foreach {group pattern} {
     puts $f "$group,$count"
 }
 close $f
-foreach p [get_pblocks] {
+foreach p [get_pblocks -quiet] {
     report_utilization -pblocks $p -file [file join $report ${p}_utilization.rpt]
 }
 set f [open [file join $report report_script_sha256.txt] w]

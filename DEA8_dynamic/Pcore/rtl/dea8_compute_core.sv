@@ -25,7 +25,7 @@ module dea8_compute_core (
   logic [PAIR_BITS-1:0] pair_q;
   logic [$clog2(ACC_RAW_INTERVAL+1)-1:0] cooldown;
   logic [1:0] bank_ready,bank_busy;
-  logic [TILE_BITS-1:0] bank_tile[0:1];
+  logic [SEQ_BITS-1:0] bank_tile[0:1];
   logic active_bank,release_pending,release_bank;
   logic fill_open,fill_bank;
   logic [B_GROUP_BITS-1:0] fill_group;
@@ -45,24 +45,28 @@ module dea8_compute_core (
       (!job.nt_per_tile||(job.acc_sel==ACC_OACC&&int'(job.nt)+int'(job.tiles)<=TILE))&&
       (job.acc_sel!=ACC_OACC||job.nt<TILE)&&
       (job.mode!=MAT_GU||(!job.nt_per_tile&&!job.tiles[0]));
-    b_legal=b.tile_idx==TILE_BITS'(b_tile_q)&&
+    b_legal=b.token==ctx.token&&b.work_seq==ctx.work_seq&&b.tile_idx==SEQ_BITS'(b_tile_q)&&
+      b.role==(ctx.mode==MAT_GU?(b_tile_q[0]?ROLE_UP:ROLE_GATE):ctx.role)&&
       (fill_open?(b.bank==fill_bank&&b.group_idx==fill_group):b.group_idx==0);
     b_ready=!reset&&!clear&&!protocol_error&&state==RUN&&b_tile_q<ctx.tiles&&b_legal&&
       (fill_open||(!bank_ready[b.bank]&&!bank_busy[b.bank]));
     // Final group can share the first S0 edge: DSP uses the bank at S1,
     // one edge later. The complete scale vector was installed at group 0.
-    bank_available=bank_ready[a_bank]&&bank_tile[a_bank]==TILE_BITS'(tile_q);
+    bank_available=bank_ready[a_bank]&&bank_tile[a_bank]==SEQ_BITS'(tile_q);
     if(b_fire&&b.group_idx==B_LOAD_GROUPS-1&&b.bank==a_bank&&
-       b.tile_idx==TILE_BITS'(tile_q))bank_available=1;
-    a_legal=a.pair_idx==pair_q&&a.tile_idx==TILE_BITS'(tile_q)&&
-      a.row_valid==row_mask_for_rows(ctx.m_rows,pair_q)&&a.reserved==0&&
+       b.tile_idx==SEQ_BITS'(tile_q))bank_available=1;
+    a_legal=a.token==ctx.token&&a.work_seq==ctx.work_seq&&
+      a.pair_idx==pair_q&&a.tile_idx==SEQ_BITS'(tile_q)&&
+      a.row_valid==row_mask_for_rows(ctx.m_rows,pair_q)&&
       (pair_q==0||a_bank==active_bank);
     a_ready=!reset&&!clear&&!protocol_error&&state==RUN&&cooldown==0&&a_legal&&
       (pair_q==0?(bank_available&&a_tile_available):bank_busy[active_bank]);
 
     issue_meta='0;
+    issue_meta.token=ctx.token;issue_meta.work_seq=ctx.work_seq;issue_meta.block_id=ctx.block_id;
+    issue_meta.role=ctx.mode==MAT_GU?(tile_q[0]?ROLE_UP:ROLE_GATE):ctx.role;
     issue_meta.epoch=ctx.epoch;issue_meta.head=ctx.head;
-    issue_meta.tile_idx=TILE_BITS'(tile_q);issue_meta.pair_idx=pair_q;
+    issue_meta.tile_idx=SEQ_BITS'(tile_q);issue_meta.pair_idx=pair_q;
     issue_meta.m_rows=ctx.m_rows;issue_meta.nt=ctx.nt;
     issue_meta.exp_fold=ctx.exp_fold;issue_meta.mode=ctx.mode;issue_meta.gu_n=ctx.gu_n;
     issue_meta.acc_sel=ctx.acc_sel;

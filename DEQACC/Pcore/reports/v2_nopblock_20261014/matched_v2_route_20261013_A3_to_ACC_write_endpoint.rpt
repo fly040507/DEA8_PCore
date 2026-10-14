@@ -1,0 +1,71 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version      : Vivado v.2022.2 (win64) Build 3671981 Fri Oct 14 05:00:03 MDT 2022
+| Date              : Wed Oct 14 03:10:39 2026
+| Host              : FLY running 64-bit major release  (build 9200)
+| Command           : report_timing -to {core/memory/banks[2].parity[1].ram/mem_reg_5/DINBDIN[0]} -max_paths 1 -delay_type max -path_type full -input_pins -return_string
+| Design            : deqacc_v2_timing_shell
+| Device            : xcu50-fsvh2104
+| Speed File        : -2  PRODUCTION 1.30 05-01-2022
+| Temperature Grade : E
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Timing Report
+
+Slack (MET) :             0.530ns  (required time - arrival time)
+  Source:                 core/physical_regions[3].lanes[4].add/result_value_reg[8]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/memory/banks[2].parity[1].ram/mem_reg_5/DINBDIN[0]
+                            (rising edge-triggered cell RAMB36E2 clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        2.804ns  (logic 0.246ns (8.772%)  route 2.558ns (91.228%))
+  Logic Levels:           1  (LUT3=1)
+  Clock Path Skew:        -0.351ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    2.158ns = ( 6.158 - 4.000 ) 
+    Source Clock Delay      (SCD):    2.636ns
+    Clock Pessimism Removal (CPR):    0.127ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    PBlock               Netlist Resource(s)
+  -------------------------------------------------------------------    ----------------------------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r                       
+                         propagated clock network latency
+                                                      2.636     2.636                         
+    SLICE_X125Y164       FDRE                         0.000     2.636 r  deqacc_v2_core_region3
+                                                                                              core/physical_regions[3].lanes[4].add/result_value_reg[8]/C
+    SLICE_X125Y164       FDRE (Prop_BFF_SLICEL_C_Q)
+                                                      0.079     2.715 r  deqacc_v2_core_region3
+                                                                                              core/physical_regions[3].lanes[4].add/result_value_reg[8]/Q
+                         net (fo=5, routed)           2.018     4.733                         core/control/mem_reg_5_1[8]
+    SLICE_X108Y185                                                    r                       core/control/mem_reg_5_i_69/I0
+    SLICE_X108Y185       LUT3 (Prop_F5LUT_SLICEL_I0_O)
+                                                      0.167     4.900 r                       core/control/mem_reg_5_i_69/O
+                         net (fo=1, routed)           0.540     5.440                         core/memory/banks[2].parity[1].ram/mem_reg_7_1[392]
+    RAMB36_X6Y36         RAMB36E2                                     r                       core/memory/banks[2].parity[1].ram/mem_reg_5/DINBDIN[0]
+  -------------------------------------------------------------------    ----------------------------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r                       
+                         propagated clock network latency
+                                                      2.158     6.158                         
+                         clock pessimism              0.127     6.285                           
+                         clock uncertainty           -0.035     6.249                           
+    RAMB36_X6Y36         RAMB36E2 (Setup_RAMB36E2_RAMB36_CLKBWRCLK_DINBDIN[0])
+                                                     -0.279     5.970                           core/memory/banks[2].parity[1].ram/mem_reg_5
+  -------------------------------------------------------------------
+                         required time                          5.970                           
+                         arrival time                          -5.440                           
+  -------------------------------------------------------------------
+                         slack                                  0.530                           
+
+
+
+
+

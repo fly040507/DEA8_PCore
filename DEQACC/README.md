@@ -1,5 +1,9 @@
 # DEA8：八核 VLA 计算工程
 
+2026-10-14新增8×4硬区域对照：[8区域/4lane报告](DEQACC_V2_8x4区域对照报告.md)。同网表WNS=−0.358ns，CLB区域最高73.64%，好于原4×8 Hard、弱于No-Pblock；功能RTL未改，三版均未4ns setup签核。
+
+最新对照（2026-10-14）：同一个综合DCP取消四个硬Pblock后，WNS从−0.685ns改善到−0.222ns，TNS减少95.95%，最高clock-region CLB占用从100%降至74.17%，没有新增SLR crossing。见 [No-Pblock对照报告](DEQACC_V2_NoPblock对照报告.md)。功能RTL未改；4ns仍未通过，后续优化建议采用自由布局作为物理基线。
+
 最新物理进度（2026-10-13晚）：**当前同行V2已完成综合、布局布线**，见 [七级布局布线报告](DEQACC_V2_布局布线报告.md)。内部网络全部route，但4ns setup失败，WNS=−0.685ns/TNS=−1521.264ns；核心44,045 LUT/20,712 FF。后续流水优化以新报告真实route路径为依据，前段综合数字保留为历史。
 
 本目录是独立的 DEQACC 开发副本。入口：[DEQACC V2 优化方案](DEQACC_V2_优化方案.md)、[V2 验证结果](Pcore/reports/v2_verification_status.md)、[七级综合时序与资源](DEQACC_V2_综合报告.md)。2026-10-13：当前同行V2短仿真覆盖11种M通过；已完成全接口OOC综合，核心44,945 LUT、20,633 FF、14 RAMB36＋2 RAMB18。4ns综合估算WNS=−0.988ns，主要瓶颈Q1/forward控制→A0；四个硬Pblock已匹配当前网表。七级/II=1/Delta=4与完整ACC不变；尚未布局布线、签核250MHz或重跑当前同行版本七Job。`DEA8/`保持冻结，旧结果仅作历史基线。

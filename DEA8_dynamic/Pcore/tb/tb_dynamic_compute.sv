@@ -49,7 +49,9 @@ module tb_dynamic_compute;
   function automatic pair_meta_t meta_ref(input int tile,pair_idx);
     pair_meta_t m;
     m='0;m.epoch=current.epoch;m.head=current.head;
-    m.tile_idx=TILE_BITS'(tile);m.pair_idx=PAIR_BITS'(pair_idx);m.m_rows=current.m_rows;
+    m.token=current.token;m.work_seq=current.work_seq;m.block_id=current.block_id;
+    m.role=current.mode==MAT_GU?(tile[0]?ROLE_UP:ROLE_GATE):current.role;
+    m.tile_idx=SEQ_BITS'(tile);m.pair_idx=PAIR_BITS'(pair_idx);m.m_rows=current.m_rows;
     m.nt=current.nt;m.exp_fold=current.exp_fold;m.mode=current.mode;m.gu_n=current.gu_n;
     m.acc_sel=current.acc_sel;m.add_old=current.add_old||tile!=0;
     m.final_k=tile==int'(current.tiles)-1;
@@ -71,7 +73,8 @@ module tb_dynamic_compute;
     if(!reset&&!clear&&feeding)begin
       if(a_sent<int'(current.tiles)*pairs_for_rows(current.m_rows))begin
         tile=a_sent/pairs_for_rows(current.m_rows);pair_idx=a_sent%pairs_for_rows(current.m_rows);
-        next_a='0;next_a.tile_idx=TILE_BITS'(tile);next_a.pair_idx=PAIR_BITS'(pair_idx);
+        next_a='0;next_a.token=current.token;next_a.work_seq=current.work_seq;
+        next_a.tile_idx=SEQ_BITS'(tile);next_a.pair_idx=PAIR_BITS'(pair_idx);
         next_a.row_valid=row_mask_for_rows(current.m_rows,pair_idx);
         for(int r=0;r<ROW_LANES;r++)begin
           next_a.row[r].scale=8'(ascale(tile,2*pair_idx+r));
@@ -82,7 +85,9 @@ module tb_dynamic_compute;
       end
       if(b_sent<int'(current.tiles)*B_LOAD_GROUPS)begin
         tile=b_sent/B_LOAD_GROUPS;
-        next_b='0;next_b.bank=tile[0];next_b.tile_idx=TILE_BITS'(tile);
+        next_b='0;next_b.token=current.token;next_b.work_seq=current.work_seq;
+        next_b.role=current.mode==MAT_GU?(tile[0]?ROLE_UP:ROLE_GATE):current.role;
+        next_b.bank=tile[0];next_b.tile_idx=SEQ_BITS'(tile);
         next_b.group_idx=B_GROUP_BITS'(b_sent%B_LOAD_GROUPS);
         for(int n=0;n<TILE;n++)next_b.scales[n]=8'(bscale(tile,n));
         for(int c=0;c<B_LOAD_COLS;c++)for(int k=0;k<TILE;k++)
@@ -197,6 +202,8 @@ module tb_dynamic_compute;
     pairs=pairs_for_rows(rows);total=pairs*tiles;
     next_job='0;next_job.m_rows=ROW_COUNT_BITS'(rows);next_job.tiles=MATRIX_TILE_COUNT_BITS'(tiles);
     next_job.mode=mode;next_job.nt_per_tile=pv;next_job.acc_sel=sel;next_job.add_old=old_value;
+    next_job.token=32'h12340000+32'(cases);next_job.work_seq=SEQ_BITS'(cases);
+    next_job.block_id=6'(cases);next_job.role=mode==MAT_ATTENTION?(pv?ROLE_V:ROLE_K):ROLE_WEIGHT;
     next_job.epoch=EPOCH_BITS'(cases);next_job.head=3'(cases);next_job.gu_n=6'(cases);
     next_job.exp_fold=EXP_FOLD_BITS'(cases%10-5);
     @(negedge clk);current=next_job;job=next_job;job_valid=1;

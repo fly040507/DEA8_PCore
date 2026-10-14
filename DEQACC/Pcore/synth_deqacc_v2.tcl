@@ -158,15 +158,14 @@ source [file join $root deqacc_v2_locality.tcl]
 proc deqacc_v2_locality::primitives {pattern} {return [::primitives $pattern]}
 if {$routed_report} {
     set regions {}
-    for {set g 0} {$g<4} {incr g} {lappend regions [get_property GRID_RANGES [get_pblocks deqacc_v2_core_region$g]]}
+    foreach p [get_pblocks -quiet] {lappend regions [get_property GRID_RANGES $p]}
 } else {
     set regions [deqacc_v2_locality::apply core]
 }
 set f [open [file join $report pblocks.csv] w]
 puts $f "pblock,hard,clock_region,selected_primitive_members,grid_ranges"
-for {set g 0} {$g<4} {incr g} {
-    set p [get_pblocks deqacc_v2_core_region$g]
-    puts $f "$p,[expr {![get_property IS_SOFT $p]}],[lindex $regions $g],[llength [deqacc_v2_locality::regional_cells core $g]],[get_property GRID_RANGES $p]"
+foreach p [get_pblocks -quiet] {
+    puts $f "$p,[expr {![get_property IS_SOFT $p]}],[get_property GRID_RANGES $p],[llength [get_cells -of_objects $p]],[get_property GRID_RANGES $p]"
 }
 close $f
 if {!$routed_report} {

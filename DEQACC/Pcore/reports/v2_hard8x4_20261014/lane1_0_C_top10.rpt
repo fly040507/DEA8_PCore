@@ -1,0 +1,528 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version      : Vivado v.2022.2 (win64) Build 3671981 Fri Oct 14 05:00:03 MDT 2022
+| Date              : Wed Oct 14 10:15:27 2026
+| Host              : FLY running 64-bit major release  (build 9200)
+| Command           : report_timing -to {{core/physical_regions[1].lanes[0].c_q_reg[0]} {core/physical_regions[1].lanes[0].c_q_reg[10]} {core/physical_regions[1].lanes[0].c_q_reg[11]} {core/physical_regions[1].lanes[0].c_q_reg[12]} {core/physical_regions[1].lanes[0].c_q_reg[13]} {core/physical_regions[1].lanes[0].c_q_reg[14]} {core/physical_regions[1].lanes[0].c_q_reg[15]} {core/physical_regions[1].lanes[0].c_q_reg[16]} {core/physical_regions[1].lanes[0].c_q_reg[17]} {core/physical_regions[1].lanes[0].c_q_reg[18]} {core/physical_regions[1].lanes[0].c_q_reg[19]} {core/physical_regions[1].lanes[0].c_q_reg[1]} {core/physical_regions[1].lanes[0].c_q_reg[20]} {core/physical_regions[1].lanes[0].c_q_reg[21]} {core/physical_regions[1].lanes[0].c_q_reg[22]} {core/physical_regions[1].lanes[0].c_q_reg[23]} {core/physical_regions[1].lanes[0].c_q_reg[24]} {core/physical_regions[1].lanes[0].c_q_reg[25]} {core/physical_regions[1].lanes[0].c_q_reg[26]} {core/physical_regions[1].lanes[0].c_q_reg[27]} {core/physical_regions[1].lanes[0].c_q_reg[28]} {core/physical_regions[1].lanes[0].c_q_reg[29]} {core/physical_regions[1].lanes[0].c_q_reg[2]} {core/physical_regions[1].lanes[0].c_q_reg[30]} {core/physical_regions[1].lanes[0].c_q_reg[31]} {core/physical_regions[1].lanes[0].c_q_reg[3]} {core/physical_regions[1].lanes[0].c_q_reg[4]} {core/physical_regions[1].lanes[0].c_q_reg[5]} {core/physical_regions[1].lanes[0].c_q_reg[6]} {core/physical_regions[1].lanes[0].c_q_reg[7]} {core/physical_regions[1].lanes[0].c_q_reg[8]} {core/physical_regions[1].lanes[0].c_q_reg[9]}} -delay_type max -max_paths 10 -nworst 1 -path_type full -input_pins -return_string
+| Design            : deqacc_v2_timing_shell
+| Device            : xcu50-fsvh2104
+| Speed File        : -2  PRODUCTION 1.30 05-01-2022
+| Temperature Grade : E
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Timing Report
+
+Slack (MET) :             3.119ns  (required time - arrival time)
+  Source:                 core/physical_regions[1].lanes[0].add/result_value_reg[28]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/physical_regions[1].lanes[0].c_q_reg[28]/D
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        0.759ns  (logic 0.079ns (10.408%)  route 0.680ns (89.592%))
+  Logic Levels:           0  
+  Clock Path Skew:        -0.112ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    1.940ns = ( 5.940 - 4.000 ) 
+    Source Clock Delay      (SCD):    2.208ns
+    Clock Pessimism Removal (CPR):    0.156ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    PBlock               Netlist Resource(s)
+  -------------------------------------------------------------------    ----------------------------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r                       
+                         propagated clock network latency
+                                                      2.208     2.208                         
+    SLICE_X127Y99        FDRE                         0.000     2.208 r  deqacc_v2_fourlane_region2
+                                                                                              core/physical_regions[1].lanes[0].add/result_value_reg[28]/C
+    SLICE_X127Y99        FDRE (Prop_DFF_SLICEL_C_Q)
+                                                      0.079     2.287 r  deqacc_v2_fourlane_region2
+                                                                                              core/physical_regions[1].lanes[0].add/result_value_reg[28]/Q
+                         net (fo=5, routed)           0.680     2.967                         core/a3_values[0][8]_19[28]
+    SLICE_X121Y104       FDRE                                         r  deqacc_v2_fourlane_region2
+                                                                                              core/physical_regions[1].lanes[0].c_q_reg[28]/D
+  -------------------------------------------------------------------    ----------------------------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r                       
+                         propagated clock network latency
+                                                      1.940     5.940                         
+                         clock pessimism              0.156     6.096                           
+                         clock uncertainty           -0.035     6.061                           
+    SLICE_X121Y104       FDRE (Setup_EFF2_SLICEM_C_D)
+                                                      0.025     6.086    deqacc_v2_fourlane_region2
+                                                                                                core/physical_regions[1].lanes[0].c_q_reg[28]
+  -------------------------------------------------------------------
+                         required time                          6.086                           
+                         arrival time                          -2.967                           
+  -------------------------------------------------------------------
+                         slack                                  3.119                           
+
+Slack (MET) :             3.171ns  (required time - arrival time)
+  Source:                 core/physical_regions[1].lanes[0].add/result_value_reg[5]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/physical_regions[1].lanes[0].c_q_reg[5]/D
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        0.779ns  (logic 0.079ns (10.146%)  route 0.700ns (89.854%))
+  Logic Levels:           0  
+  Clock Path Skew:        -0.040ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    1.950ns = ( 5.950 - 4.000 ) 
+    Source Clock Delay      (SCD):    2.146ns
+    Clock Pessimism Removal (CPR):    0.156ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    PBlock               Netlist Resource(s)
+  -------------------------------------------------------------------    ----------------------------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r                       
+                         propagated clock network latency
+                                                      2.146     2.146                         
+    SLICE_X119Y90        FDRE                         0.000     2.146 r  deqacc_v2_fourlane_region2
+                                                                                              core/physical_regions[1].lanes[0].add/result_value_reg[5]/C
+    SLICE_X119Y90        FDRE (Prop_DFF_SLICEL_C_Q)
+                                                      0.079     2.225 r  deqacc_v2_fourlane_region2
+                                                                                              core/physical_regions[1].lanes[0].add/result_value_reg[5]/Q
+                         net (fo=5, routed)           0.700     2.925                         core/a3_values[0][8]_19[5]
+    SLICE_X123Y104       FDRE                                         r  deqacc_v2_fourlane_region2
+                                                                                              core/physical_regions[1].lanes[0].c_q_reg[5]/D
+  -------------------------------------------------------------------    ----------------------------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r                       
+                         propagated clock network latency
+                                                      1.950     5.950                         
+                         clock pessimism              0.156     6.106                           
+                         clock uncertainty           -0.035     6.070                           
+    SLICE_X123Y104       FDRE (Setup_EFF2_SLICEL_C_D)
+                                                      0.025     6.095    deqacc_v2_fourlane_region2
+                                                                                                core/physical_regions[1].lanes[0].c_q_reg[5]
+  -------------------------------------------------------------------
+                         required time                          6.095                           
+                         arrival time                          -2.925                           
+  -------------------------------------------------------------------
+                         slack                                  3.171                           
+
+Slack (MET) :             3.196ns  (required time - arrival time)
+  Source:                 core/physical_regions[1].lanes[0].add/result_value_reg[23]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/physical_regions[1].lanes[0].c_q_reg[23]/D
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        0.699ns  (logic 0.080ns (11.450%)  route 0.619ns (88.550%))
+  Logic Levels:           0  
+  Clock Path Skew:        -0.095ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    1.963ns = ( 5.963 - 4.000 ) 
+    Source Clock Delay      (SCD):    2.214ns
+    Clock Pessimism Removal (CPR):    0.156ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    PBlock               Netlist Resource(s)
+  -------------------------------------------------------------------    ----------------------------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r                       
+                         propagated clock network latency
+                                                      2.214     2.214                         
+    SLICE_X127Y100       FDRE                         0.000     2.214 r  deqacc_v2_fourlane_region2
+                                                                                              core/physical_regions[1].lanes[0].add/result_value_reg[23]/C
+    SLICE_X127Y100       FDRE (Prop_HFF2_SLICEL_C_Q)
+                                                      0.080     2.294 r  deqacc_v2_fourlane_region2
+                                                                                              core/physical_regions[1].lanes[0].add/result_value_reg[23]/Q
+                         net (fo=5, routed)           0.619     2.913                         core/a3_values[0][8]_19[23]
+    SLICE_X124Y110       FDRE                                         r  deqacc_v2_fourlane_region2
+                                                                                              core/physical_regions[1].lanes[0].c_q_reg[23]/D
+  -------------------------------------------------------------------    ----------------------------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r                       
+                         propagated clock network latency
+                                                      1.963     5.963                         
+                         clock pessimism              0.156     6.119                           
+                         clock uncertainty           -0.035     6.084                           
+    SLICE_X124Y110       FDRE (Setup_EFF2_SLICEM_C_D)
+                                                      0.025     6.109    deqacc_v2_fourlane_region2
+                                                                                                core/physical_regions[1].lanes[0].c_q_reg[23]
+  -------------------------------------------------------------------
+                         required time                          6.109                           
+                         arrival time                          -2.913                           
+  -------------------------------------------------------------------
+                         slack                                  3.196                           
+
+Slack (MET) :             3.205ns  (required time - arrival time)
+  Source:                 core/physical_regions[1].lanes[0].add/result_value_reg[3]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/physical_regions[1].lanes[0].c_q_reg[3]/D
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        0.729ns  (logic 0.079ns (10.839%)  route 0.650ns (89.161%))
+  Logic Levels:           0  
+  Clock Path Skew:        -0.056ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    1.949ns = ( 5.949 - 4.000 ) 
+    Source Clock Delay      (SCD):    2.161ns
+    Clock Pessimism Removal (CPR):    0.156ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    PBlock               Netlist Resource(s)
+  -------------------------------------------------------------------    ----------------------------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r                       
+                         propagated clock network latency
+                                                      2.161     2.161                         
+    SLICE_X120Y91        FDRE                         0.000     2.161 r  deqacc_v2_fourlane_region2
+                                                                                              core/physical_regions[1].lanes[0].add/result_value_reg[3]/C
+    SLICE_X120Y91        FDRE (Prop_CFF_SLICEL_C_Q)
+                                                      0.079     2.240 r  deqacc_v2_fourlane_region2
+                                                                                              core/physical_regions[1].lanes[0].add/result_value_reg[3]/Q
+                         net (fo=5, routed)           0.650     2.890                         core/a3_values[0][8]_19[3]
+    SLICE_X121Y109       FDRE                                         r  deqacc_v2_fourlane_region2
+                                                                                              core/physical_regions[1].lanes[0].c_q_reg[3]/D
+  -------------------------------------------------------------------    ----------------------------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r                       
+                         propagated clock network latency
+                                                      1.949     5.949                         
+                         clock pessimism              0.156     6.105                           
+                         clock uncertainty           -0.035     6.069                           
+    SLICE_X121Y109       FDRE (Setup_FFF2_SLICEM_C_D)
+                                                      0.025     6.094    deqacc_v2_fourlane_region2
+                                                                                                core/physical_regions[1].lanes[0].c_q_reg[3]
+  -------------------------------------------------------------------
+                         required time                          6.094                           
+                         arrival time                          -2.890                           
+  -------------------------------------------------------------------
+                         slack                                  3.205                           
+
+Slack (MET) :             3.205ns  (required time - arrival time)
+  Source:                 core/physical_regions[1].lanes[0].add/result_value_reg[27]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/physical_regions[1].lanes[0].c_q_reg[27]/D
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        0.745ns  (logic 0.076ns (10.203%)  route 0.669ns (89.797%))
+  Logic Levels:           0  
+  Clock Path Skew:        -0.040ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    1.964ns = ( 5.964 - 4.000 ) 
+    Source Clock Delay      (SCD):    2.211ns
+    Clock Pessimism Removal (CPR):    0.207ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    PBlock               Netlist Resource(s)
+  -------------------------------------------------------------------    ----------------------------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r                       
+                         propagated clock network latency
+                                                      2.211     2.211                         
+    SLICE_X122Y99        FDRE                         0.000     2.211 r  deqacc_v2_fourlane_region2
+                                                                                              core/physical_regions[1].lanes[0].add/result_value_reg[27]/C
+    SLICE_X122Y99        FDRE (Prop_FFF_SLICEM_C_Q)
+                                                      0.076     2.287 r  deqacc_v2_fourlane_region2
+                                                                                              core/physical_regions[1].lanes[0].add/result_value_reg[27]/Q
+                         net (fo=5, routed)           0.669     2.956                         core/a3_values[0][8]_19[27]
+    SLICE_X122Y110       FDRE                                         r  deqacc_v2_fourlane_region2
+                                                                                              core/physical_regions[1].lanes[0].c_q_reg[27]/D
+  -------------------------------------------------------------------    ----------------------------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r                       
+                         propagated clock network latency
+                                                      1.964     5.964                         
+                         clock pessimism              0.207     6.171                           
+                         clock uncertainty           -0.035     6.136                           
+    SLICE_X122Y110       FDRE (Setup_FFF2_SLICEM_C_D)
+                                                      0.025     6.161    deqacc_v2_fourlane_region2
+                                                                                                core/physical_regions[1].lanes[0].c_q_reg[27]
+  -------------------------------------------------------------------
+                         required time                          6.161                           
+                         arrival time                          -2.956                           
+  -------------------------------------------------------------------
+                         slack                                  3.205                           
+
+Slack (MET) :             3.228ns  (required time - arrival time)
+  Source:                 core/physical_regions[1].lanes[0].add/result_value_reg[19]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/physical_regions[1].lanes[0].c_q_reg[19]/D
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        0.697ns  (logic 0.079ns (11.342%)  route 0.618ns (88.658%))
+  Logic Levels:           0  
+  Clock Path Skew:        -0.065ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    1.961ns = ( 5.961 - 4.000 ) 
+    Source Clock Delay      (SCD):    2.182ns
+    Clock Pessimism Removal (CPR):    0.156ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    PBlock               Netlist Resource(s)
+  -------------------------------------------------------------------    ----------------------------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r                       
+                         propagated clock network latency
+                                                      2.182     2.182                         
+    SLICE_X121Y99        FDRE                         0.000     2.182 r  deqacc_v2_fourlane_region2
+                                                                                              core/physical_regions[1].lanes[0].add/result_value_reg[19]/C
+    SLICE_X121Y99        FDRE (Prop_HFF_SLICEM_C_Q)
+                                                      0.079     2.261 r  deqacc_v2_fourlane_region2
+                                                                                              core/physical_regions[1].lanes[0].add/result_value_reg[19]/Q
+                         net (fo=5, routed)           0.618     2.879                         core/a3_values[0][8]_19[19]
+    SLICE_X124Y114       FDRE                                         r  deqacc_v2_fourlane_region2
+                                                                                              core/physical_regions[1].lanes[0].c_q_reg[19]/D
+  -------------------------------------------------------------------    ----------------------------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r                       
+                         propagated clock network latency
+                                                      1.961     5.961                         
+                         clock pessimism              0.156     6.117                           
+                         clock uncertainty           -0.035     6.081                           
+    SLICE_X124Y114       FDRE (Setup_EFF2_SLICEM_C_D)
+                                                      0.025     6.106    deqacc_v2_fourlane_region2
+                                                                                                core/physical_regions[1].lanes[0].c_q_reg[19]
+  -------------------------------------------------------------------
+                         required time                          6.106                           
+                         arrival time                          -2.879                           
+  -------------------------------------------------------------------
+                         slack                                  3.228                           
+
+Slack (MET) :             3.278ns  (required time - arrival time)
+  Source:                 core/physical_regions[1].lanes[0].add/result_value_reg[4]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/physical_regions[1].lanes[0].c_q_reg[4]/D
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        0.673ns  (logic 0.078ns (11.595%)  route 0.595ns (88.405%))
+  Logic Levels:           0  
+  Clock Path Skew:        -0.039ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    1.979ns = ( 5.979 - 4.000 ) 
+    Source Clock Delay      (SCD):    2.174ns
+    Clock Pessimism Removal (CPR):    0.156ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    PBlock               Netlist Resource(s)
+  -------------------------------------------------------------------    ----------------------------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r                       
+                         propagated clock network latency
+                                                      2.174     2.174                         
+    SLICE_X121Y92        FDRE                         0.000     2.174 r  deqacc_v2_fourlane_region2
+                                                                                              core/physical_regions[1].lanes[0].add/result_value_reg[4]/C
+    SLICE_X121Y92        FDRE (Prop_BFF_SLICEM_C_Q)
+                                                      0.078     2.252 r  deqacc_v2_fourlane_region2
+                                                                                              core/physical_regions[1].lanes[0].add/result_value_reg[4]/Q
+                         net (fo=5, routed)           0.595     2.847                         core/a3_values[0][8]_19[4]
+    SLICE_X128Y108       FDRE                                         r  deqacc_v2_fourlane_region2
+                                                                                              core/physical_regions[1].lanes[0].c_q_reg[4]/D
+  -------------------------------------------------------------------    ----------------------------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r                       
+                         propagated clock network latency
+                                                      1.979     5.979                         
+                         clock pessimism              0.156     6.135                           
+                         clock uncertainty           -0.035     6.099                           
+    SLICE_X128Y108       FDRE (Setup_FFF_SLICEM_C_D)
+                                                      0.025     6.124    deqacc_v2_fourlane_region2
+                                                                                                core/physical_regions[1].lanes[0].c_q_reg[4]
+  -------------------------------------------------------------------
+                         required time                          6.124                           
+                         arrival time                          -2.847                           
+  -------------------------------------------------------------------
+                         slack                                  3.278                           
+
+Slack (MET) :             3.283ns  (required time - arrival time)
+  Source:                 core/physical_regions[1].lanes[0].add/result_value_reg[24]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/physical_regions[1].lanes[0].c_q_reg[24]/D
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        0.671ns  (logic 0.079ns (11.767%)  route 0.592ns (88.233%))
+  Logic Levels:           0  
+  Clock Path Skew:        -0.035ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    1.964ns = ( 5.964 - 4.000 ) 
+    Source Clock Delay      (SCD):    2.206ns
+    Clock Pessimism Removal (CPR):    0.207ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    PBlock               Netlist Resource(s)
+  -------------------------------------------------------------------    ----------------------------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r                       
+                         propagated clock network latency
+                                                      2.206     2.206                         
+    SLICE_X123Y99        FDRE                         0.000     2.206 r  deqacc_v2_fourlane_region2
+                                                                                              core/physical_regions[1].lanes[0].add/result_value_reg[24]/C
+    SLICE_X123Y99        FDRE (Prop_CFF_SLICEL_C_Q)
+                                                      0.079     2.285 r  deqacc_v2_fourlane_region2
+                                                                                              core/physical_regions[1].lanes[0].add/result_value_reg[24]/Q
+                         net (fo=5, routed)           0.592     2.877                         core/a3_values[0][8]_19[24]
+    SLICE_X122Y110       FDRE                                         r  deqacc_v2_fourlane_region2
+                                                                                              core/physical_regions[1].lanes[0].c_q_reg[24]/D
+  -------------------------------------------------------------------    ----------------------------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r                       
+                         propagated clock network latency
+                                                      1.964     5.964                         
+                         clock pessimism              0.207     6.171                           
+                         clock uncertainty           -0.035     6.136                           
+    SLICE_X122Y110       FDRE (Setup_FFF_SLICEM_C_D)
+                                                      0.025     6.161    deqacc_v2_fourlane_region2
+                                                                                                core/physical_regions[1].lanes[0].c_q_reg[24]
+  -------------------------------------------------------------------
+                         required time                          6.161                           
+                         arrival time                          -2.877                           
+  -------------------------------------------------------------------
+                         slack                                  3.283                           
+
+Slack (MET) :             3.307ns  (required time - arrival time)
+  Source:                 core/physical_regions[1].lanes[0].add/result_value_reg[8]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/physical_regions[1].lanes[0].c_q_reg[8]/D
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        0.633ns  (logic 0.079ns (12.483%)  route 0.554ns (87.517%))
+  Logic Levels:           0  
+  Clock Path Skew:        -0.050ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    1.953ns = ( 5.953 - 4.000 ) 
+    Source Clock Delay      (SCD):    2.159ns
+    Clock Pessimism Removal (CPR):    0.156ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    PBlock               Netlist Resource(s)
+  -------------------------------------------------------------------    ----------------------------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r                       
+                         propagated clock network latency
+                                                      2.159     2.159                         
+    SLICE_X120Y90        FDRE                         0.000     2.159 r  deqacc_v2_fourlane_region2
+                                                                                              core/physical_regions[1].lanes[0].add/result_value_reg[8]/C
+    SLICE_X120Y90        FDRE (Prop_DFF_SLICEL_C_Q)
+                                                      0.079     2.238 r  deqacc_v2_fourlane_region2
+                                                                                              core/physical_regions[1].lanes[0].add/result_value_reg[8]/Q
+                         net (fo=5, routed)           0.554     2.792                         core/a3_values[0][8]_19[8]
+    SLICE_X122Y106       FDRE                                         r  deqacc_v2_fourlane_region2
+                                                                                              core/physical_regions[1].lanes[0].c_q_reg[8]/D
+  -------------------------------------------------------------------    ----------------------------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r                       
+                         propagated clock network latency
+                                                      1.953     5.953                         
+                         clock pessimism              0.156     6.109                           
+                         clock uncertainty           -0.035     6.073                           
+    SLICE_X122Y106       FDRE (Setup_EFF2_SLICEM_C_D)
+                                                      0.025     6.098    deqacc_v2_fourlane_region2
+                                                                                                core/physical_regions[1].lanes[0].c_q_reg[8]
+  -------------------------------------------------------------------
+                         required time                          6.098                           
+                         arrival time                          -2.792                           
+  -------------------------------------------------------------------
+                         slack                                  3.307                           
+
+Slack (MET) :             3.307ns  (required time - arrival time)
+  Source:                 core/physical_regions[1].lanes[0].add/result_value_reg[11]/C
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            core/physical_regions[1].lanes[0].c_q_reg[11]/D
+                            (rising edge-triggered cell FDRE clocked by core_clk  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             core_clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (core_clk rise@4.000ns - core_clk rise@0.000ns)
+  Data Path Delay:        0.634ns  (logic 0.079ns (12.469%)  route 0.555ns (87.531%))
+  Logic Levels:           0  
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    1.964ns = ( 5.964 - 4.000 ) 
+    Source Clock Delay      (SCD):    2.169ns
+    Clock Pessimism Removal (CPR):    0.156ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    PBlock               Netlist Resource(s)
+  -------------------------------------------------------------------    ----------------------------------------
+                         (clock core_clk rise edge)
+                                                      0.000     0.000 r                       
+                         propagated clock network latency
+                                                      2.169     2.169                         
+    SLICE_X121Y90        FDRE                         0.000     2.169 r  deqacc_v2_fourlane_region2
+                                                                                              core/physical_regions[1].lanes[0].add/result_value_reg[11]/C
+    SLICE_X121Y90        FDRE (Prop_HFF_SLICEM_C_Q)
+                                                      0.079     2.248 r  deqacc_v2_fourlane_region2
+                                                                                              core/physical_regions[1].lanes[0].add/result_value_reg[11]/Q
+                         net (fo=5, routed)           0.555     2.803                         core/a3_values[0][8]_19[11]
+    SLICE_X124Y103       FDRE                                         r  deqacc_v2_fourlane_region2
+                                                                                              core/physical_regions[1].lanes[0].c_q_reg[11]/D
+  -------------------------------------------------------------------    ----------------------------------------
+
+                         (clock core_clk rise edge)
+                                                      4.000     4.000 r                       
+                         propagated clock network latency
+                                                      1.964     5.964                         
+                         clock pessimism              0.156     6.120                           
+                         clock uncertainty           -0.035     6.085                           
+    SLICE_X124Y103       FDRE (Setup_FFF_SLICEM_C_D)
+                                                      0.025     6.110    deqacc_v2_fourlane_region2
+                                                                                                core/physical_regions[1].lanes[0].c_q_reg[11]
+  -------------------------------------------------------------------
+                         required time                          6.110                           
+                         arrival time                          -2.803                           
+  -------------------------------------------------------------------
+                         slack                                  3.307                           
+
+
+
+
+

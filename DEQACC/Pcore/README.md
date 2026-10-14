@@ -2,6 +2,10 @@
 
 ## DEQACC 开发副本当前状态（2026-10-13）
 
+2026-10-14新增8个硬区域、每组4个同行lane对照，WNS=−0.358ns/TNS=−310.534ns，最高CLB区域占用73.64%。比4×8 Hard改善，No-Pblock仍最佳。见 [8×4对照报告](../DEQACC_V2_8x4区域对照报告.md)；入口`run_deqacc_v2_nopblock.ps1 -FourLane`，不改RTL。
+
+2026-10-14同网表No-Pblock对照完成：WNS=−0.222ns、TNS=−61.556ns、setup失败842端点；最高region CLB占用74.17%、SLR crossing=0。相比Hard显著改善但未签核250MHz。详细结果见 [No-Pblock对照](../DEQACC_V2_NoPblock对照报告.md)，入口`run_deqacc_v2_nopblock.ps1`。本次只做物理对照，没有改功能RTL或默认Hard约束脚本。
+
 **最新：当前同行V2已完成全接口OOC布局布线，4ns setup未过（WNS=−0.685ns），hold无失败、全部内部网络已route。**七级/feedback/ACC真实路由和资源见 [布局布线报告](../DEQACC_V2_布局布线报告.md)、`reports/v2_route_20261013/`。命令：`powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run_deqacc_v2_route.ps1`，建议timeout3600000ms。以下综合和Focused验证状态按阶段保留，不将综合估算作为当前routing结果。
 
 本副本在 V1 RTL 上原地重构为 DEQACC V2：32 lane、四个同行位置组、**一个完整 16 列 FACC/OACC**、七级流水。采用第三种方案，删除逻辑 cluster wrapper；独立 ingress 只计算两个 row_bias，各经四个组合分支驱动四个外部 base 加法器，始终为每行 `1→4→16`。Psum 从 rsp 直接接到 Qlane，与 base/bad_scale/valid 同拍捕获；Qlane 不接 Ea/Eb/fold。中心 key/RAW/forward 唯一一套，FPADD Full dual-path 不变；II=1 和 Delta=4 不变。当前OOC综合结果见 [七级综合报告](../DEQACC_V2_综合报告.md)，尚无当前源码P&R结果。

@@ -1,56 +1,37 @@
 # DEA8 Dynamic
 
-本目录用于设计支持动态动作 Token 数量和非连续 Token 行号的 DEA8 优化方案。
+动态 M 重构工程。当前基线：compact row、三行 A 加载、512-bit B 输入与四拍驻留装载、双行 MXU、七级 DEQACC；保留七种外部 Job和三种矩阵模式。
 
-## 当前状态
+所有修改仅在本目录。既有 `DEA8/` 和独立 `DEQACC/` 只读，不覆盖原设计。
 
-- 本目录是独立设计目录。
-- 当前只冻结方案和接口，不修改既有 `DEA8/`、旧版 `pcore/` 或其它发布目录。
-- 后续 RTL、Testbench 和验证报告均放在本目录内。
-- 现有设计的 51 行固定方案仍作为兼容基线，不在本目录外修改。
-- 动态基础链路已经建立：Profile → A 双行打包 → B tile 2-beat 加载 → 双行 MXU → 按 `row_id` 拆分写回 → 动态 QOZ 行寻址存储。
+## 当前进度
 
-## 优化目标
+- 动态 MXU / PE / DEQACC及真实A/B加载基础已实现：Profile、row3 RAM、三槽A queue、双PC配对、八槽B queue接入计算链路。
+- 2026-10-14新源码7项常规仿真与3项RAW负例通过；加载前端覆盖M=0..51、17424笔Psum/FP32提交。证据入口在PCore README。
+- QOZ/PBUF管理、local loader、完整profile/owner生命周期、最终HBM/KVB协议适配仍待接入。
+- 七Job、完整Attention/G-U、内部外发和动态Reduce仍待实现/联调；VPU/SFU只留接口，真实算术不属于本工程当前实现范围。
+- 没有新综合或布局布线签核。仿真4ns时钟不证明250MHz物理时序。
 
-支持以下形式的矩阵 Tile：
+旧动态尝试中的2-beat B加载、original row_id贯穿算术和相关foundation说明不再是当前基线；本目录现存源码/证据以PCore入口为准。
 
-```text
-A[R, 16] × B[16, 16]
-```
+## 设计入口
 
-其中：
+| 文档 | 内容 |
+|---|---|
+| [PCore整体重构方案V1](C:/Users/fly04/Desktop/VLA/DEA8_dynamic/Pcore/PCore整体重构方案_V1.md) | 七Job/三mode、剩余模块、后处理触发、完成屏障、资源和接口 |
+| [A侧加载V1](C:/Users/fly04/Desktop/VLA/DEA8_dynamic/Pcore/A侧矩阵加载方案_V1.md) | 三行输入、3-slot A queue、QOZ/PBUF三row bank |
+| [B侧加载V1](C:/Users/fly04/Desktop/VLA/DEA8_dynamic/Pcore/B侧矩阵加载方案_V1.md) | HBM双PC、KVB512、8-slot B queue、四列/拍装载 |
+| [Attention调度V1](C:/Users/fly04/Desktop/VLA/DEA8_dynamic/Pcore/Attention调度方案_V1.md) | 110子Job、动态Block间隔、SCALE隐藏和尾部 |
+| [PCore实现与验证](C:/Users/fly04/Desktop/VLA/DEA8_dynamic/Pcore/README.md) | 现存RTL、计算合同、仿真证据和未完成事项 |
+| [老设计复用分析](C:/Users/fly04/Desktop/VLA/DEA8_dynamic/Pcore/老设计复用方案_V1.md) | 旧DEA8模块调查；不等于逐文件复制要求 |
 
-- `R` 为当前去噪步需要计算的有效 Token 数量，范围为 `0..MAX_ROWS`。
-- 当前基线默认 `MAX_ROWS=51`，对应 `row_id=0..50`。
-- 有效 Token 可以不连续。
-- 同一个去噪步内的 18 层复用同一个 Token Profile。
-- Matrix、QOZ、FACC、OACC、VPU、SFU 和输出链路必须保留真实 `row_id`。
+## 动态行语义
 
-## 设计文档
+`A[M,16]×B[16,16]`，M=0..51。K/V projection固定51行，其余五种Job使用M。
 
-- [动态动作 Token 矩阵优化方案](docs/动态动作Token矩阵优化方案.md)
+算术、存储和传输使用 compact row `0..M-1`。原始行序只在profile控制上下文、RoPE/mask服务和接收端映射中解释；不随每个PE/流水结果携带原始row_id。
 
-## 当前仿真证据
+同一profile可以由DEA8跨18层复用，但PCore只处理外部Job，不理解层数和十步去噪循环。profile在相关存储/输出仍存活时不能改写。
 
-从 `DEA8_dynamic/Pcore` 执行 `run_dynamic_foundation.ps1`，Vivado 2022.2 XSIM 已通过以下 6 个测试：
-
-- `tb_dynamic_profile`：7 个非连续行和空 profile
-- `tb_dynamic_a_pair_packer`：7 行打成 4 个 pair，尾 pair 为单行
-- `tb_dynamic_b_tile_loader`：一个 16×16 B tile 用 2 个 beat 接收数据与 scale
-- `tb_dynamic_mxu_2row`：双行 Psum、row_id、激活 scale、权重 scale 对齐
-- `tb_dynamic_frontend_mxu`：以上模块端到端连接，4 个 pair 返回正确结果
-- `tb_dynamic_qoz_store`：非连续 row_id 的双 lane 写入、读取和 QOZ 区域释放
-
-最新证据见 `Pcore/reports/dynamic_foundation/summary.txt`。目前是行为仿真，尚未进行综合，也尚未接入动态 QOZ/FACC、完整七种 Job 调度和 DEA8 总控。
-
-## 后续目录约定
-
-```text
-DEA8_dynamic/
-  README.md
-  docs/       方案、接口和周期说明
-  rtl/        动态方案 RTL，不复制旧版无关代码
-  tb/         动态行集合、Projection、Attention 验证
-  reports/    仿真结果和周期证据
-```
+完整系统目标与旧DEA8能力对齐，不把旧仿真日志当成dynamic验证结果。
 

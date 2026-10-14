@@ -1,5 +1,7 @@
 # DEA8_dynamic Pcore：B 侧矩阵加载方案 V1
 
+当前实施说明：本文保留512-bit传输、packet、8-slot queue和B4 loader布局；行语义、七级DEQACC Δ4前递及公共context按 [PCore整体重构方案V1](C:/Users/fly04/Desktop/VLA/DEA8_dynamic/Pcore/PCore整体重构方案_V1.md) 执行。下文早期original row_id、11级无前递及独立layer计数字段建议不进入当前数据面；HBM四Tile group是四个连续B调度Tile，不限定四个连续NTile。Attention性能边界见 [Attention调度V1](C:/Users/fly04/Desktop/VLA/DEA8_dynamic/Pcore/Attention调度方案_V1.md)。
+
 > 状态：优化方案，尚未进入 RTL 实现。  
 > 适用范围：动态动作 token 长度下，Pcore 的 B 侧权重/缓存加载、排队、双 bank 装载和向 MXU 发射。  
 > 本文不修改 `DEA8`，也不代表已经完成 Vivado 仿真或综合。
