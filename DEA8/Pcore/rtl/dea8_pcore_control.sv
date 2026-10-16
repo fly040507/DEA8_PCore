@@ -29,13 +29,8 @@ module dea8_pcore_control #(
   output logic rope_sfu_valid,input logic rope_sfu_ready,output control_rope_req_t rope_sfu_req,
   input logic rope_sfu_out_valid,output logic rope_sfu_out_ready,input control_rope_rsp_t rope_sfu_out,
   output logic rope_out_valid,input logic rope_out_ready,output control_rope_rsp_t rope_out,
-  output logic kv_hdr_valid,input logic kv_hdr_ready,output tile_header_t kv_hdr,
-  output logic kv_out_valid,input logic kv_out_ready,output logic [KV_WORD_BITS-1:0] kv_out,
-  output logic kv_out_last,
+  output logic tx_valid,input logic tx_ready,output logic [PACKET_BITS-1:0] tx_data,output logic tx_last,
   input logic kv_commit_valid,output logic kv_commit_ready,input tile_commit_t kv_commit,
-  output logic reduce_hdr_valid,input logic reduce_hdr_ready,output tile_header_t reduce_hdr,
-  output logic reduce_out_valid,input logic reduce_out_ready,output logic [FP_ROW_BITS-1:0] reduce_out,
-  output logic reduce_out_last,
   input logic acc_rd_valid,output logic acc_rd_ready,input acc_sel_e acc_rd_sel,input logic [9:0] acc_rd_addr,
   input control_token_t acc_token,
   output logic acc_data_valid,input logic acc_data_ready,output logic [TILE-1:0][FP_BITS-1:0] acc_even,acc_odd,
@@ -75,6 +70,7 @@ module dea8_pcore_control #(
   logic pv,pr;a2_t pe;
   logic kin,kr,kempty,rin,rr,rempty;
   logic output_busy,output_error;
+  logic kv_word_sent,fp_row_sent;
   logic rd_armed_q,rd_done_q,rd_legal;
   pcore_post_job_t rd_command_q;
   logic [PAIR_BITS-1:0] rd_pair_q;
@@ -276,9 +272,8 @@ module dea8_pcore_control #(
   dea8_pcore_output output_stage(.clk,.reset,.clear(clear||ejv),.job(job_q),
     .quant_valid(kin),.quant_ready(kr),.quant(vector_result),
     .facc_valid(rin),.facc_ready(rr),.facc(data),
-    .kv_hdr_valid,.kv_hdr_ready,.kv_hdr,.kv_out_valid,.kv_out_ready,.kv_out,.kv_out_last,
+    .tx_valid,.tx_ready,.tx_data,.tx_last,.kv_word_sent,.fp_row_sent,
     .kv_commit_valid,.kv_commit_ready,.kv_commit,
-    .reduce_hdr_valid,.reduce_hdr_ready,.reduce_hdr,.reduce_out_valid,.reduce_out_ready,.reduce_out,.reduce_out_last,
     .kv_empty(kempty),.reduce_empty(rempty),.busy(output_busy),.protocol_error(output_error));
 
   // Hold a RAM response until the unit consumes it; reserve capacity first.
@@ -446,8 +441,8 @@ module dea8_pcore_control #(
           else afin_pair_q<=afin_pair_q+1'b1;
         end
       end
-      if(kv_out_valid&&kv_out_ready)kv_sent_q<=kv_sent_q+1'b1;
-      if(reduce_out_valid&&reduce_out_ready)reduce_sent_q<=reduce_sent_q+1'b1;
+      if(kv_word_sent)kv_sent_q<=kv_sent_q+1'b1;
+      if(fp_row_sent)reduce_sent_q<=reduce_sent_q+1'b1;
       if(is_reduce&&post_valid&&post_ready)begin rd_command_q<=post_job;rd_armed_q<=1;rd_pair_q<=0;end
       if(rin&&rr)begin
         if(data.last)begin rd_done_q<=1;rd_armed_q<=0;rd_tile_q<=rd_tile_q+1'b1;end

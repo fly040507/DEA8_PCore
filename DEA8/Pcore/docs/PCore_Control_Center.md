@@ -1,5 +1,7 @@
 # PCore 控制中心 DEA8 PCore
 
+> 历史说明，不作为当前接线合同。2026-10-17的[PCore README](../README.md)已按当前RTL重写触发、VPU/SFU端口、8项RoPE信用和256-bit外发。下文独立外发端口、单项RoPE、旧包数与周期不适用于当前接口。DEQACC仍保留11级。
+
 2026-10-07 实现。设计依据：`interaction/Pcore控制方案.md`。此说明描述接口与实现；验证状态以本次源码对应的控制仿真日志为准。
 
 ## 外部 Job 与完成

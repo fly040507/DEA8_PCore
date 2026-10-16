@@ -8,13 +8,9 @@ module dea8_pcore_output(
   input control_job_t job,
   input logic quant_valid,output logic quant_ready,input control_quant_result_t quant,
   input logic facc_valid,output logic facc_ready,input post_data_t facc,
-  output logic kv_hdr_valid,input logic kv_hdr_ready,output tile_header_t kv_hdr,
-  output logic kv_out_valid,input logic kv_out_ready,output logic [KV_WORD_BITS-1:0] kv_out,
-  output logic kv_out_last,
+  output logic tx_valid,input logic tx_ready,output logic [PACKET_BITS-1:0] tx_data,output logic tx_last,
   input logic kv_commit_valid,output logic kv_commit_ready,input tile_commit_t kv_commit,
-  output logic reduce_hdr_valid,input logic reduce_hdr_ready,output tile_header_t reduce_hdr,
-  output logic reduce_out_valid,input logic reduce_out_ready,output logic [FP_ROW_BITS-1:0] reduce_out,
-  output logic reduce_out_last,
+  output logic kv_word_sent,fp_row_sent,
   output logic kv_empty,reduce_empty,busy,protocol_error
 );
   typedef enum logic [1:0] {WAIT_INPUT,SEND_HEADER,SEND_FIRST,SEND_SECOND} phase_e;
@@ -29,6 +25,12 @@ module dea8_pcore_output(
   logic kv_legal,facc_legal;
   logic [ROW_LANES-1:0] expected_mask;
   logic [TILE-1:0] expected_tokens;
+  logic kv_hdr_valid,kv_hdr_ready,kv_out_valid,kv_out_ready,kv_out_last;
+  tile_header_t kv_hdr,reduce_hdr;
+  logic [KV_WORD_BITS-1:0] kv_out;
+  logic reduce_hdr_valid,reduce_hdr_ready,reduce_out_valid,reduce_out_ready,reduce_out_last;
+  logic [FP_ROW_BITS-1:0] reduce_out;
+  logic fp_half_q,is_kv;
 
   always_comb begin
     kheader='0;fheader='0;
@@ -70,6 +72,25 @@ module dea8_pcore_output(
   assign reduce_out_valid=(fphase_q==SEND_FIRST||fphase_q==SEND_SECOND)&&!reset&&!clear&&!protocol_error;
   assign reduce_out=fword_q[fphase_q==SEND_SECOND];
   assign reduce_out_last=flast_q&&(fphase_q==SEND_SECOND||!fsecond_q);
+  assign is_kv=job.header.op==OP_K_PROJ||job.header.op==OP_V_PROJ;
+  always_comb begin
+    tx_valid=0;tx_data=0;tx_last=0;
+    kv_hdr_ready=0;kv_out_ready=0;reduce_hdr_ready=0;reduce_out_ready=0;
+    if(is_kv)begin
+      tx_valid=kv_hdr_valid||kv_out_valid;
+      if(kv_hdr_valid)begin tx_data=encode_packet_header(kv_hdr);kv_hdr_ready=tx_ready;end
+      else begin tx_data[135:0]=kv_out;tx_last=kv_out_last;kv_out_ready=tx_ready;end
+    end else begin
+      tx_valid=reduce_hdr_valid||reduce_out_valid;
+      if(reduce_hdr_valid)begin tx_data=encode_packet_header(reduce_hdr);reduce_hdr_ready=tx_ready;end
+      else begin
+        tx_data=reduce_out[PACKET_BITS*int'(fp_half_q)+:PACKET_BITS];
+        tx_last=reduce_out_last&&fp_half_q;reduce_out_ready=tx_ready&&fp_half_q;
+      end
+    end
+  end
+  assign kv_word_sent=kv_out_valid&&kv_out_ready;
+  assign fp_row_sent=reduce_out_valid&&reduce_out_ready;
   assign kv_empty=kphase_q==WAIT_INPUT&&!sender_pending;
   assign reduce_empty=fphase_q==WAIT_INPUT;
   assign busy=kphase_q!=WAIT_INPUT||fphase_q!=WAIT_INPUT||sender_busy;
@@ -77,8 +98,10 @@ module dea8_pcore_output(
   always_ff @(posedge clk)begin
     if(reset||clear)begin
       kphase_q<=WAIT_INPUT;fphase_q<=WAIT_INPUT;kindex_q<=0;findex_q<=0;
-      ktile_q<=0;ftile_q<=0;error_q<=0;
+      ktile_q<=0;ftile_q<=0;error_q<=0;fp_half_q<=0;
     end else begin
+      if(reduce_hdr_valid&&reduce_hdr_ready)fp_half_q<=0;
+      if(!is_kv&&reduce_out_valid&&tx_ready)fp_half_q<=!fp_half_q;
       if(quant_valid&&quant_ready)begin
         if(!kv_legal)error_q<=1;
         else begin

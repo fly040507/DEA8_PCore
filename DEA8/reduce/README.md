@@ -1,5 +1,7 @@
 # DEA8 Reduce：八核 O/Down FP32 归约
 
+> 已退出当前系统拓扑。归约现由GCore内部4-lane共享算术完成，PCore每核通过一条256-bit包链路直连GCore。本次仅保留历史源码与说明，旧仿真报告已清理；下文日志路径为历史说明，不是当前证据。不被当前GCore编译引用。参见 [GCore](../Gcore/README.md)。
+
 进度核对：2026-10-10。
 
 Reduce 将 8 个 PCore 对同一输出 Tile 的 FP32 partial 逐元素求和，再提交给 GCore。**当前独立 RTL 与基本数值/传输仿真已通过，尚未完成真实八核 PCore 联调。**

@@ -72,5 +72,6 @@ tb/tb_qoz_double_release.sv
 tb/tb_gu_scheduler_stress.sv
 tb/tb_attention_gu_chain.sv
 tb/tb_pcore_control.sv
+tb/tb_packet_decode.sv
 tb/tb_pcore_control_protocol.sv
 tb/tb_pcore_control_faults.sv

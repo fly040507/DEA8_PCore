@@ -50,6 +50,7 @@ module tb_pcore_control #(
   logic rope_sfu_out_valid=0,rope_sfu_out_ready,rope_out_valid,rope_out_ready=0;
   control_rope_rsp_t rope_sfu_out,rope_out;
   logic kv_out_valid,kv_out_ready=1,reduce_out_valid,reduce_out_ready=1;
+  logic tx_valid,tx_ready,tx_last;logic [255:0] tx_data;
   logic [135:0] kv_out;
   logic [511:0] reduce_out;
   logic kv_hdr_valid,kv_hdr_ready=1,kv_out_last;
@@ -116,6 +117,7 @@ module tb_pcore_control #(
   int fpace_n=0,fpace_ref=0;
   string mode_name;
   dea8_pcore_control #(.PCORE_ID(3'd2)) dut(.*);
+  tb_packet_decode wire_decoder(.*);
 
   function automatic int random_limit(input int channel,maximum);
     logic [31:0] x;
