@@ -14,6 +14,12 @@ module dea8_gcore_control (
   output logic preloaded_done_valid,
   input logic preloaded_done_ready,
   output gcore_pkg::gcore_status_e preloaded_status,
+  input logic layer_valid,
+  output logic layer_ready,
+  input gcore_pkg::gcore_layer_t layer_data,
+  output logic layer_done_valid,
+  input logic layer_done_ready,
+  output gcore_pkg::gcore_status_e layer_status,
   input logic cmd_valid,
   output logic cmd_ready,
   input gcore_pkg::gcore_cmd_t cmd,
@@ -63,7 +69,7 @@ module dea8_gcore_control (
     case(c.opcode)
       GC_IMPORT_RESID,GC_RESIDUAL_APPLY:return OBJ_RESID;
       GC_PREFIX_LOAD:return OBJ_PREFIX;
-      GC_NORM:return OBJ_XHAT;
+      GC_NORM:return c.flags==NORM_FP32?-1:OBJ_XHAT;
       GC_KV_RX:return (c.pcore_op==OP_K_PROJ)?OBJ_K:OBJ_V;
       default:return -1;
     endcase
@@ -85,21 +91,23 @@ module dea8_gcore_control (
        transfer_key_equal(config_data.v_transfer,config_data.down_transfer) ||
        transfer_key_equal(config_data.o_transfer,config_data.down_transfer)) config_legal=0;
     config_ready=!reset&&!fault&&!(|service_fault)&&!flush_valid&&!occupied&&!any_object&&!kv_lease&&
-      !config_done_valid&&!preloaded_done_valid&&!preloaded_valid&&!cmd_valid&&!invalidate_valid&&!cancel_valid;
+      !config_done_valid&&!preloaded_done_valid&&!layer_done_valid&&!layer_valid&&!preloaded_valid&&!cmd_valid&&!invalidate_valid&&!cancel_valid;
     preloaded_ready=!reset&&!fault&&!(|service_fault)&&!flush_valid&&!occupied&&!any_object&&!kv_lease&&
-      context_valid&&!config_done_valid&&!preloaded_done_valid&&!invalidate_valid&&!cancel_valid;
+      context_valid&&!config_done_valid&&!preloaded_done_valid&&!layer_valid&&!layer_done_valid&&!invalidate_valid&&!cancel_valid;
+    layer_ready=!reset&&!fault&&!(|service_fault)&&!flush_valid&&!occupied&&!kv_lease&&context_valid&&
+      !config_done_valid&&!preloaded_done_valid&&!layer_done_valid&&!preloaded_valid&&!invalidate_valid&&!cancel_valid;
     preloaded_legal=preloaded.context_id==active_context.context_id &&
       preloaded.generation==active_context.generation && preloaded.prefix_version==active_context.prefix_version &&
       preloaded.residual_object!=preloaded.prefix_object;
     invalidate_ready=!reset&&!flush_valid&&!occupied&&!kv_lease&&!config_done_valid&&
-      !preloaded_valid&&!preloaded_done_valid&&!cancel_valid;
+      !preloaded_valid&&!preloaded_done_valid&&!layer_valid&&!layer_done_valid&&!cancel_valid;
     kv_release_ready=kv_lease&&!busy[S_KVB]&&!flush_valid&&!reset;
     cancel_ready=!reset&&!flush_valid;
 
     target=int'(cmd.opcode);
     destination=destination_index(cmd);
     command_status=GC_OK; resource_busy=0; source_ok=1;
-    if(target>=SERVICES || cmd.flags!=0 || cmd.reserved!=0 || cmd.core_mask!=8'hff ||
+    if(target>=SERVICES || (cmd.flags!=0&&!(cmd.opcode==GC_NORM&&cmd.flags==NORM_FP32)) || cmd.reserved!=0 || cmd.core_mask!=8'hff ||
         (cmd.opcode!=GC_NORM&&cmd.epsilon_fp32!=0)) command_status=GC_INVALID_CMD;
     else if(!context_valid || cmd.context_id!=active_context.context_id ||
         cmd.generation!=active_context.generation) command_status=GC_BAD_CONTEXT;
@@ -156,7 +164,7 @@ module dea8_gcore_control (
           cmd.generation==commands_q[s].generation) command_status=GC_INVALID_CMD;
     service_cmd=cmd; service_cmd_valid=0; cmd_ready=0;
     if(!reset&&!fault&&!(|service_fault)&&!flush_valid&&!cancel_valid&&!invalidate_valid&&
-        !config_done_valid&&!preloaded_valid&&!preloaded_done_valid) begin
+        !config_done_valid&&!preloaded_valid&&!preloaded_done_valid&&!layer_valid&&!layer_done_valid) begin
       if(command_status!=GC_OK)
         cmd_ready=!pending_q[ERROR_SLOT]&&!(done_valid&&selected_q==ERROR_SLOT);
       else if(!resource_busy) begin
@@ -180,6 +188,7 @@ module dea8_gcore_control (
     if(reset) begin
       active_context<='0; context_valid<=0; config_done_valid<=0; config_status<=GC_OK;
       preloaded_done_valid<=0; preloaded_status<=GC_OK;
+      layer_done_valid<=0;layer_status<=GC_OK;
       done_valid<=0; done<='0; selected_q<=0; rr_q<=0;
       pending_q<=0; finished_q<=0; busy<=0; kv_lease<=0; fault<=0;
       flush_valid<=0; service_clear<=0; ack_q<=0; external_ack_q<=0;
@@ -190,6 +199,41 @@ module dea8_gcore_control (
       service_clear<=0;
       if(config_done_valid&&config_done_ready) config_done_valid<=0;
       if(preloaded_done_valid&&preloaded_done_ready) preloaded_done_valid<=0;
+      if(layer_done_valid&&layer_done_ready)layer_done_valid<=0;
+      if(layer_valid&&layer_ready)begin
+        layer_done_valid<=1;layer_status<=GC_BAD_CONTEXT;
+        if(layer_data.layer_id>=1&&layer_data.layer_id<=18&&
+          layer_data.context_data.context_id==active_context.context_id&&
+          layer_data.context_data.generation==active_context.generation&&
+          layer_data.context_data.gamma_online&&layer_data.context_data.quant_profile==0&&
+          layer_data.context_data.mask_profile==0&&
+          !transfer_key_equal(layer_data.context_data.k_transfer,layer_data.context_data.v_transfer)&&
+          !transfer_key_equal(layer_data.context_data.k_transfer,layer_data.context_data.o_transfer)&&
+          !transfer_key_equal(layer_data.context_data.k_transfer,layer_data.context_data.down_transfer)&&
+          !transfer_key_equal(layer_data.context_data.v_transfer,layer_data.context_data.o_transfer)&&
+          !transfer_key_equal(layer_data.context_data.v_transfer,layer_data.context_data.down_transfer)&&
+          !transfer_key_equal(layer_data.context_data.o_transfer,layer_data.context_data.down_transfer)&&
+          objects[OBJ_RESID].state==OBJECT_COMPLETE&&
+          ((layer_data.layer_id==1&&objects[OBJ_XHAT].state!=OBJECT_COMPLETE)||(objects[OBJ_XHAT].state==OBJECT_COMPLETE&&
+            objects[OBJ_XHAT].object_id==layer_data.xhat_object&&
+            objects[OBJ_XHAT].version==objects[OBJ_RESID].version))&&
+          layer_data.prefix_object!=objects[OBJ_RESID].object_id&&
+          layer_data.xhat_object!=objects[OBJ_RESID].object_id&&
+          layer_data.prefix_object!=layer_data.xhat_object&&
+          layer_data.k_object!=layer_data.v_object&&
+          layer_data.k_object!=layer_data.prefix_object&&layer_data.v_object!=layer_data.prefix_object&&
+          layer_data.k_object!=layer_data.xhat_object&&layer_data.v_object!=layer_data.xhat_object&&
+          layer_data.k_object!=objects[OBJ_RESID].object_id&&layer_data.v_object!=objects[OBJ_RESID].object_id&&
+          layer_data.attn_gamma!=layer_data.ffn_gamma&&
+          (layer_data.layer_id==18||layer_data.next_attn_gamma!=layer_data.next_ffn_gamma)&&
+          !layer_data.epsilon_fp32[31]&&layer_data.epsilon_fp32[30:0]!=0&&layer_data.epsilon_fp32[30:23]!=8'hff)begin
+          layer_status<=GC_OK;active_context<=layer_data.context_data;
+          objects[OBJ_PREFIX].object_id<=layer_data.prefix_object;
+          objects[OBJ_PREFIX].version<=layer_data.context_data.prefix_version;
+          objects[OBJ_PREFIX].state<=OBJECT_COMPLETE;
+          objects[OBJ_K].state<=OBJECT_INVALID;objects[OBJ_V].state<=OBJECT_INVALID;
+        end
+      end
       if(preloaded_valid&&preloaded_ready) begin
         preloaded_done_valid<=1; preloaded_status<=preloaded_legal?GC_OK:GC_BAD_CONTEXT;
         if(preloaded_legal) begin

@@ -12,6 +12,8 @@ tb/tb_gcore_arithmetic.sv
 tb/tb_gcore_kv.sv
 tb/tb_gcore_rsqrt.sv
 tb/tb_gcore_integrated.sv
+tb/tb_gcore_layers.sv
+tb/tb_gcore_gamma_fetch.sv
 tb/tb_gcore_frontend.sv
 tb/tb_gcore_packet.sv
 tb/tb_gcore_pcore_link.sv

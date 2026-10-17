@@ -23,6 +23,7 @@ module tb_gcore_frontend;
   logic read_enable=0,read_slot=0;
   logic [GAMMA_INDEX_BITS-1:0] read_index=0;
   logic [31:0] read_data;
+  logic release_valid=0,release_ready,loading;
   dea8_gcore_gamma gamma_store(.*);
   always @(negedge clk)begin cycle++;q_accept=cycle%23>7;end
   always @(posedge clk)if(!reset&&!clear&&check_quant)begin

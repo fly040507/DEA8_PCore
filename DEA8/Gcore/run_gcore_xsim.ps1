@@ -1,13 +1,13 @@
 param(
   [string]$VivadoRoot='D:\Xilinx\Vivado\2022.2',
-  [ValidateSet('all','types','stores','xbc','control','arithmetic','kv','rsqrt','frontend','packet','pcore_link','integrated')][string]$Test='all',
+  [ValidateSet('all','types','stores','xbc','control','arithmetic','kv','rsqrt','frontend','packet','pcore_link','integrated','layers','gamma_fetch')][string]$Test='all',
   [string]$Python='C:\Users\fly04\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe'
 )
 $ErrorActionPreference='Stop'
 $here=$PSScriptRoot
 $report=Join-Path $here 'reports'
 New-Item -ItemType Directory -Force $report | Out-Null
-$tops=if($Test -eq 'all'){@('tb_gcore_types','tb_gcore_stores','tb_gcore_xbc','tb_gcore_control','tb_gcore_arithmetic','tb_gcore_kv','tb_gcore_rsqrt','tb_gcore_frontend','tb_gcore_packet','tb_gcore_pcore_link','tb_gcore_integrated')}else{@("tb_gcore_$Test")}
+$tops=if($Test -eq 'all'){@('tb_gcore_types','tb_gcore_stores','tb_gcore_xbc','tb_gcore_control','tb_gcore_arithmetic','tb_gcore_kv','tb_gcore_rsqrt','tb_gcore_frontend','tb_gcore_packet','tb_gcore_pcore_link','tb_gcore_gamma_fetch','tb_gcore_integrated','tb_gcore_layers')}else{@("tb_gcore_$Test")}
 $library='gcore_direct'
 
 function Invoke-VivadoTool([string]$Name,[string]$Arguments,[string]$LogName) {
@@ -64,14 +64,24 @@ try {
         $result -split "`n" | Where-Object {$_ -match ' PASS|CHECKS|METRICS'} | Write-Output
       }
     }
+    if($top -eq 'tb_gcore_layers') {
+      foreach($case in @('LAYER9','LAYER18','LAYER9 -testplusarg STRESS','LAYER18 -testplusarg STRESS','CANCEL_START','GAMMA_FAULT_DOWN')) {
+        $caseName=$case.Replace(' -testplusarg ','_').Replace('=','_')
+        $result=Invoke-VivadoTool 'xsim' "$snapshot -runall -testplusarg $case" "${top}_$caseName.txt"
+        if($result -notmatch [regex]::Escape($marker)){throw "$top $case has no PASS marker"}
+        $result -split "`n" | Where-Object {$_ -match ' PASS|CHECKS|METRICS'} | Write-Output
+      }
+    }
   }
   $after=@(Get-SourceHashes)
   if(Compare-Object $sourceHashes $after){throw 'Sources changed during simulation; rerun required'}
   $sourceHashes | Set-Content (Join-Path $report 'sources_sha256.csv') -Encoding UTF8
-  $scope=if($tops -contains 'tb_gcore_integrated'){
-    'Includes STRESS/BAD_HEADER/BAD_PACKET/CANCEL_ACTIVE. Native single rsqrt and internal 4-lane reduce; X/prefix preloaded. Eight PCore streams and DEA8 commands are TB.'
-  }else{'Selected unit tests only; integrated GCore not run by this invocation.'}
-  "PASS: $($tops -join ', ') at $(Get-Date -Format o). $scope No standalone Reduce dependency. No full-chip inference or timing signoff." |
+  $scenarios=$tops.Count
+  $scope=@()
+  if($tops -contains 'tb_gcore_integrated'){$scope+='Service integration with STRESS/BAD_HEADER/BAD_PACKET/CANCEL_ACTIVE.';$scenarios+=4}
+  if($tops -contains 'tb_gcore_layers'){$scope+='Layers 1/9/18, layer9/18 backpressure, macro cancel/restart, gamma failure during Down; FP32 final_norm. DEA8/HBM/eight PCore streams are TB; X/prefix preloaded. No skipped layers executed.';$scenarios+=6}
+  if(!$scope.Count){$scope+='Selected unit tests only; integrated GCore not run by this invocation.'}
+  "PASS: $scenarios scenarios; $($tops -join ', ') at $(Get-Date -Format o). $($scope -join ' ') No standalone Reduce dependency. No new synthesis, full-chip inference or timing signoff." |
     Set-Content (Join-Path $report 'summary.txt') -Encoding UTF8
 } catch {
   "FAILED at $(Get-Date -Format o): $_" | Set-Content (Join-Path $report 'summary.txt') -Encoding UTF8

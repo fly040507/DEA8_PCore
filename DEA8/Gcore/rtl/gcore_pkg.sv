@@ -65,6 +65,49 @@ package gcore_pkg;
     logic [15:0] context_id,generation;
     logic [15:0] residual_object,residual_version,prefix_object,prefix_version;
   } gcore_preloaded_t;
+  localparam logic [7:0] NORM_FP32=8'h01;
+  typedef enum logic [2:0] {GJ_START,GJ_K,GJ_V,GJ_Q,GJ_ATTENTION,GJ_O,GJ_GU,GJ_DOWN} gcore_job_e;
+  typedef struct packed {
+    gcore_job_e op;
+    logic [15:0] command_id,context_id,generation;
+    logic [4:0] layer_id;
+  } gcore_job_t;
+  typedef struct packed {
+    gcore_job_t job;
+    gcore_status_e status;
+    logic [31:0] cycles;
+  } gcore_job_done_t;
+  // Layer binding preserves the data identity and residual statistics.
+  typedef struct packed {
+    gcore_context_t context_data;
+    logic [4:0] layer_id;
+    logic [15:0] prefix_object,xhat_object,k_object,v_object;
+    logic [15:0] attn_gamma,ffn_gamma,next_attn_gamma,next_ffn_gamma,final_gamma;
+    logic [31:0] epsilon_fp32;
+  } gcore_layer_t;
+  typedef struct packed {
+    logic valid,ffn;
+    logic [4:0] layer_id;
+    logic [15:0] context_id,generation,object_id,version;
+  } gcore_xhat_t;
+  typedef struct packed {
+    logic [31:0] token;
+    logic [15:0] context_id,generation;
+    logic [4:0] layer_id;
+    logic final_group;
+    logic [15:0] param0,param1;
+  } gamma_fetch_t;
+  typedef struct packed {
+    logic [31:0] token,value;
+    logic last;
+  } gamma_beat_t;
+  typedef struct packed {
+    logic [15:0] command_id,context_id,generation;
+    logic [4:0] layer_id;
+    logic [VECTOR_ADDR_BITS-1:0] index;
+    logic [511:0] data;
+    logic last;
+  } gcore_final_t;
   typedef struct packed {
     logic [15:0] context_id,generation,param_id;
     logic slot;

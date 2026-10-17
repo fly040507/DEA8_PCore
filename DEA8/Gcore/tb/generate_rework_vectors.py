@@ -62,6 +62,16 @@ last = residual(mid, reduce_delta(base.delta_d))
 reference("initial", base.initial, 0)
 reference("mid", mid, 1)
 reference("next", last, 0)
+final_values = []
+for n in range(64):
+    for r in range(51):
+        # Reuse the separately generated FP32 inverse, not any RTL output.
+        u_bits = (OUT / "group_next_inv.mem").read_text().splitlines()[r]
+        inverse = base.value(int(u_bits, 16))
+        x = np.asarray([base.from_bf(v) for v in last[n, r]], dtype=np.float32)
+        y = np.multiply(np.multiply(x, inverse, dtype=np.float32), gamma[0][n], dtype=np.float32)
+        final_values.append(base.packed([base.bits(v) for v in y], 32))
+base.write("group_final_fp32.mem", final_values, 512)
 (OUT / "group_reference.json").write_text(json.dumps({
     "rows": 51, "hidden": 1024, "gamma_slots": 2,
     "reduction": "adjacent SUM8 then adjacent SUM64, then g=0..15 FP32 RNE accumulation",

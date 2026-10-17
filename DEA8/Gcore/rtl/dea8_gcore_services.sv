@@ -13,6 +13,29 @@ module dea8_gcore_services (
   output logic preloaded_done_valid,
   input logic preloaded_done_ready,
   output gcore_pkg::gcore_status_e preloaded_status,
+  input logic layer_valid,
+  output logic layer_ready,
+  input gcore_pkg::gcore_layer_t layer_data,
+  output logic layer_done_valid,
+  input logic layer_done_ready,
+  output gcore_pkg::gcore_status_e layer_status,
+  input logic job_valid,
+  output logic job_ready,
+  input gcore_pkg::gcore_job_t job,
+  output logic job_done_valid,
+  input logic job_done_ready,
+  output gcore_pkg::gcore_job_done_t job_done,
+  output logic job_busy,
+  output gcore_pkg::gcore_xhat_t xhat_status,
+  output logic gamma_fetch_valid,
+  input logic gamma_fetch_ready,
+  output gcore_pkg::gamma_fetch_t gamma_fetch,
+  input logic gamma_data_valid,
+  output logic gamma_data_ready,
+  input gcore_pkg::gamma_beat_t gamma_data,
+  output logic final_valid,
+  input logic final_ready,
+  output gcore_pkg::gcore_final_t final_data,
   input logic cmd_valid,
   output logic cmd_ready,
   input gcore_pkg::gcore_cmd_t cmd,
@@ -113,6 +136,28 @@ module dea8_gcore_services (
   logic gamma_read_enable,gamma_read_slot;
   logic [GAMMA_INDEX_BITS-1:0] gamma_read_index;
   logic [31:0] gamma_read_data;
+  logic jobs_owned,jobs_bind_allowed,jobs_cmd_valid,jobs_cmd_ready,jobs_done_ready,jobs_ready;
+  logic ctrl_cmd_valid,ctrl_cmd_ready,ctrl_done_valid,ctrl_done_ready;
+  gcore_cmd_t jobs_cmd,ctrl_cmd;
+  gcore_done_t ctrl_done;
+  logic ctrl_config_ready,ctrl_preloaded_ready,ctrl_invalidate_ready,ctrl_layer_ready;
+  logic fetch_start_valid,fetch_start_ready,fetch_done_valid,fetch_done_ready,fetch_busy,fetch_error;
+  gamma_fetch_t fetch_start;
+  gcore_status_e fetch_status;
+  logic gamma_release_valid,gamma_release_ready,store_load_valid,store_load_ready;
+  logic store_done_valid,store_done_ready,fetch_load_valid,fetch_load_ready,fetch_loaded_ready;
+  gamma_load_t store_load,fetch_load;
+  gcore_status_e store_status;
+  logic [15:0] store_loaded_id;
+  logic gamma_in_use,gamma_loading,compute_final_valid;
+  logic [511:0] compute_final_values;
+  logic [VECTOR_ADDR_BITS-1:0] compute_final_index;
+  gcore_job_t active_job;
+  gcore_layer_t accepted_layer;
+  always_ff @(posedge clk)begin
+    if(reset)accepted_layer<='0;
+    else if(layer_valid&&layer_ready)accepted_layer<=layer_data;
+  end
   assign rsqrt_out_ready=compute_rsqrt_ready;
   assign local_rsqrt_error=arithmetic_fault;
 
@@ -120,7 +165,54 @@ module dea8_gcore_services (
   // All local engines are synchronously reset at the first flush edge. External
   // PCore/external service sources must acknowledge their own drain before reuse.
   assign flush_ack={SERVICES{flush_valid}};
-  dea8_gcore_control control (.*);
+  assign ctrl_cmd_valid=jobs_owned?jobs_cmd_valid:(cmd_valid&&!job_valid&&!fetch_busy);
+  assign ctrl_cmd=jobs_owned?jobs_cmd:cmd;
+  assign jobs_cmd_ready=ctrl_cmd_ready&&jobs_owned;
+  assign cmd_ready=ctrl_cmd_ready&&!jobs_owned&&!job_valid&&!fetch_busy;
+  assign done_valid=ctrl_done_valid&&!jobs_owned;
+  assign done=ctrl_done;
+  assign ctrl_done_ready=jobs_owned?jobs_done_ready:done_ready;
+  assign config_ready=ctrl_config_ready&&!jobs_owned&&!job_valid&&!fetch_busy;
+  assign preloaded_ready=ctrl_preloaded_ready&&!jobs_owned&&!job_valid&&!fetch_busy;
+  assign invalidate_ready=ctrl_invalidate_ready&&!jobs_owned&&!job_valid&&!fetch_busy;
+  assign layer_ready=ctrl_layer_ready&&jobs_bind_allowed&&!job_valid&&!fetch_busy;
+  dea8_gcore_control control (
+    .cmd_valid(ctrl_cmd_valid),.cmd_ready(ctrl_cmd_ready),.cmd(ctrl_cmd),
+    .done_valid(ctrl_done_valid),.done_ready(ctrl_done_ready),.done(ctrl_done),
+    .config_valid(config_valid&&!jobs_owned&&!job_valid&&!fetch_busy),.config_ready(ctrl_config_ready),
+    .preloaded_valid(preloaded_valid&&!jobs_owned&&!job_valid&&!fetch_busy),.preloaded_ready(ctrl_preloaded_ready),
+    .invalidate_valid(invalidate_valid&&!jobs_owned&&!job_valid&&!fetch_busy),.invalidate_ready(ctrl_invalidate_ready),
+    .layer_valid(layer_valid&&jobs_bind_allowed&&!job_valid&&!fetch_busy),.layer_ready(ctrl_layer_ready),.*
+  );
+  dea8_gcore_jobs jobs (
+    .clk,.reset,.clear(clear_local),.fault,.bind_valid(layer_done_valid&&layer_done_ready&&layer_status==GC_OK),
+    .bind_data(accepted_layer),.objects,.kv_lease,.service_busy(busy),
+    .job_valid(job_valid&&!(|busy)&&!ctrl_done_valid&&!config_done_valid&&!preloaded_done_valid&&!layer_done_valid&&(!gamma_loading||jobs_owned)),
+    .job_ready(jobs_ready),.job,.job_done_valid,.job_done_ready,.job_done,.job_busy,
+    .owned(jobs_owned),.bind_allowed(jobs_bind_allowed),.xhat_status,
+    .cmd_valid(jobs_cmd_valid),.cmd_ready(jobs_cmd_ready),.cmd(jobs_cmd),
+    .done_valid(ctrl_done_valid),.done_ready(jobs_done_ready),.done(ctrl_done),
+    .fetch_valid(fetch_start_valid),.fetch_ready(fetch_start_ready),.fetch(fetch_start),
+    .fetch_done_valid,.fetch_done_ready,.fetch_status,.active_job
+  );
+  assign job_ready=jobs_ready&&!(|busy)&&!ctrl_done_valid&&!config_done_valid&&!preloaded_done_valid&&!layer_done_valid&&(!gamma_loading||jobs_owned);
+  dea8_gcore_gamma_fetch gamma_fetcher (
+    .clk,.reset,.clear(clear_local),.start_valid(fetch_start_valid),.start_ready(fetch_start_ready),.start(fetch_start),
+    .request_valid(gamma_fetch_valid),.request_ready(gamma_fetch_ready),.request(gamma_fetch),
+    .data_valid(gamma_data_valid),.data_ready(gamma_data_ready),.data(gamma_data),
+    .release_valid(gamma_release_valid),.release_ready(gamma_release_ready),
+    .load_valid(fetch_load_valid),.load_ready(fetch_load_ready),.load(fetch_load),
+    .loaded_valid(store_done_valid),.loaded_ready(fetch_loaded_ready),
+    .loaded_status(store_status),.loaded_id(store_loaded_id),
+    .done_valid(fetch_done_valid),.done_ready(fetch_done_ready),.status(fetch_status),.busy(fetch_busy),.protocol_error(fetch_error)
+  );
+  assign final_valid=compute_final_valid;
+  always_comb begin
+    final_data='0;final_data.command_id=active_job.command_id;final_data.context_id=active_job.context_id;
+    final_data.generation=active_job.generation;final_data.layer_id=active_job.layer_id;
+    final_data.index=compute_final_index;final_data.data=compute_final_values;
+    final_data.last=compute_final_index==VECTOR_WORDS-1;
+  end
   always_comb begin
     service_cmd_ready=0; service_done_valid=0; service_fault=0;
     for(int s=0;s<SERVICES;s++) service_done[s]='0;
@@ -143,7 +235,7 @@ module dea8_gcore_services (
       service_done_valid[S_NORM]=compute_done_valid; service_done[S_NORM]=compute_done;
       compute_done_ready=service_done_ready[S_NORM];
     end
-    service_fault[S_NORM]=compute_error||residual_error||activation_error||local_rsqrt_error||packet_error;
+    service_fault[S_NORM]=compute_error||residual_error||activation_error||local_rsqrt_error||packet_error||fetch_error;
     service_fault[S_XBC]=xbc_error;
     service_fault[S_KVB]=kvb_error||kv_store_error;
   end
@@ -172,23 +264,34 @@ module dea8_gcore_services (
   );
   dea8_gcore_gamma gamma_store (
     .clk,.reset,.clear(clear_local),
-    .allow_load(!compute_busy&&!service_cmd_valid[S_NORM]&&!service_cmd_valid[S_RESIDUAL]&&!flush_valid&&!fault),
+    .allow_load(!gamma_in_use&&!service_cmd_valid[S_NORM]&&!flush_valid&&!fault),
+    .release_valid(gamma_release_valid),.release_ready(gamma_release_ready),
+    .loading(gamma_loading),
     .context_valid,.context_data(active_context),
-    .load_valid(gamma_load_valid),.load_ready(gamma_load_ready),.load(gamma_load),
-    .done_valid(gamma_done_valid),.done_ready(gamma_done_ready),.status(gamma_status),.loaded_id(gamma_loaded_id),
+    .load_valid(store_load_valid),.load_ready(store_load_ready),.load(store_load),
+    .done_valid(store_done_valid),.done_ready(store_done_ready),.status(store_status),.loaded_id(store_loaded_id),
     .lookup_id(gamma_lookup_id),.found(gamma_found),.slot(gamma_slot),.read_enable(gamma_read_enable),
     .read_slot(gamma_read_slot),.read_index(gamma_read_index),.read_data(gamma_read_data)
   );
+  assign store_load_valid=fetch_busy?fetch_load_valid:(gamma_load_valid&&!jobs_owned&&!job_valid);
+  assign store_load=fetch_busy?fetch_load:gamma_load;
+  assign fetch_load_ready=store_load_ready&&fetch_busy;
+  assign gamma_load_ready=store_load_ready&&!fetch_busy&&!jobs_owned&&!job_valid;
+  assign gamma_done_valid=store_done_valid&&!fetch_busy;
+  assign gamma_status=store_status;
+  assign gamma_loaded_id=store_loaded_id;
+  assign store_done_ready=fetch_busy?fetch_loaded_ready:gamma_done_ready;
   dea8_gcore_compute compute (
     .clk,.reset,.clear(clear_local),
     .invalidate_stats((service_cmd_valid[S_IMPORT]&&service_cmd_ready[S_IMPORT])||(preloaded_valid&&preloaded_ready)),
     .cmd_valid(service_cmd_valid[S_NORM]||service_cmd_valid[S_RESIDUAL]),.cmd_ready(compute_cmd_ready),.cmd(service_cmd),
-    .context_data(active_context),.input_fault(packet_error),
+    .context_data(active_context),.input_fault(packet_error||fetch_error||local_rsqrt_error),
     .header_valid(fp_header_valid),.header_ready(fp_header_ready),.header(fp_header),
     .data_valid(fp_valid),.data_ready(fp_ready),.data(fp_data),.tile_retire(fp_retire),
     .ram_rd_valid,.ram_rd_ready,.ram_rd_addr,.ram_rsp_valid,.ram_rsp_ready,.ram_rsp_addr,.ram_rsp_data,
     .ram_wr_valid,.ram_wr_ready,.ram_wr_addr,.ram_wr_data,
     .activation_valid,.activation_ready,.activation_index,.activation_word,
+    .final_valid(compute_final_valid),.final_ready,.final_values(compute_final_values),.final_index(compute_final_index),.gamma_in_use,
     .rsqrt_valid,.rsqrt_ready(rsqrt_ready),.rsqrt_request,
     .rsqrt_out_valid(rsqrt_out_valid),.rsqrt_out_ready(compute_rsqrt_ready),
     .rsqrt_response(rsqrt_response),

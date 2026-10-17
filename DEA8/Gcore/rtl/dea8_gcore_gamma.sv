@@ -1,5 +1,8 @@
 module dea8_gcore_gamma (
   input logic clk,reset,clear,allow_load,context_valid,
+  input logic release_valid,
+  output logic release_ready,
+  output logic loading,
   input gcore_pkg::gcore_context_t context_data,
   input logic load_valid,output logic load_ready,input gcore_pkg::gamma_load_t load,
   output logic done_valid,input logic done_ready,
@@ -17,7 +20,9 @@ module dea8_gcore_gamma (
   logic [GAMMA_INDEX_BITS-1:0] next_index;
   logic [15:0] fill_id;
   logic legal,fire;
-  assign load_ready=allow_load&&context_valid&&!done_valid&&!reset&&!clear;
+  assign release_ready=allow_load&&!filling&&!done_valid&&!reset&&!clear;
+  assign loading=filling||done_valid;
+  assign load_ready=allow_load&&context_valid&&!done_valid&&!reset&&!clear&&!release_valid;
   assign fire=load_valid&&load_ready;
   always_comb begin
     found=0;slot=0;
@@ -37,6 +42,7 @@ module dea8_gcore_gamma (
       done_valid<=0;status<=GC_OK;loaded_id<=0;
       for(int i=0;i<GAMMA_SLOTS;i++)begin ids[i]<=0;contexts[i]<=0;generations[i]<=0;end
     end else begin
+      if(release_valid&&release_ready)valid_q<=0;
       if(done_valid&&done_ready)done_valid<=0;
       if(fire)begin
         if(!legal)begin

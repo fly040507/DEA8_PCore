@@ -57,7 +57,7 @@
 | 证据 | 已确认 | 不代表 |
 |---|---|---|
 | [PCore七Job摘要](Pcore/reports/packet_7job_summary.txt)、[日志](Pcore/reports/packet_7job_baseline.log) | 新输出、265408矩阵issues、110个Attention子任务、真实Q/O/Z链 | 真实VPU/SFU、HBM或八核整层 |
-| [GCore十五场景](Gcore/reports/summary.txt) | 内部真实rsqrt、归约/Residual、Norm、KV；含真实PCore外发单元到GCore RX测试 | 实例化八个完整PCore |
+| [GCore 23场景](Gcore/reports/summary.txt) | 第1/9/18层宏观链路、内部真实rsqrt、归约/Residual、Norm、KV；含真实PCore外发单元到GCore RX测试 | 完整18层循环、实例化八个完整PCore；DEA8总控/HBM和外部PCore运算仍由TB模型 |
 | [GCore OOC](Gcore/reports/gcore_synth_summary.txt) | 109 DSP、48229 LUT、17502 FF、152.5 BRAM36、4 URAM，无黑盒 | 4ns布局布线或全芯片资源签核 |
 
 旧25项PCore控制签核是历史证据，新接口以新七Job验收为准。冷Norm9936拍、热Norm6636拍、FP Tile最长314拍来自特定GCore TB，不是全层延迟。

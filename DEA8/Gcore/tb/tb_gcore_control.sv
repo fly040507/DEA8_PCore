@@ -9,6 +9,8 @@ module tb_gcore_control;
   logic preloaded_valid=0,preloaded_ready,preloaded_done_valid,preloaded_done_ready=1;
   gcore_preloaded_t preloaded='0;
   gcore_status_e preloaded_status;
+  logic layer_valid=0,layer_ready,layer_done_valid,layer_done_ready=1;
+  gcore_layer_t layer_data='0;gcore_status_e layer_status;
   logic cmd_valid=0,cmd_ready,done_valid,done_ready=0;
   gcore_cmd_t cmd,service_cmd,issued[SERVICES];
   gcore_done_t done,service_done[SERVICES];

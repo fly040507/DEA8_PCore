@@ -17,7 +17,7 @@ PCore继续使用双行INT8 MXU、**11级DEQACC**，本次不改流水。VPU/SFU
 ## 当前验证
 
 - PCore：新包接口下七Job功能链通过；Matrix/QOZ/workspace为真实RTL，VPU/SFU/HBM和外部响应为TB模型
-- GCore：十五场景通过；单路真实rsqrt、内部四lane归约；U50本体OOC为109 DSP、48229 LUT、17502 FF、152.5 BRAM36等效、4 URAM
+- GCore：23个功能仿真场景通过，覆盖第1/9/18层宏观链路；单路真实rsqrt、内部四lane归约。U50本体OOC为109 DSP、48229 LUT、17502 FF、152.5 BRAM36等效、4 URAM（该OOC早于本轮宏观控制改动）
 - 未完成：真实八核完整PCore与GCore整层联调、真实VPU/SFU替换、DEA8总控、HBM、4ns布局布线签核
 
 ## 目录定位

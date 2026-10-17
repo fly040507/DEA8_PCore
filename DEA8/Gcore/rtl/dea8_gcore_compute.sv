@@ -14,6 +14,10 @@ module dea8_gcore_compute (
   output logic [gcore_pkg::VECTOR_ADDR_BITS-1:0] ram_wr_addr,output logic [255:0] ram_wr_data,
   output logic activation_valid,input logic activation_ready,
   output logic [gcore_pkg::VECTOR_ADDR_BITS-1:0] activation_index,output logic [135:0] activation_word,
+  output logic final_valid,input logic final_ready,
+  output logic [511:0] final_values,
+  output logic [gcore_pkg::VECTOR_ADDR_BITS-1:0] final_index,
+  output logic gamma_in_use,
   output logic rsqrt_valid,input logic rsqrt_ready,output gcore_pkg::rsqrt_packet_t rsqrt_request,
   input logic rsqrt_out_valid,output logic rsqrt_out_ready,input gcore_pkg::rsqrt_packet_t rsqrt_response,
   output logic [15:0] gamma_lookup_id,input logic gamma_found,gamma_slot,
@@ -90,11 +94,18 @@ module dea8_gcore_compute (
   logic inverse_fetch_valid,u_advance,inverse_write;
   logic [ROWS-1:0] inverse_valid,pending_rows;
   logic rsqrt_good,quant_fault,fault_event,numeric_fault;
-  logic datapath_clear,ram_write_q,quant_valid;
+  logic datapath_clear,ram_write_q,quant_valid,quant_ready,final_mode,result_fire;
   gcore_status_e fault_status;
   logic [5:0] response_row;
 
   assign busy=state!=IDLE;
+  assign gamma_in_use=busy&&command_q.opcode==GC_NORM;
+  assign final_mode=command_q.flags==NORM_FP32;
+  assign final_valid=second_valid&&final_mode&&!protocol_error&&!reset&&!clear;
+  assign final_values=second_head.values;
+  assign final_index=second_head.index;
+  assign second_ready=final_mode?final_ready&&!protocol_error:quant_ready;
+  assign result_fire=(activation_valid&&activation_ready)||(final_valid&&final_ready);
   assign datapath_clear=clear||protocol_error;
   assign ram_wr_valid=ram_write_q&&!protocol_error&&!reset&&!clear;
   assign activation_valid=quant_valid&&!protocol_error&&!reset&&!clear;
@@ -214,7 +225,7 @@ module dea8_gcore_compute (
     .out_data(second_head),.occupancy(second_count)
   );
   dea8_gcore_quant8 quantizer (
-    .clk,.reset,.clear(datapath_clear),.in_valid(second_valid),.in_ready(second_ready),.values(second_head.values),.index(second_head.index),
+    .clk,.reset,.clear(datapath_clear),.in_valid(second_valid&&!final_mode),.in_ready(quant_ready),.values(second_head.values),.index(second_head.index),
     .out_valid(quant_valid),.out_ready(activation_ready&&!protocol_error),.result(activation_word),.out_index(activation_index),.numeric_fault(quant_fault)
   );
 
@@ -361,6 +372,7 @@ module dea8_gcore_compute (
       if(multiply_output&&multiply_modes[MUL_LATENCY-1]==M_FIRST&&!feedback_space)fault_event=1;
       if(multiply_output&&multiply_modes[MUL_LATENCY-1]==M_SECOND&&!second_space)fault_event=1;
       if(activation_valid&&activation_ready&&activation_index!=quant_retired)fault_event=1;
+      if(final_valid&&final_ready&&final_index!=quant_retired)fault_event=1;
       for(int c=0;c<CORES;c++)if(header_valid[c]&&header_ready[c])begin
         if(header[c].source_id!=c||header[c].rows!=ROWS||header[c].columns!=TILE||header[c].reserved!=0||
           header[c].kind!=(command_q.pcore_op==pcore_pkg::OP_O_PROJ?TILE_O:TILE_DOWN)||header[c].layout!=LAYOUT_FP_ROWS||
@@ -428,7 +440,7 @@ module dea8_gcore_compute (
       if(inverse_write)begin inverse_valid[response_row]<=1;pending_rows[response_row]<=0;end
       if(state==INVERSE&&(&inverse_valid))begin state<=APPLY;reader_clear<=1;end
       if(state==APPLY&&!reader_clear&&reads_q==VECTOR_WORDS)state<=APPLY_DRAIN;
-      if(activation_valid&&activation_ready)begin
+      if(result_fire)begin
         quant_retired<=quant_retired+1'b1;
         if(quant_retired==VECTOR_WORDS-1)begin done<=make_done(command_q,GC_OK,16'(VECTOR_WORDS));state<=FINISH;end
       end

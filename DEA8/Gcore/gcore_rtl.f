@@ -9,6 +9,8 @@ rtl/dea8_gcore_fp_add.sv
 rtl/dea8_gcore_fp_mul.sv
 rtl/dea8_gcore_tree8.sv
 rtl/dea8_gcore_gamma.sv
+rtl/dea8_gcore_gamma_fetch.sv
+rtl/dea8_gcore_jobs.sv
 rtl/dea8_gcore_quant8.sv
 rtl/dea8_gcore_packet_rx.sv
 rtl/dea8_gcore_rsqrt.sv
