@@ -37,10 +37,10 @@ module dea8_gcore_xbc (
   logic [5:0] expected_tile;
   logic response_bad,grant_bad,failed;
   logic multicast_ready,multicast_valid;
-  logic [1:0] read_credits;
+  logic [STORE_CREDIT_BITS-1:0] read_credits;
 
   assign cmd_ready=!busy&&!done_valid&&!reset&&!clear;
-  assign rd_valid=busy&&!failed&&!issued_all&&!reset&&!clear&&
+  assign rd_valid=busy&&!failed&&!issued_all&&!reset&&!clear&&read_credits<STORE_RESPONSE_DEPTH&&
     (command_q.pcore_op!=OP_GU || issue_n<=allowed_n);
   assign rd_tile=tile_q;
   assign rd_group=group_q;

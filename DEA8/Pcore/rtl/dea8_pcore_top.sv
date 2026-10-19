@@ -7,7 +7,7 @@ module dea8_pcore_top #(
   parameter logic [2:0] PCORE_ID=0,
   parameter int ROPE_POSITION_BASE=816,
   parameter logic [15:0] ROPE_VERSION=1,MASK_VERSION=1,
-  parameter MASK_FILE="units/rom/mask.mem",ROPE_FILE="units/rom/rope.mem"
+  parameter MASK_FILE="units/rom/mask.mem",ROPE_FILE="units/rom/rope_wide.mem"
 )(
   input logic clk,reset,clear,
   input logic config_valid,output logic config_ready,configured,

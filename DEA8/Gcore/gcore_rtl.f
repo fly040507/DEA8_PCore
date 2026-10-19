@@ -6,6 +6,7 @@
 ../Pcore/rtl/dea8_sdp_ram.sv
 ../Pcore/rtl/dea8_ram_fifo.sv
 rtl/gcore_pkg.sv
+rtl/dea8_gcore_uram_tdp.sv
 rtl/gcore_fp_pkg.sv
 rtl/dea8_gcore_fifo.sv
 rtl/dea8_gcore_dsp_alu.sv

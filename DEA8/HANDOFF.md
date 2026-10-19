@@ -64,12 +64,15 @@ cluster锁存取消，单拍clear，等待8核真实flush_done及HBM drain ack�
 
 ## 验证证据与边界
 
-- 当前完整单核七Job：279571拍，265408矩阵issue，94.93%；55QK/55PV。内部无TB算术，输入及下游为外部模型。
+- RoPE初始化修复前的完整单核七Job：279571拍，265408矩阵issue，94.93%；55QK/55PV。内部无TB算术，输入及下游为外部模型。本轮修复后未重跑完整七Job。
 - 原始PASS、日志和编译哈希：`Pcore/reports/compute/`；图/CSV：`reports/seven_job_native/`。
 - GCore官方IP回归：`reports/native_20261019/gcore/`；Mask、冷Norm/import、取消等定向测试：`reports/layer_native/`。
 - 八核第1/9/18层及压力/恢复尚待服务器实际展开、运行。只有编译记录，不能写已联合通过。
 - 4ns只用于约束和仿真时间换算，不是当前时序签核。
 - GCore历史109DSP/152.5BRAM36报告保留；其源码不是当前官方IP版本，不能替代新资源报告。
+- RAM重映射后GCore已完成本机面积预览：29782LUT、33198FF、109DSP、79BRAM36等效、24URAM，blackbox=0；证据在`reports/resource_synth/gcore_ram_remap_20261019/`。KV16 URAM、XHAT4、RESID4，读3拍并配8项响应信用；prefix预置改用`preload_prefix`任务。新映射未重跑功能仿真。
+- RAM重映射后单PCore：104598LUT、102251FF、500DSP、143BRAM36等效、35URAM，黑盒0；见`reports/resource_synth/pcore_ram_remap_20261019/Summary.md`。FACC-A/B已统一BRAM，各15块，读延迟保持3拍。八核加GCore外推LUT99.41%、BRAM91.00%、URAM47.50%；未包含平台/互连开销。改造前`*_preview/`报告保留为基线。
+- RoPE原256-bit文件保留，`Pcore/tools/pack_rope_rom.py`生成1024-bit的`rope_wide.mem`供生产RTL直接初始化，避免Vivado忽略数组搬运；定制`ROPE_FILE`须提供宽格式。专用RTL及综合网表全地址回归通过，日志在`reports/resource_synth/rope_after/`。
 
 ## 服务器本阶段
 

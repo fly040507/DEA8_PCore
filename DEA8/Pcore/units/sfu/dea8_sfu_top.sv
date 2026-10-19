@@ -3,7 +3,7 @@ import pcore_control_pkg::*;
 
 module dea8_sfu_top #(
   parameter int ROPE_POSITION_BASE=816,
-  parameter ROPE_FILE="units/rom/rope.mem"
+  parameter ROPE_FILE="units/rom/rope_wide.mem"
 )(
   input logic clk,reset,flush,output logic flush_ack,
   input logic function_valid,output logic function_ready,input control_command_t function_cmd,

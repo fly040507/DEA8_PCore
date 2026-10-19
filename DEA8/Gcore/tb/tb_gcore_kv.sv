@@ -162,7 +162,7 @@ module tb_gcore_kv;
     repeat(5) begin
       logic [135:0] even_word,odd_word;
       @(negedge clk); even_word=kv_word(0,0,0,0); odd_word=kv_word(0,0,0,1);
-      if(!mem_rsp_valid||mem_rd_ready||mem_rsp.tile_idx!=37||mem_rsp.group_idx!=5||mem_rsp.epoch!=9||
+      if(!mem_rsp_valid||!mem_rd_ready||mem_rsp.tile_idx!=37||mem_rsp.group_idx!=5||mem_rsp.epoch!=9||
           {mem_rsp.col[0].scale,mem_rsp.col[0].data}!==even_word||
           {mem_rsp.col[1].scale,mem_rsp.col[1].data}!==odd_word) $fatal(1,"KV paired response changed while stalled");
       checks++;
@@ -174,20 +174,20 @@ module tb_gcore_kv;
     source_cmd.pcore_op=pcore_pkg::OP_ATTENTION; source_cmd.core_mask='1; source_cmd_valid=1;
     do @(posedge clk); while(!source_cmd_ready);
     @(negedge clk); source_cmd_valid=0; source_rd_ready=1;
-    repeat(2) begin @(posedge clk); if(!source_rd_valid) $fatal(1,"KVB failed to reserve paired read"); end
+    repeat(STORE_RESPONSE_DEPTH) begin @(posedge clk); if(!source_rd_valid) $fatal(1,"KVB failed to reserve paired read"); end
     @(negedge clk); source_rd_ready=0;
-    repeat(4) begin @(negedge clk); if(source_rd_valid) $fatal(1,"KVB exceeded two read credits"); checks++; end
-    // Two wrong-generation responses retire the reserved reads but may not
+    repeat(4) begin @(negedge clk); if(source_rd_valid) $fatal(1,"KVB exceeded read credits"); checks++; end
+    // Wrong-generation responses retire every reserved read but may not
     // enter the broadcaster or turn this object into a successful completion.
     source_rsp='0; source_rsp.epoch=context_data.pcore_epoch+1'b1;
     source_rsp_valid=1;
-    repeat(2) begin @(posedge clk); if(!source_rsp_ready) $fatal(1,"KVB did not drain failed read"); end
+    repeat(STORE_RESPONSE_DEPTH) begin @(posedge clk); if(!source_rsp_ready) $fatal(1,"KVB did not drain failed read"); end
     @(negedge clk); source_rsp_valid=0;
     wait(source_done_valid); @(negedge clk);
     if(source_done.status!=GC_SOURCE_PROTOCOL||!source_error||(|source_out_valid)) $fatal(1,"KVB bad tag leaked to consumers");
     flush();
     if(source_error||source_done_valid) $fatal(1,"KVB clear did not recover");
-    $display("tb_gcore_kv PASS rejected_packets=%0d two_word_capacity=1 commit_after_write=1 duplicate_tile=1 memory_bounds=1 bank_collision=1 paired_response_stall=1 kvb_credit_limit=2 kvb_bad_tag=1 cancel_recovery=1 checks=%0d",rejections,checks);
+    $display("tb_gcore_kv PASS rejected_packets=%0d two_word_capacity=1 commit_after_write=1 duplicate_tile=1 memory_bounds=1 bank_collision=1 paired_response_stall=1 kvb_credit_limit=%0d kvb_bad_tag=1 cancel_recovery=1 checks=%0d",rejections,STORE_RESPONSE_DEPTH,checks);
     $finish;
   end
   initial begin #100000; $fatal(1,"KV unit watchdog"); end

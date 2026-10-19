@@ -1,4 +1,4 @@
-# Server-only resource measurement of one complete, official-IP module.
+# Resource measurement of one complete, official-IP module.
 set root [file normalize [file join [file dirname [info script]] ..]]
 if {[llength $argv] != 3} {error "Expected: gcore|pcore source_list report_directory; use run_dea8.py"}
 lassign $argv component listing report

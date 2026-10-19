@@ -100,7 +100,7 @@ module dea8_acc_store #(
       localparam int DEPTH=ROW_COUNT*((b==2)?OUT_TILES_P:1);
       wire we=mw?(p==0?wr_even_valid:wr_odd_valid):(vw&&vpu_wr.row_valid[p]);
       wire [511:0] wd=mw?(p==0?wr_even_data:wr_odd_data):vpu_wr.data[p];
-      dea8_acc_bank #(.DEPTH(DEPTH),.STYLE(b==0?"block":"ultra")) ram(
+      dea8_acc_bank #(.DEPTH(DEPTH),.STYLE(b<2?"block":"ultra")) ram(
         .clk,.reset,.clear,.rd_en(mr||vr),.rd_addr(ra),.rd_data(bank_data[b][p]),
         .rd_data_raw(bank_raw[b][p]),.rd_word_valid(bank_word_valid[b][p]),
         .wr_en(we),.wr_addr(wa),.wr_data(wd),.dbg_addr,.dbg_lane,.dbg_data(bank_debug[b][p]));

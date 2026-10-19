@@ -35,16 +35,17 @@
 - payload优先同步BRAM/URAM，不整片复位；小型valid/tag/owner用寄存器。
 - Mask按已核实的官方pi0，非pi0.5；RoPE配置绑定有效prefix位置和系数版本。
 
-具体预算和浅宽RAM风险见 [FP资源映射](FP_Resource_Mapping.md)，不是当前综合实测。
+具体预算和浅宽RAM风险见[FP资源映射](FP_Resource_Mapping.md)。[RAM重映射](RAM_Mapping_Plan.md)已实施并完成[GCore](reports/resource_synth/gcore_ram_remap_20261019/Summary.md)和[完整单PCore](reports/resource_synth/pcore_ram_remap_20261019/Summary.md)新综合：GCore 79 BRAM/24 URAM，PCore 143 BRAM/35 URAM；八核加GCore外推LUT99.41%、BRAM91.00%、URAM47.50%。详见[新旧对比](reports/resource_synth/RAM_Remap_20261019.md)，尚未计平台与互连开销。原`*_preview`报告保留为改造前基线；本轮按用户要求不重跑仿真。
 
 ## 验证状态
 
 | 项目 | 已确认 | 不能据此宣称 |
 |---|---|---|
-| 真实单核七Job | 279571拍、265408 issue、94.93%；55QK/55PV，6299量化+157743FP检查 | 板级250MHz、八核单层或十步去噪 |
+| 真实单核七Job，RoPE初始化修复前 | 279571拍、265408 issue、94.93%；55QK/55PV，6299量化+157743FP检查 | 修复后全核重验、板级250MHz、八核单层或十步去噪 |
+| RoPE初始化修复后 | RTL及综合RAM网表：全408地址、13120项系数、背压/flush/非法position检查PASS | 完整七Job已重跑 |
 | GCore官方IP定向测试 | 冷Norm、正式RESID import、FP算术；服务基线及四种压力/异常场景 | 真实八核PCore联合通过 |
 | 真实八核代表层TB | 已编写并纳入编译；第1/9/18层及压力/恢复待服务器执行 | 展开/仿真已经通过 |
-| 当前官方IP面积 | 待服务器分别综合GCore和一个完整PCore | 历史109DSP报告等于新版本资源 |
+| 当前官方IP面积，RAM重映射后 | GCore：29782LUT、33198FF、109DSP、79BRAM/24URAM；单PCore：104598LUT、102251FF、500DSP、143BRAM/35URAM | 新映射功能已验收、八核联合或250MHz通过 |
 
 [七Job图](reports/seven_job_native/seven_job_native.png)、[指标/哈希](reports/seven_job_native/metrics.json)、原始证据 `Pcore/reports/compute/`。Attention仍有约16拍命令槽尾部等待，未宣称非矩阵完全隐藏。
 
@@ -60,4 +61,4 @@
 
 先读本文，再读 [交接说明](HANDOFF.md)、局部README和 [单层流程](Pcore/docs/DEA8_整体架构与单层流程说明.md)。正式清单是 `Pcore/pcore_rtl.f`、`Gcore/gcore_rtl.f`；不要递归编译历史目录。
 
-`reduce/`、`Pcore/legacy/`和旧叶级工具仅供历史对照，不进入当前生产拓扑。2026-10-19已清理废弃仿真产物；GCore唯一的旧综合报告和 `Gcore/.sim/gcore_synth.dcp`保留，但不代表当前官方IP源码。新综合输出另放 `reports/resource_synth/`。
+`reduce/`、`Pcore/legacy/`和旧叶级工具仅供历史对照，不进入当前生产拓扑。2026-10-19清理了旧仿真快照、波形、缓存，以及RAM改造前 `*_preview` 的综合检查点和重复 `ip_work/`；基线资源报告、输入哈希、运行日志、功能验证证据保留。新RAM映射的完整综合结果和检查点保留在 `reports/resource_synth/*_ram_remap_20261019/`。按此前保留要求，2026-10-16的GCore旧综合报告和 `Gcore/.sim/gcore_synth.dcp`仍保留，但不代表当前官方IP源码。清单见 [清理记录](reports/cleanup_20261019.json)。

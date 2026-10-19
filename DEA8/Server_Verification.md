@@ -1,6 +1,8 @@
 # 服务器仿真与综合说明
 
-更新：2026-10-19。**设计与RTL由本地负责；服务器先完成仿真，再分别综合官方IP的GCore与单个完整PCore测资源，不在服务器重写RTL。** 本地不执行综合，完整八核不在本机展开/长跑。本阶段不综合八核，不做opt/place/route或频率签核；用户看过单模块资源后再决定是否综合八核。
+更新：2026-10-19。**设计与RTL由本地负责；服务器先完成仿真，再分别综合官方IP的GCore与单个完整PCore测资源，不在服务器重写RTL。** 用户已另行授权本机提前完成RAM重映射后的GCore与单PCore面积预览，见[本次实测](reports/resource_synth/RAM_Remap_20261019.md)；完整八核仍不在本机展开/长跑。本阶段不综合八核，不做opt/place/route或频率签核；用户看过单模块资源后再决定是否综合八核。
+
+本机另按用户要求实施[RAM重映射](RAM_Mapping_Plan.md)，**这轮跳过仿真、仅综合完整GCore与单PCore**；不修改服务器原有功能验收标准。KV/XHAT读改为3拍RAM加8项响应队列，两个FACC统一BRAM；prefix预置TB已改用逻辑任务入口。全部服务器回归须重编译/展开，不能复用旧快照或PASS。
 
 ## 1. 交付与环境
 
@@ -13,7 +15,7 @@
 
 当前FP配置：ADD11、MUL8、EXP21、RECIP29、RSQRT32；FP32 ADD/MUL各2DSP，特殊函数单列。IP生成只产生仿真/综合产品，不运行综合。
 
-本地最新完整单核7Job已通过：279571拍、265408 issue、94.93%；[实测图](reports/seven_job_native/seven_job_native.png)、[CSV](reports/seven_job_native/metrics.csv)、[hash/数值计数](reports/seven_job_native/metrics.json)。该时间只按4ns换算，不是板级实测。八核代表层仍待服务器执行。
+RoPE初始化修复及本轮RAM重映射之前的完整单核7Job曾通过：279571拍、265408 issue、94.93%；[历史实测图](reports/seven_job_native/seven_job_native.png)、[CSV](reports/seven_job_native/metrics.csv)、[hash/数值计数](reports/seven_job_native/metrics.json)。该时间只按4ns换算，不是新映射功能验收或板级实测。八核代表层仍待服务器执行。
 
 ## 2. 生成输入与官方IP
 
@@ -98,6 +100,8 @@ PCore单核的正式取消/重启已在本地通过。完整组故障注入矩�
 
 ## 7. 仿真全部优先，之后只测两个模块的综合资源
 
+2026-10-19补充：用户另行授权本机先做GCore面积预览。运行 `python run_dea8.py synth --target gcore --resource-preview`，输出到 `reports/resource_synth/gcore_preview/`。该模式不要求八核仿真准入，`PASS.json`明确记录 `simulation_gate_passed=false`；只证明当前源码综合与资源统计成功，不表示八核联合功能验收完成。默认服务器验收流程仍执行下述准入检查。
+
 先完成第3～6节的现有测试。短程定向检查和单核七Job通过后，完成真实八核的第1/9/18层、两项STRESS、三项取消及一项恢复；不要为了早看面积跳过功能验收。
 
 综合入口会强制核对以下10份PASS及其日志、当前输入哈希：
@@ -144,4 +148,4 @@ python run_dea8.py synth --target pcore --server-heavy
 - 数值失败：保留第一个core/layer/job/tile/row/lane、actual/gold和IP配置；不改成宽泛相对容差
 - 先交回仿真日志、逐场景PASS JSON、compile/snapshot SHA及失败定位；通过后再交两个目标的完整综合资源目录、XCI/配置/Tcl/ROM/gold哈希；不要只发截图
 
-当前未做：真实HBM/PCIe/DEA8策略RTL、连续18层/10步、动态M、板级测试。八核联合功能、压力恢复及两个模块当前面积待服务器结果，不预先签核。八核综合、布局布线和4ns签核不属于本阶段任务。
+当前未做：真实HBM/PCIe/DEA8策略RTL、连续18层/10步、动态M、板级测试。RAM重映射后的[GCore](reports/resource_synth/gcore_ram_remap_20261019/Summary.md)与[完整单PCore](reports/resource_synth/pcore_ram_remap_20261019/Summary.md)均已完成本机面积综合；本轮按用户要求没有重跑仿真，八核联合功能和压力恢复仍待服务器结果。八核综合、布局布线和4ns签核不属于本阶段任务。

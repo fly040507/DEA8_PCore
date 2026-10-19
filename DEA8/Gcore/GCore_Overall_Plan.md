@@ -134,14 +134,14 @@ SUM8缓存逻辑规模为`[51,8] FP32`，用于保存连续四个N-Tile覆盖64�
 | 存储 | 逻辑/物理组织 | 保存内容 |
 |---|---|---|
 | RESID | `[51,1024] BF16`，256bit向量字 | 当前残差，O/Down更新；已有实现优先URAM |
-| XHAT | INT8与B16 scale，四行bank | Norm量化结果，供XBC重放；已有实现优先BRAM |
-| 共享KV RAM | K/V各16个feature Tile×2个parity bank | prefix与suffix，按坐标写入，直接服务KVB |
+| XHAT | INT8与B16 scale，两个URAM银行，各双端口读 | Norm量化结果，重排为四行XBC响应；合计4 URAM |
+| 共享KV RAM | 64个逻辑分区合并为8个owner URAM银行 | prefix与suffix，按坐标写入，直接服务KVB；合计16 URAM |
 | SUM8 RAM | 有效`[51,8] FP32`，物理补齐64行 | 四个N-Tile的局部平方和 |
 | SQ_ACC RAM | 51个FP32，物理补齐64项 | 每行1024元素平方和 |
 | INV RAM | 51个FP32，物理补齐64项 | 每行归一化系数 |
 | γ RAM | 两组1024个FP32 | 当前参数；小块预读缓存供乘法流水使用 |
 
-共享KV RAM当前为64个逻辑bank，每bank`136bit×440`，其中prefix地址0..407、suffix地址408..439。K/V各有独立bank；本方案不假设18层prefix都在片上常驻。
+共享KV RAM仍有64个逻辑分区，每分区136bit×440，prefix偏移0..407、suffix偏移408..439。物理上按owner合并成8个4096×144银行，地址为`{kind,local_feature,parity,offset[8:0]}`；每个分区保留512个地址。K/V保持逻辑隔离，不假设18层prefix都在片上常驻。XHAT改为两个2048×144银行，双端口读出后仍返回四行；两类读取都采用3拍RAM和8项信用/响应队列。详见[RAM重映射方案](../RAM_Mapping_Plan.md)。
 
 不新增`[51,16] FP32`归约结果Tile。PCore FACC负责发送前保存结果，GCore归约后直接做残差、写RESID。XHAT被XBC读取期间不能被下一次Norm提前覆盖。
 

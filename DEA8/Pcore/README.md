@@ -7,14 +7,15 @@
 - 正式清单：`pcore_rtl.f`；生产单位源码：`units/vpu`、`units/sfu`，来源记录见 `units`
 - MXU精确INT20；DEQACC **16级**，含11拍官方ADD；旧11级不再是当前配置
 - ADD/SUB官方Full_Usage、11拍、2DSP；MUL官方Full_Usage、**8拍、2DSP**；EXP21、RECIP29
-- VPU32 lane；SFU exp4、两条交错GELU链、一个共享倒数IP；资源最终以服务器综合为准
+- VPU32 lane；SFU exp4、两条交错GELU链、一个共享倒数IP；[RAM重映射后的完整单核面积实测](../reports/resource_synth/pcore_ram_remap_20261019/Summary.md)已完成
 - Mask按官方pi0（非pi0.5）：state不看action，action间双向可见；不是三角action Mask
 - RoPE前后128配对，position来自有效prefix数。ROM的position_base/rope_version必须与配置一致
 - 活动payload放BRAM/URAM；RAM不整片复位；valid/tag与官方IP延迟、CE一起推进
+- RAM重映射：FACC-A/B现统一为两套独立BRAM，保留even/odd分银行及3拍ACC读延迟；OACC、QOZ和VPU data RAM保持原URAM。此轮仅做新综合，不重跑功能仿真，旧七Job证据不是新映射验收。
 - 本地验收：`python run_compute.py test --top tb_pcore_seven_native`，DUT内部无TB算术/结果注入
 - 八核入口和生成步骤见 [服务器说明](../Server_Verification.md)
 
-当前2DSP/8拍MUL完整七Job已PASS：279571总拍、265408 issue、94.93%；55QK/55PV，6299量化+157743FP检查。图片与CSV见 `../reports/seven_job_native`，原始PASS/hash在 `reports/compute`。RoPE在途取消→无旧代写回→重配后完整K也已通过。八核完整联合层仍待服务器，当前没有综合/4ns签核。
+RoPE初始化修复前，2DSP/8拍MUL完整七Job已PASS：279571总拍、265408 issue、94.93%；55QK/55PV，6299量化+157743FP检查。图片与CSV见 `../reports/seven_job_native`，原始PASS/hash在 `reports/compute`。旧版RoPE在途取消→无旧代写回→重配后完整K也已通过。RoPE修复后另有专用RTL/综合网表全地址回归；本轮RAM重映射后按用户要求未重跑仿真，旧证据不能替代新映射七Job验收。新单核综合：104598 LUT、102251 FF、500 DSP、143 BRAM36等效、35 URAM；两个FACC各15 BRAM36、0 URAM，八核联合与4ns签核仍未完成。
 
 ## 1. 顶层与共享计算
 
@@ -98,6 +99,8 @@ hbm_entry和kv_entry均为288-bit b2_t：两个INT8列向量、scale及坐标。
 elements为有效标量数：RoPE=1632；V_QUANT/GU_POST/QK_POST/P_POST/GELU/P_EXP=816；SCALE/AFIN=13056；ALPHA/RECIP=51。不能忽略tile/tiles和bank字段只看function_id。
 
 RoPE系数走独立请求服务，当前不另发FUNCTION_ROPE_COEFF命令。SFU可用ROM/缓存，不要求实时三角函数；VPU负责RoPE乘加。K配对由rope_pair_base指定，Q内部Tile顺序0,8,1,9,...,7,15。
+
+ROM默认文件为`units/rom/rope_wide.mem`，每字1024bit，包含16对cos/sin。`tools/prepare_compute_vectors.py`同时生成原256-bit的`rope.mem`和宽格式；已有原文件可用`python tools/pack_rope_rom.py`转换。RTL直接`$readmemh`初始化最终ROM，不再在`initial`中搬运数组；定制`ROPE_FILE`也必须传宽格式。RTL和综合后真实RAM网表已通过408地址全系数比较及背压/flush回归，证据见`../reports/resource_synth/rope_after/`。
 
 G-U保留51行接口，当前由 `dea8_gu_post_window` 提供4项行信用窗口，按行身份保持Gate/Up、GELU返回及VPU输入配对。不再是旧的一行GELU等待模型，也不复制整块G/U到各单元；窗口深度由 `GU_CREDITS` 配置。
 
@@ -195,9 +198,11 @@ python run_compute.py test --top tb_pcore_seven_native
 
 默认展开O3、mt off；只有已记录的工具问题才尝试 `--opt 0`，不能删检查或替换真实IP。显式PASS、数值/计数满足且前后输入哈希一致才通过，退出码0不够。完整日志/manifest在 `reports/compute/`；图表生成器不接受旧源码或不完整PASS。
 
-当前完整七Job：279571拍、265408 issues、55QK/55PV、6299量化+157743FP检查。DUT内部无TB算术，TB只模拟单核外部数据、命令与接收。八核联合第1/9/18层及压力/恢复仍待服务器执行。
+RoPE初始化修复前的完整七Job：279571拍、265408 issues、55QK/55PV、6299量化+157743FP检查。DUT内部无TB算术，TB只模拟单核外部数据、命令与接收。修复后需重编译/重展开再更新全核PASS；八核联合第1/9/18层及压力/恢复仍待服务器执行。
 
 服务器先完成仿真，再综合一个完整PCore及GCore测资源，不综合八核、不布局布线。入口为DEA8目录的 `run_dea8.py synth --target pcore --server-heavy`；先看新资源结果，再决定八核综合。见 [服务器说明](../Server_Verification.md)。
+
+本机授权的单核面积预览已完成，入口为DEA8目录的`python run_dea8.py synth --target pcore --resource-preview`；报告在`../reports/resource_synth/pcore_preview/`。RoPE独立综合检查为`tools/check_rope_rom_synth.tcl`（相对DEA8根目录），对应全地址回归TB为`tb/compute/tb_rope_rom_native.sv`。
 
 ## 11. 文件入口与历史工具
 

@@ -66,8 +66,12 @@ module tb_dea8_layers_native;
   for(genvar kind=0;kind<2;kind++)begin: initial_kind
     for(genvar feature=0;feature<16;feature++)begin: initial_feature
       for(genvar parity=0;parity<2;parity++)begin: initial_parity
-        initial $readmemh($sformatf("tb/data/layer_native/prefix_%0d_%0d_%0d.mem",kind,feature,parity),
-          dut.gcore.services.kv_store.kinds[kind].features[feature].parity[parity].memory,0,407);
+        logic [135:0] prefix_words[PREFIX_BANK_DEPTH];
+        initial begin
+          $readmemh($sformatf("tb/data/layer_native/prefix_%0d_%0d_%0d.mem",kind,feature,parity),prefix_words);
+          for(int a=0;a<PREFIX_BANK_DEPTH;a++)
+            dut.gcore.services.kv_store.preload_prefix(kind,feature,parity,a,prefix_words[a]);
+        end
       end
     end
   end

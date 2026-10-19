@@ -21,10 +21,11 @@ KV RAM -> KVB -> 八核Attention
 
 - 官方FP32 ADD11拍/2DSP、MUL8拍/2DSP；单rsqrt32拍。无自研FP32加乘生产旁路。
 - 34个ADD：四棵树28、残差4、SQ_ACC1、epsilon1。16个MUL共享平方、均方、X*inv、H*gamma。
-- 109DSP是结构预算，当前官方IP版本尚未综合。历史同为109DSP不证明其他资源或时序不变。
+- RAM重映射后完整GCore已完成U50面积综合：29782LUT、33198FF、109DSP、79BRAM36等效、24URAM，黑盒0；详见[本次资源汇总](../reports/resource_synth/gcore_ram_remap_20261019/Summary.md)。[改造前基线](../reports/resource_synth/gcore_preview/Summary.md)保留，未做布局布线或频率签核。
 - 统计使用实际写回BF16值；四个N-Tile形成SUM64，16组构成每行1024元素平方和。
 - Norm两次FP32乘法分时执行；Y直接量化，不额外先舍入BF16，不默认将γ折叠权重。
 - payload优先同步BRAM/URAM；RX、读响应和乘法反馈FIFO已经改成同步BRAM加小head cache。
+- KV已重组为8个owner银行、16 URAM；XHAT为两个双端口银行、4 URAM，RESID保持4 URAM。RAM读3拍，KV/XHAT各配8项BRAM响应队列和在途信用；外部b2/xbc4包格式不变。当前改动按用户要求不重跑仿真，旧PASS不代表此映射通过。
 - 反馈/结果深度为 `1<<clog2(MUL_LATENCY+4)`，当前16，不沿用旧深度8。
 - 不保存八份FP32输入Tile或独立归约结果Tile；当前Tile先归约/残差，再扫描统计。
 
@@ -67,6 +68,8 @@ O/Down的GCore服务完成与PCore done不同；O/Down可边矩阵边发送/归�
 
 服务级命令用于管理/兼容测试：正式 `GC_IMPORT_RESID`接收3264个256bit残差字，`GC_PREFIX_LOAD`明确拒绝。本阶段prefix预置不是已完成DMA。宏观Job期间不能夹入未经授权的外部服务/γ写。
 
+prefix的TB预置通过`kv_store.preload_prefix(kind,feature,parity,address,word_data)`，仅仿真可见，封装owner/物理地址和XPM初始化次序；不能继续写旧`kinds[].features[].parity[].memory`层次，也不能把该任务当成硬件装载接口。
+
 ## 八路256bit协议
 
 | 类型 | header | payload | 退休 |
@@ -95,6 +98,8 @@ final_data每次16个FP32、512bit，index=n_tile*51+row，共3264个向量；�
 
 ## 当前验证状态
 
+下表是RAM重映射前的功能证据；当前源码需重新编译/展开后回归。本轮按用户要求只综合，不用旧PASS为新映射背书。
+
 | 项目 | 已通过范围 |
 |---|---|
 | FP算术 | 4096ADD+4096MUL、BF16、量化、CE停顿 |
@@ -108,6 +113,8 @@ final_data每次16个FP32、512bit，index=n_tile*51+row，共3264个向量；�
 `run_gcore_xsim.ps1 -Test all`仍保留完整单元/服务/代表层测试，测试定义不等于当前版本全部通过。旧23场景和旧9936/6636/314拍已失效，不作为当前结论；`reports/summary.txt`仅对应最近一次脚本运行。
 
 ## 服务器与资源
+
+2026-10-19按用户要求在本机完成RAM重映射面积预览：`python run_dea8.py synth --target gcore --resource-preview --report-tag ram_remap_20261019`。输出 `../reports/resource_synth/gcore_ram_remap_20261019/`；不带tag的原始`gcore_preview/`保留为改造前基线。包含完整官方ADD/MUL/内部rsqrt，每个ADD/MUL实际2DSP。此模式不要求八核仿真准入，不代替功能验收。
 
 先在DEA8生成输入和官方IP，按 [服务器说明](../Server_Verification.md) 完成仿真。之后分别运行：
 

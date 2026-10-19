@@ -90,8 +90,8 @@ module tb_gcore_body #(parameter bit NATIVE_RSQRT=1'b0);
     for(genvar f=0;f<16;f++) begin: preload_features
       for(genvar p=0;p<2;p++) begin: preload_parities
         initial for(int a=0;a<PREFIX_BANK_DEPTH;a++)
-          dut.kv_store.kinds[k].features[f].parity[p].memory[a]=
-            kv_word(k,1,f,k?(a/8)*16+(a%8)*2+p:2*a+p);
+          dut.services.kv_store.preload_prefix(k,f,p,a,
+            kv_word(k,1,f,k?(a/8)*16+(a%8)*2+p:2*a+p));
       end
     end
   end

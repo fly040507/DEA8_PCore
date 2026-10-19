@@ -5,6 +5,7 @@ import ast
 import json
 import struct
 import numpy as np
+from pack_rope_rom import pack_rope_rom
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -36,6 +37,7 @@ def main():
                         for j in range(4))
             lines.append(f"{value:064x}\n")
     (dest / "rope.mem").write_text("".join(lines), encoding="ascii")
+    pack_rope_rom(dest / "rope.mem", dest / "rope_wide.mem")
     rng = np.random.default_rng(20261018)
     vectors = ROOT / "tb/data/compute"
     vectors.mkdir(parents=True, exist_ok=True)

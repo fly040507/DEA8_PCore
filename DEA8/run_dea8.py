@@ -1,5 +1,6 @@
-"""Real-layer verification and simulation-gated, single-module resource synthesis.
+"""Real-layer verification and single-module resource synthesis.
 
+Resource preview is explicit; normal synthesis requires simulation evidence.
 Eight-core synthesis and place/route are deferred in the current phase.
 """
 from pathlib import Path
@@ -108,11 +109,17 @@ def main():
     ap.add_argument("--arg",action="append",default=[])
     ap.add_argument("--server-heavy",action="store_true")
     ap.add_argument("--target",choices=["gcore","pcore"],help="Required for resource-only synthesis; no eight-core target")
+    ap.add_argument("--resource-preview",action="store_true",
+        help="Synthesis-only area preview without claiming the full simulation gate passed")
+    ap.add_argument("--report-tag",help="Separate synthesis run name; preserves earlier area evidence")
     args=ap.parse_args()
     if args.stage=="place-route":ap.error("Place/route is deferred; this phase measures GCore and one PCore resources only")
-    if args.stage=="synth" and (not args.server_heavy or args.target is None):
+    if args.stage=="synth" and (args.target is None or (not args.server_heavy and not args.resource_preview)):
         ap.error("Use synth --target gcore|pcore --server-heavy after completing server simulations")
     if args.target is not None and args.stage!="synth":ap.error("--target applies only to synth")
+    if args.resource_preview and args.stage!="synth":ap.error("--resource-preview applies only to synth")
+    if args.report_tag is not None and (args.stage!="synth" or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*",args.report_tag)):
+        ap.error("--report-tag applies only to synth and must be an alphanumeric/hyphen/underscore name")
     reports=ROOT/"reports/layer_native";reports.mkdir(parents=True,exist_ok=True)
     if args.stage=="vectors":
         subprocess.run([sys.executable,str(ROOT/"tools/generate_layer_vectors.py")],cwd=ROOT,check=True);return
@@ -121,7 +128,7 @@ def main():
             run(args.vivado,"vivado",["-mode","batch","-nojournal","-nolog","-source",file],reports/(Path(file).stem+".log"))
         return
     if args.stage=="synth":
-        evidence=require_simulation_passes()
+        evidence=[] if args.resource_preview else require_simulation_passes()
         sources=[p for p in source_list(args.target) if "/ip/generated/" not in p.as_posix()]
         listing=ROOT/f"output/{args.target}_synth_sources.f";listing.parent.mkdir(parents=True,exist_ok=True)
         listing.write_text("\n".join(p.as_posix() for p in sources)+"\n",encoding="utf-8")
@@ -132,7 +139,8 @@ def main():
             ROOT/"Gcore/ip/create_rsqrt.tcl",ROOT/"Gcore/ip/rsqrt_config.txt"]
         files+=sorted((ROOT/"Pcore/ip/generated").glob("*/*.xci"))+sorted((ROOT/"Gcore/ip/generated").glob("*/*.xci"))
         files+=sorted((ROOT/"Pcore/units/rom").glob("*.mem"))
-        report=ROOT/"reports/resource_synth"/args.target
+        report_name=args.target+"_"+args.report_tag if args.report_tag else (args.target+"_preview" if args.resource_preview else args.target)
+        report=ROOT/"reports/resource_synth"/report_name
         report.mkdir(parents=True,exist_ok=True)
         before=digest(files+evidence)
         (report/"inputs_sha256.json").write_text(json.dumps(before,indent=2),encoding="utf-8")
@@ -147,7 +155,8 @@ def main():
         success.write_text(json.dumps({"time":datetime.now().astimezone().isoformat(),
             "target":args.target,"top":"dea8_gcore" if args.target=="gcore" else "dea8_pcore_top",
             "input_manifest_sha256":hashlib.sha256((report/"inputs_sha256.json").read_bytes()).hexdigest(),
-            "simulation_gate_passed":True,"synthesis_only":True,"placement_routing":False,
+            "simulation_gate_passed":not args.resource_preview,"resource_preview":args.resource_preview,
+            "synthesis_only":True,"placement_routing":False,
             "eight_core_synthesis":False},indent=2),encoding="utf-8")
         return
     sources=source_list()

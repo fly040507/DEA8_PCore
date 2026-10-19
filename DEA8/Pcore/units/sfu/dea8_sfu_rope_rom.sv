@@ -1,11 +1,12 @@
 import pcore_pkg::*;
 import pcore_control_pkg::*;
 
-// Sixteen coefficient pairs per synchronous ROM read. The initialization
-// retains the portable four-pair file format; there is no runtime reshuffler.
+// Sixteen coefficient pairs per synchronous ROM read. The CPU image packer
+// converts the portable four-pair image before synthesis; Vivado cannot use
+// an initial-block copy from another $readmemh-initialized array as ROM data.
 module dea8_sfu_rope_rom #(
   parameter int POSITION_BASE=816,POSITION_COUNT=51,
-  parameter ROM_FILE="units/rom/rope.mem",RAM_STYLE="block"
+  parameter ROM_FILE="units/rom/rope_wide.mem",RAM_STYLE="block"
 )(
   input logic clk,reset,flush,output logic flush_ack,
   input logic req_valid,output logic req_ready,input logic [$bits(control_rope_req_t)-1:0] req,
@@ -14,7 +15,6 @@ module dea8_sfu_rope_rom #(
 );
   localparam int DEPTH=POSITION_COUNT*8,AW=$clog2(DEPTH);
   (* ram_style=RAM_STYLE *) logic [1023:0] coefficients[DEPTH];
-  logic [255:0] init_words[DEPTH*4];
   logic [1023:0] rom_data;
   logic pending,held;
   control_rope_req_t request,read_request;
@@ -27,11 +27,7 @@ module dea8_sfu_rope_rom #(
   assign rsp_valid=held&&!reset&&!flush;
   assign rsp=answer;
   assign flush_ack=flush&&!reset;
-  initial begin
-    $readmemh(ROM_FILE,init_words);
-    for(int i=0;i<DEPTH;i++)for(int part=0;part<4;part++)
-      coefficients[i][256*part+:256]=init_words[4*i+part];
-  end
+  initial $readmemh(ROM_FILE,coefficients);
   always_ff @(posedge clk)if(take)
     rom_data<=coefficients[AW'((int'(request.position)-POSITION_BASE)*8+request.frequency_base/16)];
   always_ff @(posedge clk)begin

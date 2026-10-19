@@ -27,13 +27,13 @@ module dea8_gcore_kvb (
   logic [3:0] tile_q;
   logic [2:0] group_q;
   logic [13:0] issued_q,received_q,retired_q;
-  logic [1:0] credits;
+  logic [STORE_CREDIT_BITS-1:0] credits;
   logic issued_all,multicast_ready,multicast_empty,retire,response_bad,failed;
   logic value_kind;
   int block_index,local_block;
 
   assign cmd_ready=!busy&&!done_valid&&!reset&&!clear&&!protocol_error;
-  assign rd_valid=busy&&!failed&&!issued_all&&credits<2&&!reset&&!clear;
+  assign rd_valid=busy&&!failed&&!issued_all&&credits<STORE_RESPONSE_DEPTH&&!reset&&!clear;
   always_comb begin
     value_kind=job_q==KVB_JOBS-1 || (job_q!=0&&!job_q[0]);
     if(job_q==0) block_index=0;

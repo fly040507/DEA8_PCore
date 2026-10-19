@@ -4,6 +4,9 @@ package gcore_pkg;
   localparam int VECTOR_WORDS=ROWS*HIDDEN_TILES;
   localparam int VECTOR_ADDR_BITS=$clog2(VECTOR_WORDS);
   localparam int ACT_BANK_DEPTH=ROW_GROUPS*HIDDEN_TILES;
+  localparam int STORE_READ_LATENCY=3, STORE_RESPONSE_DEPTH=8;
+  localparam int STORE_CREDIT_BITS=$clog2(STORE_RESPONSE_DEPTH+1);
+  localparam int STORE_WORD_BITS=144, KV_RAM_ADDR_BITS=12, ACT_RAM_ADDR_BITS=11;
   localparam int SERVICES=7, OBJECTS=5;
   localparam int REDUCE_LANES=4,RX_DEPTH=4;
   localparam int ADD_LATENCY=dea8_compute_config_pkg::FP_ADD_LATENCY;
@@ -15,6 +18,14 @@ package gcore_pkg;
   localparam int S_IMPORT=0, S_PREFIX=1, S_NORM=2, S_XBC=3;
   localparam int S_KV_RX=4, S_KVB=5, S_RESIDUAL=6;
   localparam int OBJ_RESID=0, OBJ_XHAT=1, OBJ_PREFIX=2, OBJ_K=3, OBJ_V=4;
+
+  function automatic logic [2:0] kv_ram_owner(input logic kind,input logic [3:0] feature);
+    return kind ? feature[3:1] : feature[2:0];
+  endfunction
+  function automatic logic [KV_RAM_ADDR_BITS-1:0] kv_ram_address(
+      input logic kind,input logic [3:0] feature,input logic parity,input logic [8:0] offset);
+    return {kind,kind?feature[0]:feature[3],parity,offset};
+  endfunction
 
   typedef enum logic [3:0] {
     GC_IMPORT_RESID=0, GC_PREFIX_LOAD=1, GC_NORM=2, GC_XBC_RUN=3,
