@@ -26,12 +26,20 @@ function Get-SourceHashes {
     '../Pcore/rtl/pcore_pkg.sv','../Pcore/rtl/dea8_tile_link_pkg.sv',
     '../Pcore/rtl/dea8_fp32_pkg.sv','../Pcore/rtl/pcore_control_pkg.sv','../Pcore/rtl/dea8_kv_tile_sender.sv',
     '../Pcore/rtl/dea8_pcore_output.sv','../Pcore/rtl/dea8_pcore_control.sv',
-    'tb/generate_numeric_vectors.py','tb/generate_rework_vectors.py')
+    'tb/generate_numeric_vectors.py','tb/generate_rework_vectors.py','tb/generate_native_fp_vectors.py',
+    '../Pcore/rtl/pcore_ip_config_pkg.sv','../Pcore/rtl/dea8_compute_config_pkg.sv',
+    '../Pcore/rtl/dea8_sdp_ram.sv','../Pcore/rtl/dea8_ram_fifo.sv',
+    '../Pcore/ip/generate_compute_ip.tcl','../Pcore/ip/compute_ip_config.txt')
   $sources+=@(Get-ChildItem rtl,tb -Filter *.sv -File | ForEach-Object {$_.FullName})
   $sources+=@(Get-ChildItem tb/data -File | ForEach-Object {$_.FullName})
   $sources+=@('ip/create_rsqrt.tcl','ip/rsqrt_config.txt',
     'ip/generated/gcore_rsqrt_ip/gcore_rsqrt_ip.xci',
     'ip/generated/gcore_rsqrt_ip/sim/gcore_rsqrt_ip.v')
+  foreach($ip in @('dea8_fpadd_ip','dea8_fpmul_ip')) {
+    $sources+="../Pcore/ip/generated/$ip/$ip.xci"
+    $sources+="../Pcore/ip/generated/$ip/sim/$ip.v"
+  }
+  $sources=$sources | Select-Object -Unique
   foreach($source in $sources) {
     $hash=Get-FileHash -LiteralPath $source -Algorithm SHA256
     $name=if([IO.Path]::IsPathRooted($source)){$source.Substring($here.Length+1)}else{$source}
@@ -45,14 +53,21 @@ try {
   if(!(Test-Path 'ip/generated/gcore_rsqrt_ip/sim/gcore_rsqrt_ip.v')) {
     $null=Invoke-VivadoTool 'vivado' '-mode batch -nojournal -source ip/create_rsqrt.tcl' 'rsqrt_generate.log'
   }
+  if(!(Test-Path '../Pcore/ip/generated/dea8_fpadd_ip/sim/dea8_fpadd_ip.v')) {
+    $null=Invoke-VivadoTool 'vivado' '-mode batch -nojournal -nolog -source ../Pcore/ip/generate_compute_ip.tcl' 'compute_generate.log'
+  }
   & $Python tb/generate_rework_vectors.py
   if($LASTEXITCODE){throw 'numeric reference generation failed'}
+  & $Python tb/generate_native_fp_vectors.py
+  if($LASTEXITCODE){throw 'native FP reference generation failed'}
   $sourceHashes=@(Get-SourceHashes)
   $null=Invoke-VivadoTool 'xvlog' "-sv -work $library -f gcore.f" 'compile.log'
+  $null=Invoke-VivadoTool 'xvlog' "-sv -work $library `"$VivadoRoot/data/ip/xpm/xpm_memory/hdl/xpm_memory.sv`"" 'xpm_compile.log'
   foreach($top in $tops) {
     $snapshot="${top}_direct"
     $null=Invoke-VivadoTool 'xvlog' "`"$VivadoRoot/data/verilog/src/glbl.v`" -work $library" 'glbl_compile.log'
-    $null=Invoke-VivadoTool 'xelab' "$library.$top $library.glbl -L unisims_ver -L xpm -L floating_point_v7_1_15 -s $snapshot --mt off --O2 -timescale 1ns/1ps" "$top`_elaborate.log"
+    $ipLibraries='-L xbip_utils_v3_0_10 -L axi_utils_v2_0_6 -L xbip_pipe_v3_0_6 -L xbip_dsp48_wrapper_v3_0_4 -L xbip_dsp48_addsub_v3_0_6 -L xbip_dsp48_multadd_v3_0_6 -L xbip_bram18k_v3_0_6 -L mult_gen_v12_0_18 -L floating_point_v7_1_15'
+    $null=Invoke-VivadoTool 'xelab' "$library.$top $library.glbl -L unisims_ver -L xpm $ipLibraries -s $snapshot --mt off --O3 -timescale 1ns/1ps" "$top`_elaborate.log"
     $result=Invoke-VivadoTool 'xsim' "$snapshot -runall" "$top.txt"
     $marker="$top PASS"
     if($result -notmatch [regex]::Escape($marker)){throw "$top has no PASS marker"}

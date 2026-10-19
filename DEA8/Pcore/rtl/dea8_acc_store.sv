@@ -4,7 +4,7 @@ import pcore_pkg::*;
 // never reset; validity is reset separately. Debug is simulation-only.
 module dea8_acc_bank #(
   parameter int DEPTH=26,
-  parameter STYLE="distributed"
+  parameter STYLE="block"
 ) (
   input logic clk,reset,clear,rd_en,wr_en,
   input logic [9:0] rd_addr,wr_addr,
@@ -16,29 +16,38 @@ module dea8_acc_bank #(
   output logic [31:0] dbg_data
 );
   localparam int AW=$clog2(DEPTH);
-  (* ram_style=STYLE *) logic [511:0] mem[0:DEPTH-1];
   logic [DEPTH-1:0] valid_q;
-  logic [511:0] data_q;
-  logic initialized_q;
-  always_ff @(posedge clk) begin
-    if(rd_en && rd_addr<DEPTH) data_q<=mem[rd_addr[AW-1:0]];
-    if(wr_en && !reset && !clear && wr_addr<DEPTH)
-      mem[wr_addr[AW-1:0]]<=wr_data;
+  logic [511:0] data_q,debug_word;
+  logic [ACC_READ_LATENCY-1:0] initialized_q;
+  logic ren_q;
+  logic [AW-1:0] raddr_q;
+  wire ren=rd_en&&rd_addr<DEPTH;
+  wire wen=wr_en&&!reset&&!clear&&wr_addr<DEPTH;
+  if(STYLE=="block")begin: bram
+    always_ff @(posedge clk)begin ren_q<=ren;raddr_q<=rd_addr[AW-1:0];end
+    dea8_sdp_ram #(.WIDTH(512),.DEPTH(DEPTH),.LATENCY(ACC_READ_LATENCY-1),.PRIMITIVE("block")) ram(
+      .clk,.rd_en(ren_q),.rd_addr(raddr_q),.wr_en(wen),.wr_addr(wr_addr[AW-1:0]),
+      .wr_data,.rd_data(data_q),.dbg_addr(dbg_addr[AW-1:0]),.dbg_data(debug_word));
+  end else begin: uram
+    dea8_sdp_ram #(.WIDTH(512),.DEPTH(DEPTH),.LATENCY(ACC_READ_LATENCY),.PRIMITIVE("ultra")) ram(
+      .clk,.rd_en(ren),.rd_addr(rd_addr[AW-1:0]),.wr_en(wen),.wr_addr(wr_addr[AW-1:0]),
+      .wr_data,.rd_data(data_q),.dbg_addr(dbg_addr[AW-1:0]),.dbg_data(debug_word));
   end
   always_ff @(posedge clk) begin
-    if(reset||clear) begin valid_q<='0;initialized_q<=0;end
+    if(reset||clear) begin valid_q<='0;initialized_q<='0;end
     else begin
-      if(rd_en) initialized_q<=(rd_addr<DEPTH)?valid_q[rd_addr[AW-1:0]]:1'b0;
-      if(wr_en && wr_addr<DEPTH) valid_q[wr_addr[AW-1:0]]<=1;
+      initialized_q[0]<=ren?valid_q[rd_addr[AW-1:0]]:1'b0;
+      for(int i=1;i<ACC_READ_LATENCY;i++)initialized_q[i]<=initialized_q[i-1];
+      if(wen)valid_q[wr_addr[AW-1:0]]<=1;
     end
   end
-  assign rd_data=initialized_q?data_q:'0;
+  assign rd_data=initialized_q[ACC_READ_LATENCY-1]?data_q:'0;
   assign rd_data_raw=data_q;
-  assign rd_word_valid=initialized_q;
+  assign rd_word_valid=initialized_q[ACC_READ_LATENCY-1];
   always_comb begin
     dbg_data=0;
     // synthesis translate_off
-    if(dbg_addr<DEPTH && valid_q[dbg_addr]) dbg_data=mem[dbg_addr][32*dbg_lane+:32];
+    if(dbg_addr<DEPTH && valid_q[dbg_addr]) dbg_data=debug_word[32*dbg_lane+:32];
     // synthesis translate_on
   end
 endmodule
@@ -72,7 +81,8 @@ module dea8_acc_store #(
   logic [511:0] bank_raw[0:2][0:1];
   logic bank_word_valid[0:2][0:1];
   logic [31:0] bank_debug[0:2][0:1];
-  acc_sel_e rd_sel_q,result_sel_q;
+  acc_sel_e rd_sel_q[0:ACC_READ_LATENCY-1],result_sel_q[0:ACC_READ_LATENCY-1];
+  logic [ACC_READ_LATENCY-1:0] matrix_valid_q,result_valid_q;
   assign result_rd_ready=!reset&&!clear&&result_rd_owner==ACC_READ_RESULT&&
     result_rd_sel<=ACC_OACC&&!(rd_valid&&rd_sel==result_rd_sel)&&
     !(wr_valid&&wr_sel==result_rd_sel);
@@ -90,7 +100,7 @@ module dea8_acc_store #(
       localparam int DEPTH=ROW_COUNT*((b==2)?OUT_TILES_P:1);
       wire we=mw?(p==0?wr_even_valid:wr_odd_valid):(vw&&vpu_wr.row_valid[p]);
       wire [511:0] wd=mw?(p==0?wr_even_data:wr_odd_data):vpu_wr.data[p];
-      dea8_acc_bank #(.DEPTH(DEPTH),.STYLE(b==2?"block":"distributed")) ram(
+      dea8_acc_bank #(.DEPTH(DEPTH),.STYLE(b==0?"block":"ultra")) ram(
         .clk,.reset,.clear,.rd_en(mr||vr),.rd_addr(ra),.rd_data(bank_data[b][p]),
         .rd_data_raw(bank_raw[b][p]),.rd_word_valid(bank_word_valid[b][p]),
         .wr_en(we),.wr_addr(wa),.wr_data(wd),.dbg_addr,.dbg_lane,.dbg_data(bank_debug[b][p]));
@@ -98,19 +108,22 @@ module dea8_acc_store #(
   end
   always_ff @(posedge clk) begin
     if(reset||clear) begin
-      rd_data_valid<=0;result_rd_data_valid<=0;rd_sel_q<=ACC_FACC_A;result_sel_q<=ACC_FACC_A;
+      matrix_valid_q<='0;result_valid_q<='0;
     end else begin
-      rd_data_valid<=rd_valid;result_rd_data_valid<=result_rd_valid&&result_rd_ready;
-      if(rd_valid) rd_sel_q<=rd_sel;
-      if(result_rd_valid&&result_rd_ready) result_sel_q<=result_rd_sel;
+      matrix_valid_q<={matrix_valid_q[ACC_READ_LATENCY-2:0],rd_valid};
+      result_valid_q<={result_valid_q[ACC_READ_LATENCY-2:0],result_rd_valid&&result_rd_ready};
     end
+    rd_sel_q[0]<=rd_sel;result_sel_q[0]<=result_rd_sel;
+    for(int i=1;i<ACC_READ_LATENCY;i++)begin rd_sel_q[i]<=rd_sel_q[i-1];result_sel_q[i]<=result_sel_q[i-1];end
   end
-  assign rd_even_data=bank_data[rd_sel_q][0];
-  assign rd_odd_data=bank_data[rd_sel_q][1];
-  assign rd_even_raw=bank_raw[rd_sel_q][0];
-  assign rd_odd_raw=bank_raw[rd_sel_q][1];
-  assign rd_word_valid={bank_word_valid[rd_sel_q][1],bank_word_valid[rd_sel_q][0]};
-  assign result_even_data=bank_data[result_sel_q][0];
-  assign result_odd_data=bank_data[result_sel_q][1];
+  assign rd_data_valid=matrix_valid_q[ACC_READ_LATENCY-1];
+  assign result_rd_data_valid=result_valid_q[ACC_READ_LATENCY-1];
+  assign rd_even_data=bank_data[rd_sel_q[ACC_READ_LATENCY-1]][0];
+  assign rd_odd_data=bank_data[rd_sel_q[ACC_READ_LATENCY-1]][1];
+  assign rd_even_raw=bank_raw[rd_sel_q[ACC_READ_LATENCY-1]][0];
+  assign rd_odd_raw=bank_raw[rd_sel_q[ACC_READ_LATENCY-1]][1];
+  assign rd_word_valid={bank_word_valid[rd_sel_q[ACC_READ_LATENCY-1]][1],bank_word_valid[rd_sel_q[ACC_READ_LATENCY-1]][0]};
+  assign result_even_data=bank_data[result_sel_q[ACC_READ_LATENCY-1]][0];
+  assign result_odd_data=bank_data[result_sel_q[ACC_READ_LATENCY-1]][1];
   assign dbg_data=(dbg_valid&&dbg_sel<=ACC_OACC)?bank_debug[dbg_sel][dbg_parity]:32'b0;
 endmodule

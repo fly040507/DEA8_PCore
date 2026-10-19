@@ -7,9 +7,12 @@ import pcore_pkg::*;
 // downstream VPU/QOZ wrapper.
 module dea8_gu_matrix #(
   parameter int K_TILES=64,
-  parameter int GU_TILES=128,parameter bit EXTERNAL_MATRIX=0
+  parameter int GU_TILES=128,parameter bit EXTERNAL_MATRIX=0,
+  parameter bit EXTERNAL_VECTOR=0
 ) (
   input logic clk,reset,clear,
+  output vector_ram_port_t ram_a,ram_b,
+  input logic [TILE-1:0][FP_BITS-1:0] ram_a_data,ram_b_data,
   output matrix_service_req_t service_req,input matrix_service_rsp_t service_rsp,
   input logic start,
   output logic start_ready,
@@ -176,7 +179,8 @@ module dea8_gu_matrix #(
   // 3276 issue cycles available before the next output tile's final K.
   assign pair_reserve_valid=matrix_gu_slot_reserve;
   assign matrix_gu_slot_ready=pair_reserve_ready;
-  dea8_gu_pair_buffer pair_buffer(
+  dea8_gu_pair_buffer #(.EXTERNAL_VECTOR(EXTERNAL_VECTOR)) pair_buffer(
+    .ram_a,.ram_b,.ram_a_data,.ram_b_data,
     .clk,.reset,.clear,.reserve_valid(pair_reserve_valid),.reserve_ready(pair_reserve_ready),
     .reserve_epoch(active_epoch_q),.reserve_head(active_head_q),.reserve_n(active_n_q),
     .capture_valid(matrix_commit_write_valid&&matrix_commit_meta.mode==MAT_GU&&

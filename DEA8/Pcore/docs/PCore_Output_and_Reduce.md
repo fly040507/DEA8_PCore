@@ -16,4 +16,4 @@ header低128有效、高128零，包信息编码版本、长度、dtype和scale�
 
 内部保留64x136 KV sender及两行FP32 holding，不复制整块FP32 Tile。GCore每核RX深度4，K/V独立落存，O/Down八核对齐后四lane归约，再Residual写回和统计退休。
 
-旧512-bit到独立Reduce的接口、独立结果Tile发送及旧报告，不属于当前拓扑。证据：[七Job](../reports/packet_7job_summary.txt)、[GCore十五场景](../../Gcore/reports/summary.txt)。真实八个完整PCore的整层联调未完成。
+旧512-bit到独立Reduce的接口、独立结果Tile发送及旧报告，不属于当前拓扑。旧TB服务版七Job与旧GCore仿真产物已清理；当前证据见[真实算术七Job](../reports/compute/tb_pcore_seven_native_PASS.json)和 `DEA8/reports/native_20261019/gcore/`。真实八个完整PCore的整层联调未完成。

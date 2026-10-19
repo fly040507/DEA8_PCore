@@ -12,7 +12,8 @@ module dea8_kv_tile_sender(
 );
   typedef enum logic [2:0] {EMPTY,FILL,SEND_HEADER,SEND_DATA,WAIT_COMMIT} state_e;
   state_e state_q;
-  logic [135:0] tile_mem[0:63];
+  logic [5:0] read_address;
+  logic read_en;
   tile_header_t header_q;
   logic [6:0] fill_q,send_q,expected_q;
   logic error_q;
@@ -24,7 +25,12 @@ module dea8_kv_tile_sender(
   assign out_hdr_valid=state_q==SEND_HEADER&&!reset&&!clear&&!error_q;
   assign out_hdr=header_q;
   assign out_data_valid=state_q==SEND_DATA&&!reset&&!clear&&!error_q;
-  assign out_data=tile_mem[send_q[5:0]];
+  assign read_en=(out_hdr_valid&&out_hdr_ready)||(out_data_valid&&out_data_ready&&!out_last);
+  assign read_address=state_q==SEND_HEADER?6'd0:6'(send_q+1'b1);
+  dea8_sdp_ram #(.WIDTH(136),.DEPTH(64)) memory(
+    .clk,.rd_en(read_en),.rd_addr(read_address),
+    .wr_en(in_data_valid&&in_data_ready&&in_last==(fill_q==expected_q-1'b1)),
+    .wr_addr(fill_q[5:0]),.wr_data(in_data),.rd_data(out_data),.dbg_addr('0),.dbg_data());
   assign out_last=send_q==expected_q-1'b1;
   assign commit_ready=state_q==WAIT_COMMIT&&!reset&&!clear&&!error_q;
   always_ff @(posedge clk)begin
@@ -44,7 +50,6 @@ module dea8_kv_tile_sender(
       if(in_data_valid&&in_data_ready)begin
         if(in_last!=(fill_q==expected_q-1'b1))error_q<=1;
         else begin
-          tile_mem[fill_q[5:0]]<=in_data;
           fill_q<=fill_q+1'b1;
           if(fill_q==expected_q-1'b1)state_q<=SEND_HEADER;
         end

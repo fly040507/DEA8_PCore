@@ -1,0 +1,60 @@
+{
+  "reviewed_at": "2026-10-18T18:33:24.645533+08:00",
+  "repository": "https://github.com/kayuenhuang/DEA8_VPU",
+  "commit": "dfe54efcdd704c0afd6f891099fc40239e774a02",
+  "original_joint_pcore_commit": "e12af5bdef23af8faa80c09a3520c73bf87e37b0",
+  "production_rtl_unchanged": 44,
+  "new_tests": {
+    "vpu_numeric": {
+      "status": "PASS",
+      "log_sha256": "57143cb4acb0224a0a3b197b2380f4cf04a55c1960e9768710ed9439af7eafc6",
+      "marker": "VPU_MATH_AUDIT_PASS"
+    },
+    "sfu_schedule": {
+      "status": "PASS",
+      "log_sha256": "14dde1b47866bd5d8f6b931a6af2d6d4cacfd1880d12ee61763470769c808f7e",
+      "marker": "SFU_SCHEDULE_AUDIT_PASS"
+    },
+    "gelu_numeric": {
+      "status": "PASS",
+      "log_sha256": "e518b09b6cc6e7a71346ebc6a7d6827277a299ae8e2dc165afc22356b779c4f0",
+      "marker": "GELU_WIDE_STRICT_PASS"
+    },
+    "current_kv": {
+      "status": "PASS",
+      "log_sha256": "f563956e26614126ae2a803563efce370da7292b16f18ec8468b1c844f7db18b",
+      "marker": "CURRENT_PCORE_KV_PASS"
+    },
+    "current_output_link": {
+      "status": "PASS",
+      "log_sha256": "641afa58d181440837d49ec2de36ff3a0431922fedc4a4cdafcbdf78bad9f1a7",
+      "marker": "tb_gcore_pcore_link PASS"
+    }
+  },
+  "baseline_partial_replay": {
+    "status": "INTENTIONALLY_STOPPED_AFTER_K_V_Q",
+    "reason": "Review uses hash-verified four original complete runs plus independent arithmetic, SFU scheduling and current-interface tests. This extra O0 replay confirms K/V/Q but is not counted as a new complete seven-job PASS.",
+    "job_cycles": {
+      "K": 4252,
+      "V": 3627,
+      "Q": 27594
+    },
+    "log": "upstream/build/sim_functional_20261014_20261018_173959_343075/simulation.log",
+    "complete_seven_job_rerun": false,
+    "rtl_failure": false
+  },
+  "new_complete_current_seven_job_pass": false,
+  "original_complete_logs": [
+    "FUNCTIONAL",
+    "STRESS_20261014",
+    "STRESS_7",
+    "STRESS_101"
+  ],
+  "new_synthesis": false,
+  "remaining_integration": [
+    "production PCore/VPU/SFU top",
+    "effective mask contract and source",
+    "RoPE position/ROM configuration",
+    "complete current seven-job and system flush regression"
+  ]
+}

@@ -1,9 +1,12 @@
 import pcore_pkg::*;
 module dea8_pcore_exec #(
   parameter bit PAIRED_Q_POST=0,
-  parameter bit COMPLETE_O_OUTPUT=0
+  parameter bit COMPLETE_O_OUTPUT=0,
+  parameter bit EXTERNAL_VECTOR=0
 ) (
   input logic clk,reset,clear,
+  output vector_ram_port_t ram_a,ram_b,
+  input logic [TILE-1:0][FP_BITS-1:0] ram_a_data,ram_b_data,
   input logic external_error=1'b0,
   input logic job_valid,output logic job_ready,input pcore_job_t job,
   output logic job_done_valid,input logic job_done_ready,output pcore_completion_t job_done,
@@ -95,7 +98,9 @@ module dea8_pcore_exec #(
     .local_a_valid(projection_out_valid),.local_a_ready(projection_local_ready),.local_a_entry(qe),
     .local_rd_valid(projection_rd_valid),.local_rd_ready(projection_rd_ready),.local_rd_tile(projection_rd_tile),
     .local_rd_pair(projection_rd_pair),.local_rd_transport(projection_rd_transport));
-  dea8_gu_job_adapter gu(.clk,.reset,.clear(local_clear),.op_valid(av[2]),.op_ready(ar[2]),.op_job(aj),
+  dea8_gu_job_adapter #(.EXTERNAL_VECTOR(EXTERNAL_VECTOR)) gu(.clk,.reset,.clear(local_clear),
+    .ram_a,.ram_b,.ram_a_data,.ram_b_data,
+    .op_valid(av[2]),.op_ready(ar[2]),.op_job(aj),
     .done_valid(dv[2]),.done_ready(dr[2]),.done(dc[2]),.error(errors[2]),.matrix_req(req[2]),.matrix_rsp(rsp[2]),
     .region_valid(rv[2]),.region_ready(rr[2]),.region(regions[2]),.region_complete(qoz_complete),
     .post_valid(pv[2]),.post_ready(pr[2]),.post_job(posts[2]),.post_done_valid(pdv[2]),.post_done_ready(pdr[2]),.post_done,

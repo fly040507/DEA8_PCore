@@ -1,3 +1,5 @@
+# Legacy leaf/bare-Matrix measurements only; not the complete official-IP PCore.
+# Current resource entry: DEA8/run_dea8.py synth --target pcore --server-heavy.
 set root [lindex $argv 1]
 if {$root eq ""} {error "Pass the absolute source root as Tcl argument 2"}
 set top [lindex $argv 0]

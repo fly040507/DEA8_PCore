@@ -25,7 +25,14 @@ module dea8_qoz_store #(
   output logic [EPOCH_BITS-1:0] active_epoch,output logic [2:0] active_head,
   output qoz_owner_e active_owner,output logic protocol_error
 );
-  (* ram_style="block" *) logic [135:0] data_mem[0:PHYSICAL_TILES-1][0:PAIRS-1][0:1];
+  localparam int DEPTH=PHYSICAL_TILES*PAIRS,AW=$clog2(DEPTH),RL=3,CAPACITY=8;
+  logic [135:0] even_data,odd_data;
+  logic [RL-1:0] read_valid_q;
+  a2_t read_meta_q[0:RL-1];
+  a2_t returned;
+  logic [3:0] queued,inflight;
+  logic queue_ready;
+  logic [AW-1:0] write_address,read_address;
   logic [PAIRS-1:0] written[0:PHYSICAL_TILES-1];
   logic [5:0] logical_tiles_q;
   logic [5:0] physical_base;
@@ -62,26 +69,49 @@ module dea8_qoz_store #(
     wr_pair!=next_pair_q[wr_tile]||complete_q);
   assign rd_bad=region_active&&(rd_owner!=owner_q||rd_tile>=logical_tiles_q||rd_pair>=PAIRS);
   assign region_begin_ready=!reset&&!clear&&!protocol_error&&!region_active&&!begin_bad;
-  assign region_release_ready=!reset&&!clear&&!protocol_error&&region_active&&complete_q&&!rd_out_valid&&!rd_valid;
+  assign region_release_ready=!reset&&!clear&&!protocol_error&&region_active&&complete_q&&!rd_out_valid&&!rd_valid&&!(|read_valid_q);
   assign begin_fire=region_begin_valid&&region_begin_ready;
   assign release_fire=region_release_valid&&region_release_ready;
   assign rd_request_physical_tile=physical_base+rd_tile;
   assign rd_physical_tile=physical_base+rd_tile_q;
   assign rd_ready=!reset&&!clear&&!protocol_error&&region_complete&&
     !rd_bad&&
-    rd_request_physical_tile<PHYSICAL_TILES&&(!rd_out_valid||rd_out_ready);
+    rd_request_physical_tile<PHYSICAL_TILES&&(queued+inflight<CAPACITY||(rd_out_valid&&rd_out_ready));
   assign rd_fire=rd_valid&&rd_ready;
   assign wr_ready=!reset&&!clear&&!protocol_error&&region_active&&!complete_q&&
     !wr_bad&&
     physical_base+wr_tile<PHYSICAL_TILES&&!written[physical_base+wr_tile][wr_pair];
   assign wr_fire=wr_valid&&wr_ready;
+  assign write_address=AW'((physical_base+wr_tile)*PAIRS+wr_pair);
+  assign read_address=AW'(rd_request_physical_tile*PAIRS+rd_pair);
+  dea8_sdp_ram #(.WIDTH(136),.DEPTH(DEPTH),.LATENCY(RL),.PRIMITIVE("ultra")) even_ram(
+    .clk,.rd_en(rd_fire),.rd_addr(read_address),.wr_en(wr_fire),.wr_addr(write_address),
+    .wr_data(wr_even),.rd_data(even_data),.dbg_addr('0),.dbg_data());
+  dea8_sdp_ram #(.WIDTH(136),.DEPTH(DEPTH),.LATENCY(RL),.PRIMITIVE("ultra")) odd_ram(
+    .clk,.rd_en(rd_fire),.rd_addr(read_address),.wr_en(wr_fire),.wr_addr(write_address),
+    .wr_data(wr_row_valid[1]?wr_odd:136'b0),.rd_data(odd_data),.dbg_addr('0),.dbg_data());
+  always_comb begin
+    inflight=0;for(int i=0;i<RL;i++)inflight+=4'(read_valid_q[i]);
+    returned=read_meta_q[RL-1];returned.row[0]=qvec16_t'(even_data);
+    returned.row[1]=returned.row_valid[1]?qvec16_t'(odd_data):qvec16_t'('0);
+  end
+  dea8_ram_fifo #(.WIDTH($bits(a2_t)),.DEPTH(CAPACITY)) responses(
+    .clk,.reset,.clear,.in_valid(read_valid_q[RL-1]),.in_ready(queue_ready),.in_data(returned),
+    .out_valid(rd_out_valid),.out_ready(rd_out_ready),.out_data(rd_entry),.count(queued));
+  always_ff @(posedge clk)begin
+    if(reset||clear)read_valid_q<='0;
+    else read_valid_q<={read_valid_q[RL-2:0],rd_fire};
+    read_meta_q[0]<='0;read_meta_q[0].tile_idx<=rd_transport;
+    read_meta_q[0].pair_idx<=rd_pair;read_meta_q[0].row_valid<=row_mask(rd_pair);
+    for(int i=1;i<RL;i++)read_meta_q[i]<=read_meta_q[i-1];
+  end
 
   always_ff @(posedge clk) begin
     if(reset||clear) begin
       owner_q<=QOZ_NONE;complete_q<=0;logical_tiles_q<=0;physical_base<=0;
-      epoch_q<=0;head_q<=0;rd_out_valid<=0;protocol_error<=0;
+      epoch_q<=0;head_q<=0;protocol_error<=0;
       rd_tile_q<=0;rd_pair_q<=0;rd_transport_q<=0;
-      rd_entry<='0;committed_tiles_q<=0;
+      committed_tiles_q<=0;
       for(int t=0;t<PHYSICAL_TILES;t++) begin written[t]<='0;next_pair_q[t]<=0;end
     end else begin
       if(region_begin_valid&&begin_bad) protocol_error<=1;
@@ -94,8 +124,6 @@ module dea8_qoz_store #(
         for(int t=0;t<PHYSICAL_TILES;t++) begin written[t]<='0;next_pair_q[t]<=0;end
       end
       if(wr_fire) begin
-        data_mem[physical_base+wr_tile][wr_pair][0]<=wr_even;
-        data_mem[physical_base+wr_tile][wr_pair][1]<=wr_row_valid[1]?wr_odd:'0;
         written[physical_base+wr_tile][wr_pair]<=1;
         next_pair_q[wr_tile]<=next_pair_q[wr_tile]+1'b1;
         if(wr_pair==PAIRS-1) begin
@@ -107,17 +135,12 @@ module dea8_qoz_store #(
         rd_tile_q<=rd_tile;
         rd_pair_q<=rd_pair;
         rd_transport_q<=rd_transport;
-        rd_entry<='0;
-        rd_entry.tile_idx<=rd_transport;
-        rd_entry.pair_idx<=rd_pair;
-        rd_entry.row_valid<=row_mask(rd_pair);
-        rd_entry.row[0]<=qvec16_t'(data_mem[rd_request_physical_tile][rd_pair][0]);
-        rd_entry.row[1]<=qvec16_t'(data_mem[rd_request_physical_tile][rd_pair][1]);
-        rd_out_valid<=1;
       end
-      else if(rd_out_valid&&rd_out_ready) rd_out_valid<=0;
       if(release_fire) begin owner_q<=QOZ_NONE;complete_q<=0;logical_tiles_q<=0;end
     end
   end
   initial if(PHYSICAL_TILES<32||PAIRS<1) $fatal(1,"QOZ geometry");
+  // synthesis translate_off
+  always @(posedge clk)if(!reset&&!clear&&read_valid_q[RL-1]&&!queue_ready)$fatal(1,"QOZ response credit overflow");
+  // synthesis translate_on
 endmodule

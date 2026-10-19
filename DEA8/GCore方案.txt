@@ -1,0 +1,11 @@
+GCore当前方案索引（2026-10-19）
+
+原草案已由Gcore/GCore_Overall_Plan.md与GCore_Reduce_Plan.md落实并更新；接入请先读Gcore/README.md，不再按旧草案的lane、周期或存储预算写RTL。
+
+当前固定51行、hidden1024、8PCore。八路256bit共线接收K/V/O/Down；K/V按坐标存KV，O/Down在GCore内部4-lane归约及残差处理，没有外部Reduce。
+
+四棵八输入FP32树共享归约/SUM8/SUM64；16路乘法共享平方、均方与X*inv*gamma两次FP32乘法；单rsqrt，8-lane B16量化。官方ADD11拍、MUL8拍，均2DSP；109DSP是当前结构预算，不是新版综合结果。
+
+payload优先同步BRAM/URAM，反馈FIFO深度按实际IP延迟派生，不沿用旧LUTRAM映射。最新冷Norm定向仿真10014拍，Tile服务定向最大396拍；不是完整八核延迟或频率签核。
+
+服务器任务见Server_Verification.md：先仿真，再单独综合GCore与一个完整PCore查看资源；不综合八核，不布局布线。历史GCore综合报告与DCP保留，新资源结果写reports/resource_synth。

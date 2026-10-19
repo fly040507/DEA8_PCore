@@ -21,8 +21,7 @@ module dea8_local_a_store #(parameter int TILES=16,BANKS=1) (
   logic [TILE_BITS-1:0] next_tile[0:BANKS-1];
   logic [PAIR_BITS-1:0] next_pair[0:BANKS-1];
   logic load_bad;
-  logic [BANKS-1:0] selected_q;
-  qvec16_t even_q[0:BANKS-1],odd_q[0:BANKS-1];
+  logic [135:0] even_data,odd_data;
   assign load_bad=load_entry.slot>=BANKS||load_entry.tile_idx>=TILES||
     (BANKS==2&&load_entry.slot!=load_block[0])||load_entry.reserved!=0||
     load_entry.pair_idx>=PAIRS||load_entry.row_valid!=row_mask(load_entry.pair_idx)||
@@ -33,34 +32,23 @@ module dea8_local_a_store #(parameter int TILES=16,BANKS=1) (
   assign load_ready=!reset&&!clear&&!protocol_error&&!load_bad;
   assign rd_ready=!reset&&!clear&&!protocol_error&&(!out_valid||out_ready)&&
     rd_bank<BANKS&&complete[rd_bank]&&rd_tile<TILES&&rd_pair<PAIRS;
-  for(genvar b=0;b<BANKS;b++) begin: banks
-    (* ram_style="block" *) logic [135:0] even_mem[0:TILES*PAIRS-1];
-    (* ram_style="block" *) logic [135:0] odd_mem[0:TILES*(ROWS/2)-1];
-    logic [135:0] even_data_q,odd_data_q;
-    logic odd_present_q;
-    assign even_q[b]=qvec16_t'(even_data_q);
-    assign odd_q[b]=odd_present_q?qvec16_t'(odd_data_q):qvec16_t'('0);
-    always_ff @(posedge clk) begin
-      if(load_valid&&load_ready&&load_entry.slot==b) begin
-        even_mem[load_entry.tile_idx*PAIRS+load_entry.pair_idx]<=load_entry.row[0];
-        if(load_entry.row_valid[1]) odd_mem[load_entry.tile_idx*(ROWS/2)+load_entry.pair_idx]<=load_entry.row[1];
-      end
-      if(rd_valid&&rd_ready&&rd_bank==b) begin
-        even_data_q<=even_mem[rd_tile*PAIRS+rd_pair];
-        if(rd_pair<ROWS/2) odd_data_q<=odd_mem[rd_tile*(ROWS/2)+rd_pair];
-        odd_present_q<=rd_pair<ROWS/2;
-      end
-    end
+  for(genvar r=0;r<2;r++)begin: parity_ram
+    localparam int RC=r==0?PAIRS:ROWS/2;
+    localparam int DEPTH=BANKS*TILES*RC,AW=DEPTH>1?$clog2(DEPTH):1;
+    wire [AW-1:0] wa=AW'((int'(load_entry.slot)*TILES+load_entry.tile_idx)*RC+load_entry.pair_idx);
+    wire [AW-1:0] ra=AW'((int'(rd_bank)*TILES+rd_tile)*RC+rd_pair);
+    wire [135:0] result;
+    dea8_sdp_ram #(.WIDTH(136),.DEPTH(DEPTH)) memory(
+      .clk,.rd_en(rd_valid&&rd_ready&&(r==0||rd_pair<ROWS/2)),.rd_addr(ra),
+      .wr_en(load_valid&&load_ready&&load_entry.row_valid[r]),.wr_addr(wa),
+      .wr_data(load_entry.row[r]),.rd_data(result),.dbg_addr('0),.dbg_data());
+    if(r==0)assign even_data=result;else assign odd_data=result;
   end
-  always_comb begin
-    out_entry.row='0;
-    for(int b=0;b<BANKS;b++) if(selected_q[b]) begin
-      out_entry.row[0]=even_q[b];out_entry.row[1]=odd_q[b];
-    end
-  end
+  assign out_entry.row[0]=qvec16_t'(even_data);
+  assign out_entry.row[1]=out_entry.row_valid[1]?qvec16_t'(odd_data):qvec16_t'('0);
   always_ff @(posedge clk) begin
     if(reset||clear) begin
-      complete<=0;protocol_error<=0;out_valid<=0;selected_q<=0;
+      complete<=0;protocol_error<=0;out_valid<=0;
       out_entry.row_valid<=0;out_entry.pair_idx<=0;out_entry.tile_idx<=0;out_entry.slot<=0;out_entry.reserved<=0;
       for(int b=0;b<BANKS;b++) begin next_tile[b]<=0;next_pair[b]<=0;epoch[b]<=0;head[b]<=0;block_id[b]<=0;end
     end else begin
@@ -75,7 +63,7 @@ module dea8_local_a_store #(parameter int TILES=16,BANKS=1) (
         end else next_pair[load_entry.slot]<=load_entry.pair_idx+1'b1;
       end
       if(rd_valid&&rd_ready) begin
-        selected_q<=BANKS'(1)<<rd_bank;out_valid<=1;
+        out_valid<=1;
         out_entry.row_valid<=row_mask(rd_pair);out_entry.pair_idx<=rd_pair;
         out_entry.tile_idx<=rd_transport;out_entry.slot<=rd_bank;out_entry.reserved<=0;
       end else if(out_valid&&out_ready) out_valid<=0;

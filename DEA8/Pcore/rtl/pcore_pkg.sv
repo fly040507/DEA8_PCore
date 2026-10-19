@@ -1,7 +1,10 @@
 package pcore_pkg;
   parameter int TILE=16, ROWS=51, ROW_LANES=2;
   parameter int PAIRS=(ROWS+ROW_LANES-1)/ROW_LANES;
-  parameter int INT_BITS=8, SCALE_BITS=8, PSUM_BITS=32, FP_BITS=32;
+  parameter int INT_BITS=8, SCALE_BITS=8, FP_BITS=32;
+  parameter int PRODUCT_BITS=2*INT_BITS, TREE_LEVELS=$clog2(TILE);
+  parameter int PSUM_BITS=PRODUCT_BITS+TREE_LEVELS;
+  parameter int ACC_READ_LATENCY=3, DEQUANT_STAGES=4;
   parameter int DATA_BITS=TILE*INT_BITS;
   parameter int TILE_BITS=6, PAIR_BITS=5, EPOCH_BITS=4;
   parameter int MATRIX_TILE_COUNT_BITS=8;
@@ -11,10 +14,7 @@ package pcore_pkg;
   parameter int ATTN_K_TILES=16;
   parameter int ATTN_ISSUES=PAIRS*ATTN_K_TILES;
   parameter int MXU_PIPE_STAGES=7;
-  // The external completion point includes the synchronous accumulator RAM
-  // DEQACC_3.3ns D0..D10: split abs/lead and normalize/exponent,
-  // partial pack, synchronous ACC response, lane arithmetic and commit.
-  parameter int DEQACC_PIPE_STAGES=11;
+  parameter int DEQACC_PIPE_STAGES=DEQUANT_STAGES+pcore_ip_config_pkg::FPADD_IP_LATENCY+1;
   parameter int MXU_TAIL_EDGES=MXU_PIPE_STAGES-1;
   parameter int DEQACC_COMMIT_CYCLES=DEQACC_PIPE_STAGES;
   parameter int ATTN_NOMINAL_SLOT=ATTN_ISSUES+MXU_TAIL_EDGES+DEQACC_COMMIT_CYCLES;
@@ -23,6 +23,28 @@ package pcore_pkg;
   parameter int MATRIX_COLD_BUDGET=MATRIX_STEADY_BUDGET+16;
   parameter int DOT_EXP_OFFSET=266, EXP_FOLD_BITS=6;
   parameter int XBC_GROUPS=(ROWS+3)/4;
+
+  typedef logic [TILE-1:0][FP_BITS-1:0] fp_vector_t;
+  function automatic fp_vector_t vector_rotate_left(input fp_vector_t value,input logic [$clog2(TILE)-1:0] amount);
+    fp_vector_t stage[0:$clog2(TILE)];
+    stage[0]=value;
+    for(int s=0;s<$clog2(TILE);s++)for(int b=0;b<TILE;b++)
+      stage[s+1][b]=amount[s]?stage[s][(b+TILE-(1<<s))%TILE]:stage[s][b];
+    return stage[$clog2(TILE)];
+  endfunction
+  function automatic fp_vector_t vector_rotate_right(input fp_vector_t value,input logic [$clog2(TILE)-1:0] amount);
+    fp_vector_t stage[0:$clog2(TILE)];
+    stage[0]=value;
+    for(int s=0;s<$clog2(TILE);s++)for(int b=0;b<TILE;b++)
+      stage[s+1][b]=amount[s]?stage[s][(b+(1<<s))%TILE]:stage[s][b];
+    return stage[$clog2(TILE)];
+  endfunction
+  typedef struct packed {
+    logic [TILE-1:0] en,we;
+    logic [$clog2(TILE)-1:0] rotate;
+    logic [TILE-1:0][7:0] addr;
+    logic [TILE-1:0][FP_BITS-1:0] data;
+  } vector_ram_port_t;
 
   typedef enum logic {A_XBC=0,A_LOCAL=1} a_source_e;
   typedef enum logic [1:0] {B_HBM=0,B_KVB=1} b_source_e;

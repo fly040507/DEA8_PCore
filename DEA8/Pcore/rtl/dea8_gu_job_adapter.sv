@@ -1,6 +1,8 @@
 import pcore_pkg::*;
-module dea8_gu_job_adapter(
+module dea8_gu_job_adapter #(parameter bit EXTERNAL_VECTOR=0)(
   input logic clk,reset,clear,
+  output vector_ram_port_t ram_a,ram_b,
+  input logic [TILE-1:0][FP_BITS-1:0] ram_a_data,ram_b_data,
   input logic op_valid,output logic op_ready,input pcore_job_t op_job,
   output logic done_valid,input logic done_ready,output pcore_completion_t done,output logic error,
   output matrix_service_req_t matrix_req,input matrix_service_rsp_t matrix_rsp,
@@ -37,7 +39,8 @@ module dea8_gu_job_adapter(
   assign pair_accept=post_valid&&post_ready;
   assign post_done_ready=post_active_q;
   assign data_out='{header:header_q,n:out_n,row:out_row,row_valid:row_valid,last:last,first:gate_data,second:up_data};
-  dea8_gu_matrix #(.EXTERNAL_MATRIX(1)) gu(
+  dea8_gu_matrix #(.EXTERNAL_MATRIX(1),.EXTERNAL_VECTOR(EXTERNAL_VECTOR)) gu(
+    .ram_a,.ram_b,.ram_a_data,.ram_b_data,
     .clk,.reset,.clear,.service_req(matrix_req),.service_rsp(matrix_rsp),
     .start(tile_start),.start_ready(gu_ready),.job_epoch(header_q.epoch),.job_head(header_q.head),.job_n(next_launch?n_q+1'b1:n_q),
     .local_a_valid(a_valid),.local_a_ready(a_ready),.local_a_entry(a_entry),.hbm_valid(1'b0),.hbm_ready(),.hbm_entry('0),

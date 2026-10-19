@@ -22,7 +22,7 @@ package pcore_control_pkg;
   typedef enum logic [3:0] {
     CONTROL_OK,CONTROL_UNSUPPORTED,CONTROL_CHILD_ERROR,CONTROL_CONTEXT_ERROR,
     CONTROL_STREAM_ERROR,CONTROL_EARLY_DONE,CONTROL_UNIT_ERROR,
-    CONTROL_PRECONDITION
+    CONTROL_PRECONDITION,CONTROL_CANCELLED
   } control_status_e;
   typedef struct packed {
     control_job_t job;

@@ -29,10 +29,12 @@ module dea8_gcore_compute (
   import gcore_pkg::*;
   import gcore_fp_pkg::*;
   import dea8_tile_link_pkg::*;
-  localparam int TREE_LAT=3*ADD_LATENCY,WORK_DEPTH=8,READ_DEPTH=4;
+  localparam int TREE_LAT=3*ADD_LATENCY,READ_DEPTH=4;
+  // Cover the native multiplier latency plus the synchronous FIFO head stages.
+  localparam int WORK_DEPTH=1<<$clog2(MUL_LATENCY+4);
   typedef enum logic [3:0] {IDLE,INIT,HEADERS,REDUCING,REDUCE_DRAIN,
     SCAN,SCAN_DRAIN,INVERSE,APPLY,APPLY_DRAIN,FINISH} state_e;
-  typedef enum logic [1:0] {M_SQUARE,M_FIRST,M_SECOND} multiply_mode_e;
+  typedef enum logic [1:0] {M_SQUARE,M_FIRST,M_SECOND,M_MEAN} multiply_mode_e;
   typedef struct packed {logic [VECTOR_ADDR_BITS-1:0] index;logic [255:0] values;logic [31:0] inverse;} read_t;
   typedef struct packed {logic [VECTOR_ADDR_BITS-1:0] index;logic [511:0] values,gamma;} feedback_t;
   typedef struct packed {logic [VECTOR_ADDR_BITS-1:0] index;logic [511:0] values;} output_t;
@@ -77,6 +79,7 @@ module dea8_gcore_compute (
   logic [511:0] multiply_gammas[MUL_LATENCY],multiply_gamma;
   logic [15:0][31:0] multiply_a,multiply_b,multiply_result;
   logic multiply_issue,multiply_output,feedback_valid,feedback_ready,feedback_space,second_valid,second_ready,second_space;
+  logic multiply_advance;
   logic [$clog2(WORK_DEPTH+1)-1:0] feedback_count,second_count;
   feedback_t feedback_input,feedback_head;
   output_t second_input,second_head;
@@ -180,6 +183,12 @@ module dea8_gcore_compute (
     if(state==SCAN||state==SCAN_DRAIN)begin
       multiply_issue=rd_fifo_valid;rd_fifo_ready=multiply_issue;
       for(int i=0;i<TILE;i++)begin multiply_a[i]={rd_head.values[16*i+:16],16'b0};multiply_b[i]=multiply_a[i];end
+    end else if(state==INVERSE)begin
+      // Reuse the otherwise idle first multiplier for mean(square), rather
+      // than keeping a separate hand-written FP32 exponent adjustment.
+      multiply_issue=inverse_fetch_valid&&u_advance;multiply_mode=M_MEAN;
+      multiply_index=VECTOR_ADDR_BITS'(inverse_fetch_row);
+      multiply_a[0]=sq_old;multiply_b[0]=32'h3a800000; // 1/1024
     end else if(state==APPLY||state==APPLY_DRAIN)begin
       if(feedback_valid&&int'(second_count)+second_inflight<WORK_DEPTH)begin
         multiply_issue=1;multiply_mode=M_SECOND;multiply_index=feedback_head.index;
@@ -192,15 +201,16 @@ module dea8_gcore_compute (
     end
     if(reset||datapath_clear)begin multiply_issue=0;feedback_ready=0;rd_fifo_ready=0;reduce_issue=0;data_ready=0;end
   end
+  assign multiply_advance=state==INVERSE?u_advance:1'b1;
   for(genvar i=0;i<TILE;i++)begin:multipliers
-    dea8_gcore_fp_mul multiply(.clk,.advance(1'b1),.a(multiply_a[i]),.b(multiply_b[i]),.result(multiply_result[i]));
+    dea8_gcore_fp_mul multiply(.clk,.reset,.clear(datapath_clear),.advance(multiply_advance),.a(multiply_a[i]),.b(multiply_b[i]),.result(multiply_result[i]));
   end
   assign multiply_output=multiply_valid[MUL_LATENCY-1];
   always_ff @(posedge clk)begin
     if(reset||datapath_clear)begin
       multiply_valid<=0;
       for(int s=0;s<MUL_LATENCY;s++)begin multiply_modes[s]<=M_SQUARE;multiply_indices[s]<=0;multiply_gammas[s]<=0;end
-    end else begin
+    end else if(multiply_advance)begin
       multiply_valid[0]<=multiply_issue;multiply_modes[0]<=multiply_mode;
       multiply_indices[0]<=multiply_index;multiply_gammas[0]<=multiply_gamma;
       for(int s=1;s<MUL_LATENCY;s++)begin
@@ -242,10 +252,10 @@ module dea8_gcore_compute (
     for(int lane=0;lane<REDUCE_LANES;lane++)rounded_four[16*lane+:16]=round_bf16(residual_sum[lane]);
   end
   for(genvar t=0;t<4;t++)begin:trees
-    dea8_gcore_tree8 tree(.clk,.advance(arith_advance),.data(tree_input[t]),.result(tree_result[t]));
+    dea8_gcore_tree8 tree(.clk,.reset,.clear(datapath_clear),.advance(arith_advance),.data(tree_input[t]),.result(tree_result[t]));
   end
   for(genvar lane=0;lane<REDUCE_LANES;lane++)begin:residual_adders
-    dea8_gcore_fp_add add(.clk,.advance(arith_advance),.a(tree_result[lane]),
+    dea8_gcore_fp_add add(.clk,.reset,.clear(datapath_clear),.advance(arith_advance),.a(tree_result[lane]),
       .b({tree_tag[TREE_LAT-1].old_values[16*lane+:16],16'b0}),.result(residual_sum[lane]));
   end
   always_ff @(posedge clk)begin
@@ -312,7 +322,7 @@ module dea8_gcore_compute (
     .clk,.enable_a(sq_write),.write_a(sq_write),.address_a(acc_rows[ADD_LATENCY-1]),.data_a(sq_result),.result_a(),
     .enable_b(sq_read_enable),.write_b(1'b0),.address_b(sq_read_address),.data_b(32'b0),.result_b(sq_old)
   );
-  dea8_gcore_fp_add accumulator(.clk,.advance(1'b1),.a(acc_meta.nt<4?32'b0:sq_old),.b(sum64_current),.result(sq_result));
+  dea8_gcore_fp_add accumulator(.clk,.reset,.clear(datapath_clear),.advance(1'b1),.a(acc_meta.nt<4?32'b0:sq_old),.b(sum64_current),.result(sq_result));
   always_ff @(posedge clk)begin
     if(reset||datapath_clear)begin acc_valid<=0;for(int s=0;s<ADD_LATENCY;s++)acc_rows[s]<=0;end
     else begin
@@ -320,8 +330,8 @@ module dea8_gcore_compute (
       for(int s=1;s<ADD_LATENCY;s++)begin acc_valid[s]<=acc_valid[s-1];acc_rows[s]<=acc_rows[s-1];end
     end
   end
-  assign epsilon_input=scale_power_two(sq_old,-$clog2(HIDDEN));
-  dea8_gcore_fp_add epsilon_add(.clk,.advance(u_advance),.a(epsilon_input),.b(command_q.epsilon_fp32),.result(epsilon_result));
+  assign epsilon_input=multiply_result[0];
+  dea8_gcore_fp_add epsilon_add(.clk,.reset,.clear(datapath_clear),.advance(u_advance),.a(epsilon_input),.b(command_q.epsilon_fp32),.result(epsilon_result));
   always_ff @(posedge clk)begin
     if(reset||datapath_clear||state!=INVERSE)begin
       epsilon_valid<=0;inverse_issue<=0;inverse_fetch_valid<=0;inverse_fetch_row<=0;
@@ -329,7 +339,8 @@ module dea8_gcore_compute (
     end else if(u_advance)begin
       inverse_fetch_valid<=inverse_issue<ROWS;
       if(inverse_issue<ROWS)begin inverse_fetch_row<=inverse_issue;inverse_issue<=inverse_issue+1'b1;end
-      epsilon_valid[0]<=inverse_fetch_valid;epsilon_rows[0]<=inverse_fetch_row;
+      epsilon_valid[0]<=multiply_output&&multiply_modes[MUL_LATENCY-1]==M_MEAN;
+      epsilon_rows[0]<=6'(multiply_indices[MUL_LATENCY-1]);
       for(int s=1;s<ADD_LATENCY;s++)begin epsilon_valid[s]<=epsilon_valid[s-1];epsilon_rows[s]<=epsilon_rows[s-1];end
     end
   end

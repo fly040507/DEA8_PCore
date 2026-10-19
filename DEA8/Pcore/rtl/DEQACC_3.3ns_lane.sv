@@ -1,106 +1,39 @@
-import dea8_fp32_pkg::*;
+import pcore_ip_config_pkg::*;
 
-// Six arithmetic boundaries: order, align, add/coarse detect, shift control,
-// normalize shift, round/pack. Bypass follows exactly the same latency.
-(* keep_hierarchy="yes" *)
+// Native Single Add (DAZ/FTZ). Replace is a bit-exact delayed bypass.
 module DEQACC_3_3ns_lane(
   input logic clk,reset,clear,in_valid,add_old,
   input logic [31:0] old_value,partial_value,
   output logic out_valid,output logic [31:0] result_value
 );
-  typedef struct packed {
-    logic valid,bypass;
-    logic [31:0] partial;
-    fp_add_pre_t pre;
-    logic [7:0] distance;
-  } order_t;
-  typedef struct packed {
-    logic valid,bypass;
-    logic [31:0] partial;
-    fp_add_pre_t pre;
-  } align_t;
-  typedef struct packed {
-    logic valid,bypass;
-    logic [31:0] partial;
-    fp_add_raw_t raw;
-    logic [3:0] nonzero_group;
-  } raw_t;
-  typedef struct packed {
-    logic valid,bypass;
-    logic [31:0] partial;
-    fp_add_raw_t raw;
-    logic [4:0] shift;
-    logic [8:0] exponent;
-  } control_t;
-  typedef struct packed {
-    logic valid,bypass;
-    logic [31:0] partial;
-    fp_norm_mid_t norm;
-  } norm_t;
-  order_t order_q,order_d;
-  align_t align_q;
-  raw_t raw_q,raw_d;
-  control_t control_q,control_d;
-  norm_t norm_q,norm_d;
-  logic [7:0] ea,eb;
-  logic [23:0] ma,mb;
-  logic a_big,an,bn,ai,bi;
-  logic [1:0] group_sel;
-  logic [6:0] group_value;
-  logic [4:0] leading,wanted;
-  always_comb begin
-    ea=(old_value[30:23]==0)?8'd1:old_value[30:23];
-    eb=(partial_value[30:23]==0)?8'd1:partial_value[30:23];
-    ma={|old_value[30:23],old_value[22:0]};
-    mb={|partial_value[30:23],partial_value[22:0]};
-    a_big=(ea>eb)||((ea==eb)&&(ma>=mb));
-    an=(&old_value[30:23])&&(|old_value[22:0]);
-    bn=(&partial_value[30:23])&&(|partial_value[22:0]);
-    ai=old_value[30:0]==FP_INF[30:0];bi=partial_value[30:0]==FP_INF[30:0];
-    order_d='0;order_d.valid=in_valid;order_d.bypass=!add_old;order_d.partial=partial_value;
-    order_d.distance=a_big?ea-eb:eb-ea;
-    order_d.pre.special=an||bn||ai||bi;
-    order_d.pre.special_value=(an||bn||(ai&&bi&&(old_value[31]!=partial_value[31])))?
-      FP_QNAN:(ai?old_value:partial_value);
-    order_d.pre.sign_result=a_big?old_value[31]:partial_value[31];
-    order_d.pre.zero_sign=old_value[31]&&partial_value[31];
-    order_d.pre.subtract=old_value[31]^partial_value[31];
-    order_d.pre.exponent={1'b0,a_big?ea:eb};
-    order_d.pre.big_x={1'b0,a_big?ma:mb,3'b0};
-    order_d.pre.small_x={1'b0,a_big?mb:ma,3'b0};
-    raw_d='0;raw_d.valid=align_q.valid;raw_d.bypass=align_q.bypass;raw_d.partial=align_q.partial;
-    raw_d.raw=fp32_add_raw(align_q.pre);
-    for(int g=0;g<4;g++) raw_d.nonzero_group[g]=|raw_d.raw.sum_raw[g*7+:7];
-    group_sel=raw_q.nonzero_group[3]?2'd3:raw_q.nonzero_group[2]?2'd2:
-      raw_q.nonzero_group[1]?2'd1:2'd0;
-    group_value=raw_q.raw.sum_raw[7*group_sel+:7];
-    leading=5'(group_sel)*5'd7+lead32({25'b0,group_value});
-    wanted=5'd26-leading;
-    control_d='0;control_d.valid=raw_q.valid;control_d.bypass=raw_q.bypass;
-    control_d.partial=raw_q.partial;control_d.raw=raw_q.raw;
-    control_d.shift=({4'b0,wanted}>raw_q.raw.exponent-9'd1)?5'(raw_q.raw.exponent-9'd1):wanted;
-    control_d.exponent=raw_q.raw.sum_raw[27]?raw_q.raw.exponent+9'd1:
-      raw_q.raw.exponent-{4'b0,control_d.shift};
-    norm_d='0;norm_d.valid=control_q.valid;norm_d.bypass=control_q.bypass;norm_d.partial=control_q.partial;
-    norm_d.norm.special=control_q.raw.special;norm_d.norm.special_value=control_q.raw.special_value;
-    norm_d.norm.sign_result=control_q.raw.sign_result;norm_d.norm.zero_sign=control_q.raw.zero_sign;
-    norm_d.norm.is_zero=control_q.raw.sum_raw==0;norm_d.norm.exponent_norm=control_q.exponent;
-    norm_d.norm.sum_norm=control_q.raw.sum_raw[27]?
-      {1'b0,control_q.raw.sum_raw[27:2],|control_q.raw.sum_raw[1:0]}:
-      control_q.raw.sum_raw<<control_q.shift;
-  end
+  localparam int L=FPADD_IP_LATENCY;
+  logic [L-1:0] valid_q,bypass_q;
+  logic [31:0] partial_q[0:L-1];
+  logic [1:0] reset_q=2'b11;
+  logic native_valid;
+  logic [31:0] native_result;
+  wire ip_reset=reset||(|reset_q);
   always_ff @(posedge clk) begin
-    order_q<=order_d;
-    align_q.bypass<=order_q.bypass;align_q.partial<=order_q.partial;
-    align_q.pre<=order_q.pre;
-    align_q.pre.small_x<=shift_right_jam28(order_q.pre.small_x,order_q.distance);
-    raw_q<=raw_d;control_q<=control_d;norm_q<=norm_d;
-    result_value<=norm_q.bypass?norm_q.partial:fp32_pack_mid(norm_q.norm);
-    if(reset||clear) begin
-      order_q.valid<=0;align_q.valid<=0;raw_q.valid<=0;control_q.valid<=0;norm_q.valid<=0;out_valid<=0;
-    end else begin
-      align_q.valid<=order_q.valid;
-      out_valid<=norm_q.valid;
-    end
+    if(reset) reset_q<=2'b11;
+    else reset_q<={reset_q[0],1'b0};
+    partial_q[0]<=partial_value;bypass_q[0]<=!add_old;
+    for(int i=1;i<L;i++)begin partial_q[i]<=partial_q[i-1];bypass_q[i]<=bypass_q[i-1];end
+    if(ip_reset||clear)valid_q<='0;
+    else valid_q<={valid_q[L-2:0],in_valid};
   end
+  pcore_fpadd_ip vendor_add(
+    .aclk(clk),.aresetn(!ip_reset),
+    .s_axis_a_tvalid(in_valid&&!ip_reset&&!clear),.s_axis_a_tdata(old_value),
+    .s_axis_b_tvalid(in_valid&&!ip_reset&&!clear),.s_axis_b_tdata(partial_value),
+    .m_axis_result_tvalid(native_valid),.m_axis_result_tdata(native_result)
+  );
+  assign out_valid=valid_q[L-1]&&!reset&&!clear;
+  assign result_value=bypass_q[L-1]?partial_q[L-1]:
+    ((&native_result[30:23])&&(|native_result[22:0]))?32'h7fc00000:native_result;
+  // synthesis translate_off
+  always @(negedge clk) if(!reset&&!clear)begin
+    if(out_valid&&!native_valid)$fatal(1,"FPADD IP data/sideband latency mismatch");
+    if(in_valid&&ip_reset)$fatal(1,"FPADD input before IP reset recovery");
+  end
+  // synthesis translate_on
 endmodule

@@ -1,8 +1,10 @@
 # GCore 最新方案：内置 Reduce 与共享算术
 
-日期：2026-10-16。固定 `M=51`、hidden=1024，目标平台 U50。
+> 2026-10-19：保持本方案的四lane归约与共享树，FP32加乘已全部官方IP化（2DSP、ADD11/MUL8）；旧4/3拍延迟与314拍Tile数字已过时。当前基线与背压服务回归的header到退休最长396拍；完整8核联合与当前资源/4ns仍待服务器。详见README和 `../Server_Verification.md`。
 
-**状态：本文的接收/归约与共享算术方案已落实。** 文中15场景、109 DSP及OOC均指2026-10-16修改前证据；2026-10-17新增宏观控制、γ后台预取和末层输出以 [整体方案](GCore_Overall_Plan.md)、[README](README.md) 及 [最新回归](reports/summary.txt) 为准，不混称为新综合结果。GCore直接接收八个PCore输出，内置4-lane归约；独立Reduce不在当前构建中，尚未做4ns布局布线签核。
+更新：2026-10-19。固定 `M=51`、hidden=1024，目标平台 U50。
+
+**当前接收/归约与共享算术已落实，FP32加乘使用官方IP。** 验证范围以 [README](README.md) 及带哈希的当前日志为准，`reports/summary.txt`只表示最近一次运行。109DSP是结构预算；唯一历史OOC仍保留，但不是当前官方IP面积。服务器先完成仿真，再分别综合GCore与单PCore看资源；本阶段不综合八核、不布局布线。
 
 依据：[用户草案](../GCore方案.txt)、其后七条注释，以及本轮“256-bit共线、首拍信息、浅FIFO、无归约结果Tile”要求。草案中的 `FP16` 为笔误，残差始终为 BF16；DSP 合计采用已修正的109。本文不增加新的设计版本名称。
 
@@ -13,7 +15,7 @@
 | Reduce 归属 | O/Down 八核 FP32 归约移入 GCore，不再作为目标架构中的独立顶层 |
 | PCore输出链路 | 每核一条256-bit共用链路，K/V/O/Down分包复用，共八条，不是八核共用一条 |
 | 分包 | 一拍header；O/Down为102个FP32 payload beat，K为51个MXINT8 beat，V保留64个MXINT8 beat |
-| 接收FIFO | 建议每核共用一条256-bit*4 payload FIFO；O/Down每beat分两拍处理，K/V每beat一拍写入 |
+| 接收FIFO | 每核共用一条256-bit*4同步BRAM payload FIFO；O/Down每beat分两拍处理，K/V每beat一拍写入 |
 | 接收缓存边界 | header单独锁存；不缓存完整FP32归约结果Tile，不重新建立八核输入Tile副本 |
 | 归约与残差 | 4-lane；每路七个 FPADD 求八核和，再接一个残差 FPADD |
 | 共享加法树 | 四棵八输入树；分时用于八核归约、SUM8、SUM64 |
@@ -23,7 +25,7 @@
 | rsqrt | 一路真实 FP32 IP，与单路 epsilon 加法流水重叠 |
 | gamma | 在线乘；从模型参数导出并加载，不默认折叠进矩阵权重 |
 | 量化 | 已实现8-lane MXINT8-B16，II=2；Y FIFO吸收乘法输出突发 |
-| DSP | 算术结构预算109，包含Reduce；本轮OOC实测109 |
+| DSP | 官方IP结构预算约109，包含内部归约；当前新版未综合 |
 
 DEA8总控继续负责层号、去噪步数、PCore七类Job和跨模块依赖。GCore局部控制接收命令、调度内部共享资源，不在内部展开18层或10步。
 
@@ -136,13 +138,13 @@ K的第r个beat对应第r行的16列，共51beat。V不能直接照抄这个计�
 | O/Down消费 | 同一head低128位、高128位分两次发射，每次四个FP32 |
 | K/V消费 | 取head低136位，一次写入对应KV bank后弹出；八核可独立推进 |
 
-对比当前独立Reduce的八条 `512-bit*8` FIFO，新payload容量由4KiB降为1KiB，逻辑位数下降75%；完整FP32归约结果Tile另省 `51*16*4=3264B`。这不是物理BRAM/LUT节省的实测比例。
+对比历史独立Reduce的八条 `512-bit*8` FIFO，新payload容量由4KiB降为1KiB，逻辑位数下降75%；完整FP32归约结果Tile另省 `51*16*4=3264B`。这不是物理BRAM/LUT节省的实测比例。
 
 FIFO为256bit而不是128bit，是为了每个链路beat直接一次入队。四个归约lane只需一条128-bit内部读切片，不要求FIFO物理宽度也等于128bit。`128-bit*8`容量相同，但接收一个256-bit beat需要双写bank或拆分holding及双份信用，不作为控制简单的首选。
 
 深度4用于吸收短期核间偏差和取数交接，不保证八核任意长时间错位都能无背压。O/Down生产者可每拍给八个FP32，但四lane平均两拍才消费一个beat，因此必须正常拉低ready；不能声称102个数据beat连续接收且只有浅FIFO。若要求整包连续突发不反压，就必须大幅加深缓存或提高计算吞吐，违背当前小缓存目标。
 
-浅FIFO优先评估LUTRAM/SRL及小型holding，不把1KiB全部铺成FF，也不因“优先RAM”强制为256bit宽、4深的每核FIFO分配碎片化大BRAM。LUTRAM也是RAM；具体映射按实际综合冻结。接口若增加ready寄存或skid，其额外在途容量必须纳入信用和满判断。
+当前按LUT优先节省原则，浅FIFO已采用显式同步BRAM加小型head cache，不再沿用旧LUTRAM/SRL建议。宽端口物理补齐可能浪费BRAM，服务器需按RAM原语测量，而非只按1KiB逻辑容量估算。若增加ready寄存或skid，其额外在途容量必须纳入信用和满判断。
 
 ### 3.5 归约、残差与接收路由
 
@@ -296,10 +298,10 @@ gamma可采用窄RAM加当前/下一组16元素缓存。每组gamma供51行复�
 | SQ_ACC累加 | 1个FPADD | 2 | 2 |
 | epsilon相加 | 1个FPADD | 2 | 2 |
 | 平方/归一化共享乘法 | 16个FPMUL | 2 | 32 |
-| FP32 rsqrt | 1路IP | 9 | 9 |
+| FP32 rsqrt | 1路IP | 约9，待新综合 | 约9 |
 | **合计** | | | **109** |
 
-上述按现有叶算术资源计数，不为量化、指数缩放或窄控制额外计DSP。新增算术必须重新记账。LUT/FF/RAM另行综合统计，不能由DSP下降推断LUT一定下降。
+ADD/MUL按官方Full_Usage各2DSP预算，rsqrt约9仍待新综合确认；量化、指数缩放或窄控制不额外算FP算术实例。新增算术必须重新记账。LUT/FF/RAM另行综合统计，不能由DSP下降推断LUT一定下降。
 
 周期只做量级判断：
 
@@ -349,9 +351,9 @@ GCore内部共享算术需保证以下边界：
 | 双通道rsqrt | 单通道rsqrt |
 | 默认gamma折叠，在线仅X*inv | 在线X*inv*gamma，两次乘法复用 |
 | 16-lane量化 | 已实现8-lane，B16尺度与打包不变 |
-| 已综合GCore为118 DSP，不含独立Reduce | 包含Reduce的109 DSP，本轮OOC确认；时序未签核 |
+| 历史118 DSP GCore，不含独立Reduce | 当前包含内部归约的约109DSP结构预算；新版官方IP面积未测 |
 
-当前RTL入口为 [gcore_rtl.f](gcore_rtl.f)，仿真入口为 [gcore.f](gcore.f)。[原详细设计](GCore_Design.md)保留历史推导，不能覆盖当前接口。
+当前RTL入口为 [gcore_rtl.f](gcore_rtl.f)，仿真入口为 [gcore.f](gcore.f)。[详细设计索引](GCore_Design.md)已更新，不再提供外部Reduce/双rsqrt旧合同。
 
 ## 12. 本轮实现与周期口径
 
@@ -362,8 +364,6 @@ GCore内部共享算术需保证以下边界：
 - 顶层默认单路真实rsqrt；51行发51包mask=01，保留110-bit typed接口用于观测及外部故障注入
 - PCore内部外发已配套改包；不在PCore外增加生产发送封装
 
-当前无人工断供/下游暂停的GCore仿真：冷Norm9936拍；已有匹配统计的热Norm6636拍。O/Down每Tile从本核0 header握手至共同归约、残差写回、统计退休最多314拍。八核本体输入同拍到达时，该值小于416拍参考窗口；不代表任意外部断供或物理250MHz已验收。
+当前官方IP冷Norm定向仿真10014拍；服务回归Tile从header到残差、统计退休最长396拍，特定外部供数下有机会隐藏到矩阵窗口，但真实八核隐藏及层延迟仍待联合仿真。旧9936/6636/314和paced退休间隔不作为当前保证值。
 
-O/Down paced TB中相邻退休最大434/850拍，包含不同Tile统计尾部的18拍相位差，不应将其当作本体每Tile服务时间。矩阵任务本身未接入该TB，不能据此宣称真实8个PCore和GCore已实现整层无停顿。
-
-具体数值覆盖、故障恢复、真实PCore外发联动结果以本轮日志为准。旧118 DSP报告已在废弃产物清理时删除，保留的本轮报告为48,229 LUT、17,502 FF、109 DSP、152.5 BRAM36等效、4 URAM；无黑盒、0 error/0 critical warning。尚未做4ns实现或真实八核整层验收。
+保留的历史综合为48,229 LUT、17,502 FF、109 DSP、152.5 BRAM36等效、4 URAM，对应旧FP后端/FIFO映射。当前官方IP版本的资源由服务器单模块综合另报，不覆盖历史报告，不冒称4ns或真实八核单层已通过。

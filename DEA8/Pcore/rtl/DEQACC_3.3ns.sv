@@ -1,8 +1,7 @@
 import pcore_pkg::*;
 import dea8_fp32_pkg::*;
 
-// D0 abs/lead, D1 normalize/exponent, D2 pack preparation/ACC read,
-// D3 pack finish/RAM response, D4..D9 lane arithmetic, D10 commit. II=1.
+// Four dequant/ACC-read stages, native FPADD IP, one atomic commit. II=1.
 module DEQACC_3_3ns(
   input logic clk,reset,clear,rsp_valid,input mxu_rsp_t rsp,
   input acc_read_owner_e result_rd_owner,
@@ -15,129 +14,128 @@ module DEQACC_3_3ns(
   input logic dbg_valid,input acc_sel_e dbg_sel,input logic dbg_parity,
   input logic [9:0] dbg_addr,input logic [3:0] dbg_lane,output logic [31:0] dbg_data
 );
+  localparam int LAST=DEQACC_PIPE_STAGES-2;
+  localparam int LEAD_BITS=$clog2(PSUM_BITS);
   typedef struct packed {logic valid;pair_meta_t meta;logic [1:0] rows;} context_t;
   typedef struct packed {
     logic sign_bit,is_zero,bad;
-    logic [31:0] mag;
-    logic [4:0] lead;
-    logic [7:0] a,b;
-    logic signed [EXP_FOLD_BITS-1:0] fold;
+    logic [PSUM_BITS-1:0] mag;
+    logic [LEAD_BITS-1:0] lead;
+    logic signed [10:0] base;
   } magnitude_t;
   typedef struct packed {
     logic sign_bit,is_zero,bad;
-    logic [31:0] norm;
+    logic [PSUM_BITS-1:0] norm;
     logic signed [10:0] exponent;
   } normalized_t;
-  typedef struct packed {
-    logic sign_bit,is_zero,bad,subnormal;
-    logic signed [10:0] exponent;
-    logic [23:0] kept;
-    logic increment;
-  } pack_t;
-  typedef struct packed {logic [31:0] partial,old_value;} operands_t;
-  magnitude_t magnitude_q[0:1][0:15];
-  normalized_t s0[0:1][0:15];
-  pack_t s1[0:1][0:15];
-  operands_t s2[0:1][0:15];
-  pack_t pack_next[0:1][0:15];
-  logic [31:0] partial_next[0:1][0:15];
-  context_t context_q[0:9];
+  magnitude_t mag_q[0:1][0:TILE-1];
+  normalized_t norm_q[0:1][0:TILE-1];
+  logic [31:0] partial_q[0:1][0:TILE-1],operand_q[0:1][0:TILE-1];
+  logic [31:0] old_q[0:1][0:TILE-1];
+  context_t context_q[0:LAST];
+  logic signed [10:0] row_base[0:1];
   logic [1:0] word_valid;
   logic rd_valid,rd_data_valid;
   logic [9:0] rd_addr,wr_addr;
   logic [15:0][31:0] rd_even,rd_odd,wr_even,wr_odd;
-  logic lane_valid[0:1][0:15];
-  logic [31:0] lane_value[0:1][0:15];
-  function automatic magnitude_t magnitude(input logic signed [31:0] value,
-    input logic [7:0] a,b,input logic signed [EXP_FOLD_BITS-1:0] fold);
+  logic lane_valid[0:1][0:TILE-1];
+  logic [31:0] lane_value[0:1][0:TILE-1];
+
+  function automatic magnitude_t magnitude(input logic [PSUM_BITS-1:0] value,
+    input logic [7:0] a,b,input logic signed [10:0] base);
     magnitude_t t;
-    t.mag=value[31]?(~value+32'd1):value;t.lead=lead32(t.mag);
-    t.sign_bit=value[31];t.is_zero=t.mag==0;t.bad=(&a)||(&b);
-    t.a=a;t.b=b;t.fold=fold;return t;
+    t='0;t.sign_bit=value[PSUM_BITS-1];
+    t.mag=t.sign_bit?(~value+PSUM_BITS'(1)):value;
+    for(int i=0;i<PSUM_BITS;i++)if(t.mag[i])t.lead=LEAD_BITS'(i);
+    t.is_zero=t.mag==0;t.bad=(&a)||(&b);t.base=base+$signed({3'b0,b});return t;
   endfunction
-  function automatic logic [31:0] finish_pack(input pack_t p);
-    logic [24:0] rounded;logic [23:0] mant;logic signed [11:0] exponent;
-    rounded={1'b0,p.kept}+25'(p.increment);
-    mant=rounded[24]?rounded[24:1]:rounded[23:0];
-    exponent=$signed({p.exponent[10],p.exponent})+$signed({11'b0,rounded[24]});
-    if(p.bad) return FP_QNAN;
-    if(p.is_zero) return 0;
-    if(p.subnormal) return {p.sign_bit,7'b0,rounded[23:0]};
-    if(exponent>127) return {p.sign_bit,FP_INF[30:0]};
-    return {p.sign_bit,8'(exponent+127),mant[22:0]};
+  function automatic logic [31:0] pack_partial(input normalized_t p);
+    logic [23:0] rounded,significand;
+    logic [25:0] shift_stage[0:5];
+    logic [4:0] shift_amount;
+    logic [7:0] encoded;
+    logic signed [11:0] distance;
+    significand={p.norm,{(24-PSUM_BITS){1'b0}}};
+    if(p.bad)return FP_QNAN;
+    if(p.is_zero)return 0;
+    if(p.exponent>127)return {p.sign_bit,8'hff,23'b0};
+    if(p.exponent>=-126)begin
+      encoded=8'(p.exponent+127);
+      return {p.sign_bit,encoded,significand[22:0]};
+    end
+    distance=-12'sd126-$signed({p.exponent[10],p.exponent});
+    shift_amount=distance>=26?5'd31:distance[4:0];
+    shift_stage[0]={significand,2'b00};
+    for(int s=0;s<5;s++)begin
+      shift_stage[s+1]=shift_stage[s];
+      if(shift_amount[s])begin
+        shift_stage[s+1]=shift_stage[s]>>(1<<s);
+        for(int j=0;j<=(1<<s);j++)shift_stage[s+1][0]|=shift_stage[s][j];
+      end
+    end
+    rounded=shift_stage[5][25:2]+24'(shift_stage[5][1]&&(shift_stage[5][0]||shift_stage[5][2]));
+    return {p.sign_bit,7'b0,rounded};
   endfunction
-  assign rd_valid=context_q[1].valid&&context_q[1].meta.add_old;
-  assign rd_addr=context_q[1].meta.acc_sel==ACC_OACC?
-    {1'b0,context_q[1].meta.pair_idx,context_q[1].meta.nt[3:0]}:10'(context_q[1].meta.pair_idx);
-  assign wr_addr=context_q[9].meta.acc_sel==ACC_OACC?
-    {1'b0,context_q[9].meta.pair_idx,context_q[9].meta.nt[3:0]}:10'(context_q[9].meta.pair_idx);
+  function automatic logic [9:0] address(input pair_meta_t meta);
+    return meta.acc_sel==ACC_OACC?{1'b0,meta.pair_idx,meta.nt[3:0]}:10'(meta.pair_idx);
+  endfunction
+  for(genvar r=0;r<2;r++)begin: rows
+    assign row_base[r]=$signed({3'b0,rsp.e_stream[r]})-11'(DOT_EXP_OFFSET)+$signed(rsp.meta.exp_fold);
+    for(genvar n=0;n<TILE;n++)begin: lanes
+      DEQACC_3_3ns_lane lane(.clk,.reset,.clear,.in_valid(context_q[3].valid),
+        .add_old(context_q[3].meta.add_old),.old_value(old_q[r][n]),.partial_value(operand_q[r][n]),
+        .out_valid(lane_valid[r][n]),.result_value(lane_value[r][n]));
+      if(r==0)assign wr_even[n]=lane_value[r][n];
+      else assign wr_odd[n]=lane_value[r][n];
+    end
+  end
+  assign rd_valid=rsp_valid&&rsp.meta.add_old&&!reset&&!clear;
+  assign rd_addr=address(rsp.meta);
+  assign wr_addr=address(context_q[LAST].meta);
   dea8_acc_store acc_store(
-    .clk,.reset,.clear,.rd_valid,.rd_sel(context_q[1].meta.acc_sel),.rd_addr,
-    .rd_data_valid,.rd_even_data(),.rd_odd_data(),
-    .rd_even_raw(rd_even),.rd_odd_raw(rd_odd),.rd_word_valid(word_valid),
+    .clk,.reset,.clear,.rd_valid,.rd_sel(rsp.meta.acc_sel),.rd_addr,.rd_data_valid,
+    .rd_even_data(),.rd_odd_data(),.rd_even_raw(rd_even),.rd_odd_raw(rd_odd),.rd_word_valid(word_valid),
     .result_rd_owner,.result_rd_valid,.result_rd_ready,.result_rd_sel,.result_rd_addr,
     .result_rd_data_valid,.result_even_data,.result_odd_data,.vpu_wr_valid,.vpu_wr_ready,.vpu_wr,
-    .wr_valid(context_q[9].valid),.wr_sel(context_q[9].meta.acc_sel),
-    .wr_even_valid(context_q[9].rows[0]),.wr_odd_valid(context_q[9].rows[1]),
+    .wr_valid(context_q[LAST].valid),.wr_sel(context_q[LAST].meta.acc_sel),
+    .wr_even_valid(context_q[LAST].rows[0]),.wr_odd_valid(context_q[LAST].rows[1]),
     .wr_addr,.wr_even_data(wr_even),.wr_odd_data(wr_odd),
     .dbg_valid,.dbg_sel,.dbg_parity,.dbg_addr,.dbg_lane,.dbg_data);
-  for(genvar r=0;r<2;r++)for(genvar n=0;n<16;n++) begin: lanes
-    logic signed [11:0] distance;
-    logic [31:0] shifted,mask;
-    logic guard_bit;
-    assign distance=($signed(s0[r][n].exponent)<-126)?(-$signed(s0[r][n].exponent)-12'sd118):12'sd8;
-    assign shifted=(distance>=32)?32'b0:(s0[r][n].norm>>distance[4:0]);
-    assign mask=(distance>32)?32'hffffffff:(32'hffffffff>>(12'd33-distance));
-    assign guard_bit=(distance<=32)?s0[r][n].norm[$unsigned(5'(distance-1))]:1'b0;
-    assign pack_next[r][n]={s0[r][n].sign_bit,s0[r][n].is_zero,s0[r][n].bad,
-      ($signed(s0[r][n].exponent)<-126),s0[r][n].exponent,shifted[23:0],
-      (guard_bit&&((|(s0[r][n].norm&mask))||shifted[0]))};
-    assign partial_next[r][n]=finish_pack(s1[r][n]);
-    DEQACC_3_3ns_lane lane(.clk,.reset,.clear,.in_valid(context_q[3].valid),
-      .add_old(context_q[3].meta.add_old),.old_value(s2[r][n].old_value),.partial_value(s2[r][n].partial),
-      .out_valid(lane_valid[r][n]),.result_value(lane_value[r][n]));
-    if(r==0) assign wr_even[n]=lane_value[r][n];
-    else assign wr_odd[n]=lane_value[r][n];
-  end
-  always_ff @(posedge clk) begin
+  always_ff @(posedge clk)begin
     context_q[0].meta<=rsp.meta;context_q[0].rows<=rsp.row_valid;
-    for(int i=1;i<10;i++)context_q[i]<=context_q[i-1];
-    commit_meta<=context_q[9].meta;
-    for(int r=0;r<2;r++)for(int n=0;n<16;n++)begin
-      magnitude_q[r][n]<=magnitude(rsp.psum[r][n],rsp.e_stream[r],rsp.e_stat[n],rsp.meta.exp_fold);
-      s0[r][n].norm<=magnitude_q[r][n].mag<<(5'd31-magnitude_q[r][n].lead);
-      s0[r][n].exponent<=$signed({3'b0,magnitude_q[r][n].a})+$signed({3'b0,magnitude_q[r][n].b})-11'sd266+
-        $signed(magnitude_q[r][n].fold)+$signed({6'b0,magnitude_q[r][n].lead});
-      s0[r][n].sign_bit<=magnitude_q[r][n].sign_bit;
-      s0[r][n].is_zero<=magnitude_q[r][n].is_zero;s0[r][n].bad<=magnitude_q[r][n].bad;
-      s1[r][n]<=pack_next[r][n];s2[r][n].partial<=partial_next[r][n];
-      s2[r][n].old_value<=context_q[2].meta.add_old&&word_valid[r]?(r==0?rd_even[n]:rd_odd[n]):32'b0;
+    for(int s=1;s<=LAST;s++)context_q[s]<=context_q[s-1];
+    commit_meta<=context_q[LAST].meta;
+    commit_write.sel<=context_q[LAST].meta.acc_sel;commit_write.addr<=wr_addr;
+    commit_write.row_valid<=context_q[LAST].rows;
+    commit_write.data[0]<=wr_even;commit_write.data[1]<=wr_odd;
+    for(int r=0;r<2;r++)for(int n=0;n<TILE;n++)begin
+      mag_q[r][n]<=magnitude(rsp.psum[r][n],rsp.e_stream[r],rsp.e_stat[n],row_base[r]);
+      norm_q[r][n].norm<=mag_q[r][n].mag<<(LEAD_BITS'(PSUM_BITS-1)-mag_q[r][n].lead);
+      norm_q[r][n].exponent<=mag_q[r][n].base+$signed({6'b0,mag_q[r][n].lead});
+      norm_q[r][n].sign_bit<=mag_q[r][n].sign_bit;
+      norm_q[r][n].is_zero<=mag_q[r][n].is_zero;norm_q[r][n].bad<=mag_q[r][n].bad;
+      partial_q[r][n]<=pack_partial(norm_q[r][n]);
+      operand_q[r][n]<=partial_q[r][n];
+      old_q[r][n]<=context_q[2].meta.add_old&&word_valid[r]?(r==0?rd_even[n]:rd_odd[n]):32'b0;
     end
-    if(reset||clear) begin
-      for(int i=0;i<10;i++)context_q[i].valid<=0;
-      commit_valid<=0;done<=0;commit_write_valid<=0;commit_write<='0;
+    if(reset||clear)begin
+      for(int s=0;s<=LAST;s++)context_q[s].valid<=0;
+      commit_valid<=0;done<=0;commit_write_valid<=0;
     end else begin
       context_q[0].valid<=rsp_valid;
-      commit_valid<=context_q[9].valid;done<=context_q[9].valid&&context_q[9].meta.last;
-      // Keep the entire write bundle on one register boundary.  Pair Buffer
-      // must never observe metadata from one pair with data from another.
-      commit_write_valid<=context_q[9].valid;
-      commit_write.sel<=context_q[9].meta.acc_sel;
-      commit_write.addr<=wr_addr;
-      commit_write.row_valid<=context_q[9].rows;
-      commit_write.data[0]<=wr_even;
-      commit_write.data[1]<=wr_odd;
+      commit_valid<=context_q[LAST].valid;
+      commit_write_valid<=context_q[LAST].valid;
+      done<=context_q[LAST].valid&&context_q[LAST].meta.last;
     end
   end
+  initial if(PSUM_BITS>24||DEQUANT_STAGES!=4||ACC_READ_LATENCY!=3)$fatal(1,"DEQACC configuration");
   // synthesis translate_off
-  always @(posedge clk) if(!reset&&!clear) begin
-    if(rd_data_valid!==(context_q[2].valid&&context_q[2].meta.add_old)) $fatal(1,"DEQACC ACC response context mismatch");
-    for(int r=0;r<2;r++)for(int n=0;n<16;n++)
-      if(lane_valid[r][n]!==context_q[9].valid) $fatal(1,"DEQACC lane/context latency mismatch");
-    for(int i=2;i<10;i++) if(rd_valid&&context_q[i].valid&&
-      context_q[i].meta.acc_sel==context_q[1].meta.acc_sel&&
-      context_q[i].meta.pair_idx==context_q[1].meta.pair_idx&&
-      (context_q[1].meta.acc_sel!=ACC_OACC||context_q[i].meta.nt==context_q[1].meta.nt))
+  always @(posedge clk)if(!reset&&!clear)begin
+    if(rd_data_valid!==(context_q[2].valid&&context_q[2].meta.add_old))$fatal(1,"DEQACC ACC response context mismatch");
+    for(int r=0;r<2;r++)for(int n=0;n<TILE;n++)
+      if(lane_valid[r][n]!==context_q[LAST].valid)$fatal(1,"DEQACC lane/context latency mismatch");
+    if(rd_valid)for(int s=0;s<=LAST;s++)if(context_q[s].valid&&
+      context_q[s].meta.acc_sel==rsp.meta.acc_sel&&address(context_q[s].meta)==rd_addr)
       $fatal(1,"DEQACC accumulator RAW hazard");
   end
   // synthesis translate_on

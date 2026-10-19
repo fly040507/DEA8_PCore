@@ -1,70 +1,63 @@
-# DEA8：当前八核设计与接入入口
+# DEA8 当前设计与工程入口
 
-更新：2026-10-17。固定 `M=51`，目标U50。**VPU/SFU同学直接阅读 [PCore README](Pcore/README.md)**，字段以当前RTL package为准。
+更新：2026-10-19。固定 `M=51`，目标器件 `xcu50-fsvh2104-2-e`。以当前RTL、生产清单和对应源码哈希的验证结果为准；不以旧方案或旧日志推定完成。
 
-## 1. 当前拓扑
+## 当前拓扑
 
-服务器承担pi0其余部分，FPGA目标为Action Expert的18层、10步去噪。DEA8总控理解层/步和八核屏障；PCore只执行外部七种Job，不自行循环18层/10步。
+```text
+外部DEA8总控（本阶段TB）       外部HBM适配（本阶段TB）
+          |                              |
+    dea8_layer_top                       |
+       GCore -- XBC/KVB --> 8 × 完整PCore <-+
+         ^                  Matrix + VPU/SFU + 本核控制
+         +---- 8路独立tx256 --------+
+         +---- KV commit返回 -------+
+```
 
-~~~text
-                   DEA8 control（真实RTL待接入）
-                GCore命令 / 八核Job / 阶段屏障
-                              |
-       GCore -- XBC/KVB --> PCore x8 <-- HBM适配
-         ^                    |
-         +-- 每核tx_data256 + valid/ready/last
-         |
-         +-- K/V按坐标写共享KV，返回KV commit
-         +-- O/Down内部四lane八核归约 -> Residual
-                     -> BF16写回/统计 -> 后续Norm
-~~~
+**归约在GCore内部，没有独立Reduce/Collective，也没有PCore核外发送桥。** PCore的VPU/SFU已接入真实RTL，不再由最终验收TB模拟。
 
-**旧独立reduce已废弃，不接入当前拓扑，也不在PCore外新增外发桥。** K/V是列分片落存，不做数值加法；O/Down才跨核求和。
-
-## 2. 模块分工
-
-| 模块 | 当前职责 | 尚未完成 |
+| 对象 | 正式入口 | 职责 |
 |---|---|---|
-| [PCore](Pcore/README.md) | 七Job、共享Matrix、双行MXU、11级DEQACC、Q/O/Z生命周期、VPU/SFU调度、内部外发 | 真实VPU/SFU算术接入 |
-| [GCore](Gcore/README.md) | RESID/XHAT/KV、XBC/KVB、四lane归约/Residual、在线gamma Norm、单路真实rsqrt | prefix加载、步间算子、真实八核整层 |
-| [control](control/README.md) | DEA8全局命令、层/步与八核同步 | 真实RTL待接入，目前TB发令 |
-| [HBM](HBM/README.md) | 地址、权重布局、原始HBM到PCore入口适配 | 目前TB供给已打包数据 |
-| [reduce](reduce/README.md) | 历史独立实现 | **废弃，不作为连接目标** |
+| PCore | [Pcore/README.md](Pcore/README.md)、`Pcore/rtl/dea8_pcore_top.sv` | 七种Job、矩阵与本地后处理、Mask/RoPE、RAM及外发 |
+| 八核阵列 | `control/rtl/dea8_pcore_cluster.sv` | 8份完整PCore，独立本核控制、组级取消/排空 |
+| 层级互连 | `control/rtl/dea8_layer_top.sv` | GCore/八核、XBC/KVB、tx256、commit/prefetch接线 |
+| GCore | [Gcore/README.md](Gcore/README.md)、`Gcore/rtl/dea8_gcore.sv` | KV、供数、四lane归约/残差、统计、Norm/量化、末层输出 |
+| DEA8全局策略 | 本阶段TB | 层/步、七阶段发布、全局屏障、HBM与取消源流 |
+| HBM适配 | [HBM/README.md](HBM/README.md) | 真实物理控制器/DMA尚未接入；TB供给接口数据 |
 
-矩阵顺序为 `K -> V -> Q -> Attention -> O -> G-U -> Down`。非矩阵由Tile提交、数据所有权、单元done触发，可与矩阵重叠，不是整层矩阵结束后统一执行。
+## 当前算术与存储
 
-## 3. VPU/SFU如何接入
+- 每核共享一套Matrix，Projection、Attention、G-U是三种调度策略，不是三套MXU。
+- MXU：16×16 PE、权重驻留、双行INT8广播、256 DSP、精确INT20加法树、7级流水。
+- DEQACC：`4 + 11 + 1 = 16`级，包含官方FP32 ADD。
+- FP32 ADD/SUB：Full_Usage、11拍、2DSP；MUL：Full_Usage、8拍、2DSP。EXP21、RECIP29、RSQRT32；特殊函数资源单列。
+- VPU32 lane；SFU四路exp、两条交错GELU链、一个共享倒数核。
+- payload优先同步BRAM/URAM，不整片复位；小型valid/tag/owner用寄存器。
+- Mask按已核实的官方pi0，非pi0.5；RoPE配置绑定有效prefix位置和系数版本。
 
-1. 以 `Pcore/rtl/dea8_pcore_control.sv` 为顶层，不绕到Matrix或旧dea8_pcore_ctrl直接拼接。
-2. 按pcore_control_pkg接两套独立command/data/done，以及ACC、workspace、RoPE系数接口。
-3. `Pcore/tb/tb_pcore_control.sv` 的VPU/SFU并行服务是可执行示例；替换服务，不替换真实Matrix/QOZ/workspace。
-4. 两单元各一条命令在途，彼此和Matrix可以并行；token、mask、last、写入可见、done及flush都要遵守。
+具体预算和浅宽RAM风险见 [FP资源映射](FP_Resource_Mapping.md)，不是当前综合实测。
 
-具体触发、数据和权限见[PCore对接说明](Pcore/README.md)。**DEQACC仍为11级，本轮不做流水缩短。**
+## 验证状态
 
-## 4. 相对旧GitHub
-
-比较基线：本次推送前远端 `main=e12af5b`，已经逐文件核对，而不是依据旧README日期推断。
-
-- PCore旧KV header/136-bit流与O/Down header/512-bit流，合并为一组256-bit带内header包
-- 增加协议版本、payload长度、dtype、scale轴；K/V保留commit，O/Down不增加逐核反向commit
-- GCore从占位升级为主体RTL，接收包并承担归约、Residual、Norm、KV与供数
-- **未改**PCore的control_job/control_command、VPU/SFU端口、Matrix/MXU/11级DEQACC、Attention/G-U核心调度
-- 旧独立Reduce报告不作为当前归约证据；精确PCore文件清单见[差异说明](Pcore/README.md#1-相对旧github的变化)
-
-## 5. 证据与限制
-
-| 证据 | 已确认 | 不代表 |
+| 项目 | 已确认 | 不能据此宣称 |
 |---|---|---|
-| [PCore七Job摘要](Pcore/reports/packet_7job_summary.txt)、[日志](Pcore/reports/packet_7job_baseline.log) | 新输出、265408矩阵issues、110个Attention子任务、真实Q/O/Z链 | 真实VPU/SFU、HBM或八核整层 |
-| [GCore 23场景](Gcore/reports/summary.txt) | 第1/9/18层宏观链路、内部真实rsqrt、归约/Residual、Norm、KV；含真实PCore外发单元到GCore RX测试 | 完整18层循环、实例化八个完整PCore；DEA8总控/HBM和外部PCore运算仍由TB模型 |
-| [GCore OOC](Gcore/reports/gcore_synth_summary.txt) | 109 DSP、48229 LUT、17502 FF、152.5 BRAM36、4 URAM，无黑盒 | 4ns布局布线或全芯片资源签核 |
+| 真实单核七Job | 279571拍、265408 issue、94.93%；55QK/55PV，6299量化+157743FP检查 | 板级250MHz、八核单层或十步去噪 |
+| GCore官方IP定向测试 | 冷Norm、正式RESID import、FP算术；服务基线及四种压力/异常场景 | 真实八核PCore联合通过 |
+| 真实八核代表层TB | 已编写并纳入编译；第1/9/18层及压力/恢复待服务器执行 | 展开/仿真已经通过 |
+| 当前官方IP面积 | 待服务器分别综合GCore和一个完整PCore | 历史109DSP报告等于新版本资源 |
 
-旧25项PCore控制签核是历史证据，新接口以新七Job验收为准。冷Norm9936拍、热Norm6636拍、FP Tile最长314拍来自特定GCore TB，不是全层延迟。
+[七Job图](reports/seven_job_native/seven_job_native.png)、[指标/哈希](reports/seven_job_native/metrics.json)、原始证据 `Pcore/reports/compute/`。Attention仍有约16拍命令槽尾部等待，未宣称非矩阵完全隐藏。
 
-## 6. 运行与依赖
+## 本阶段服务器顺序
 
-- Vivado 2022.2；PCore需glbl/unisims_ver；[运行步骤](Pcore/README.md#10-运行与验收)
-- GCore另需xpm、floating_point_v7_1_15、Python/NumPy；脚本首次生成冻结配置的rsqrt IP，[运行步骤](Gcore/README.md#仿真与证据)
-- 使用pcore_all.f及gcore_rtl.f/gcore.f，不递归编译所有历史模块
-- 尚无真实DEA8总控、HBM、八核完整单层验收；先替换单核TB算术服务，保留数值/背压/取消检查
+1. 完成单核和八核第1/9/18层、压力及取消/恢复仿真。
+2. 仿真准入通过后，分别综合官方IP的GCore与单个完整PCore，只看资源。
+3. 根据单模块结果评估 `GCore + 8×PCore`，再由用户决定是否做八核综合。
+
+**本阶段不做八核综合，不做布局布线，不做频率签核。** 命令、验收和交回材料见 [Server_Verification.md](Server_Verification.md)。
+
+## 阅读与历史边界
+
+先读本文，再读 [交接说明](HANDOFF.md)、局部README和 [单层流程](Pcore/docs/DEA8_整体架构与单层流程说明.md)。正式清单是 `Pcore/pcore_rtl.f`、`Gcore/gcore_rtl.f`；不要递归编译历史目录。
+
+`reduce/`、`Pcore/legacy/`和旧叶级工具仅供历史对照，不进入当前生产拓扑。2026-10-19已清理废弃仿真产物；GCore唯一的旧综合报告和 `Gcore/.sim/gcore_synth.dcp`保留，但不代表当前官方IP源码。新综合输出另放 `reports/resource_synth/`。

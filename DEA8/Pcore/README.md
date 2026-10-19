@@ -1,52 +1,40 @@
 # DEA8 PCore：当前设计与VPU/SFU接入
 
-更新：2026-10-17。固定 `M=51`、双行INT8、目标U50。**接入顶层是dea8_pcore_control；VPU/SFU算术由外部负责人实现。DEQACC仍保留11级，本次不改。**
+## 2026-10-19 当前入口
 
-新256-bit输出下七Job功能链通过；Matrix、DSP、QOZ、workspace、外发是真实RTL，VPU/SFU/HBM及GCore响应由TB模拟。当前归约在GCore内部，独立Reduce已废弃。
+固定 `M=51`、双行 INT8、目标 U50。**完整顶层是 `rtl/dea8_pcore_top.sv`，真实 VPU/SFU 已在内部实例化。** `dea8_pcore_control` 是内部调度层，不再把内部非矩阵服务交给最终 TB。
 
-## 1. 相对旧GitHub的变化
+- 正式清单：`pcore_rtl.f`；生产单位源码：`units/vpu`、`units/sfu`，来源记录见 `units`
+- MXU精确INT20；DEQACC **16级**，含11拍官方ADD；旧11级不再是当前配置
+- ADD/SUB官方Full_Usage、11拍、2DSP；MUL官方Full_Usage、**8拍、2DSP**；EXP21、RECIP29
+- VPU32 lane；SFU exp4、两条交错GELU链、一个共享倒数IP；资源最终以服务器综合为准
+- Mask按官方pi0（非pi0.5）：state不看action，action间双向可见；不是三角action Mask
+- RoPE前后128配对，position来自有效prefix数。ROM的position_base/rope_version必须与配置一致
+- 活动payload放BRAM/URAM；RAM不整片复位；valid/tag与官方IP延迟、CE一起推进
+- 本地验收：`python run_compute.py test --top tb_pcore_seven_native`，DUT内部无TB算术/结果注入
+- 八核入口和生成步骤见 [服务器说明](../Server_Verification.md)
 
-比较基线为本次推送前远端 `main=e12af5b`。
+当前2DSP/8拍MUL完整七Job已PASS：279571总拍、265408 issue、94.93%；55QK/55PV，6299量化+157743FP检查。图片与CSV见 `../reports/seven_job_native`，原始PASS/hash在 `reports/compute`。RoPE在途取消→无旧代写回→重配后完整K也已通过。八核完整联合层仍待服务器，当前没有综合/4ns签核。
 
-| 项目 | 旧GitHub | 当前上传 |
-|---|---|---|
-| 外发端口 | KV独立header+136-bit流；O/Down独立header+512-bit流 | **统一tx_valid/ready/data[255:0]/last**，带内header |
-| 外发实现 | PCore内部sender与FP32 holding | 保留；增加header编码、FP32低/高半发送，不在核外加桥 |
-| 归约 | 独立Reduce，GCore为占位 | 八核包链路直连GCore，内部归约/Residual |
-| 包信息 | tile_header_t.reserved为零 | 编码版本、长度、dtype、scale轴；使用encode_packet_header，不能全清零 |
-| 输出计数 | 旧载荷握手 | kv_word_sent/fp_row_sent，FP32两半送完才计一行 |
-| TB | 旧流接收器 | 新tb_packet_decode，迁移控制/七JobTB，另加真实外发到GCore RX联调 |
-| **VPU/SFU接口** | command/data/result/done、ACC、workspace、RoPE | **未改类型及顶层端口** |
-| **计算核心** | 双行MXU、11级DEQACC、三种策略、QOZ | **未替换**；Matrix/MXU/DEQACC/Attention/G-U算法RTL未改 |
+## 1. 顶层与共享计算
 
-PCore变更文件：`rtl/dea8_pcore_control.sv`、`rtl/dea8_pcore_output.sv`、`rtl/dea8_tile_link_pkg.sv`、`pcore_all.f`、两份控制TB及新增 `tb/tb_packet_decode.sv`。pcore_pkg、pcore_control_pkg、核心计算文件与上述基线相同。
+完整PCore在内部实例化control、VPU和SFU。外部只提供DEA8命令/配置、XBC、HBM/KVB供数、commit与下游接收；内部单元接口不是最终TB边界。旧 `tb_pcore_control`服务模型只用于兼容控制测试。
 
-**VPU/SFU不需要改成256-bit算术接口**，256-bit变化只在PCore外发边界。旧文档的独立输出、单请求RoPE和串行服务模型不能当当前合同。
+## 2. 当前数据路径
 
-## 2. 数据流与边界
+```text
+DEA8 job -> dea8_pcore_top（context / Mask / 错误 / flush）
+                -> dea8_pcore_control
+                     exec -> 三种adapter -> 一个共享Matrix
+XBC / QOZ / PBUF -> 双行MXU -> 16级DEQACC -> FACC-A/B、OACC
+                     Post / workspace <-> 内部真实VPU、SFU
+                     量化Q/O/Z -> 共享QOZ
+                     内部output -> tx256 -> GCore
+```
 
-~~~text
-DEA8 job -> dea8_pcore_control
-                |
-                +-> exec -> Projection / Attention / G-U adapter
-                |                       |
-XBC / QOZ / PBUF ------------> 一个共享dea8_matrix <-- HBM / KVB
-                                 16x16双行MXU，驻留B
-                                         |
-                                  11级DEQACC
-                                         |
-                                 FACC-A/B、OACC
-                                         |
-                +-> Post / workspace <-> 外部VPU、SFU
-                |       +-> 量化Q/O/Z -> 共享QOZ
-                +-> 内部output -> tx256 -> GCore
-~~~
+MXU为7级，树输出INT20，scale/tag不进入PE。DEQACC为D0..D15，`DEQACC_PIPE_STAGES=4+11+1`；Matrix done等待最终写回，不是最后一次issue。三种策略只共享一套物理Matrix。
 
-- 每PE一个DSP算两行INT8乘积，共256PE；一次矩阵发射对应两行x16个输出
-- MXU为7级，含双行解包/修正；scale/tag不进入PE，随Psum对齐
-- `DEQACC_PIPE_STAGES=11`，实例是DEQACC_3_3ns，D0..D10；Matrix done等最终写回，不是最后一次发射
-- 三类矩阵策略共享一套硬件；文件名_v4是历史内部名，不表示本次另立V4设计
-- PCore不承担整hidden RMSNorm、Residual、跨核归约、KV全局管理或十步/十八层循环
+PCore不承担全hidden RMSNorm/Residual、跨核归约、KV全局管理或层/步循环；这些由GCore及外部DEA8总控负责。文件名中的_v4等是历史内部名，不表示另立工程版本。
 
 ## 3. 外部七Job
 
@@ -68,9 +56,9 @@ QOZ是一份32 Tile物理区：Q -> Attention释放Q、写O -> O释放O -> G-U�
 
 hbm_entry和kv_entry均为288-bit b2_t：两个INT8列向量、scale及坐标。**不是原始HBM AXI beat**；原始8+1beat权重/scale存储布局由外部适配器拆包，不能直接接此口。XBC为563-bit xbc4_t，一次四行，尾group的row_valid=0111。
 
-## 4. VPU/SFU接线表
+## 4. 内部VPU/SFU接线表
 
-方向以PCore为参考。使用package类型，跨语言边界用 `$bits(type)` 生成宽度，不手抄字段顺序。
+方向以内部control/存储边界为参考；这些端口已连接真实单元，不再暴露给最终验收TB。使用package类型，跨语言边界用 `$bits(type)` 生成宽度，不手抄字段顺序。
 
 | 端口组 | 方向与类型 | 用途 |
 |---|---|---|
@@ -111,7 +99,7 @@ elements为有效标量数：RoPE=1632；V_QUANT/GU_POST/QK_POST/P_POST/GELU/P_E
 
 RoPE系数走独立请求服务，当前不另发FUNCTION_ROPE_COEFF命令。SFU可用ROM/缓存，不要求实时三角函数；VPU负责RoPE乘加。K配对由rope_pair_base指定，Q内部Tile顺序0,8,1,9,...,7,15。
 
-G-U基础实现保留51行接口、最多一行GELU在途：PCore保存当前Up，Gate交SFU，GELU返回后配对给VPU。不复制整块G/U到各单元，也不能把51行输入直接改成26对而不适配。
+G-U保留51行接口，当前由 `dea8_gu_post_window` 提供4项行信用窗口，按行身份保持Gate/Up、GELU返回及VPU输入配对。不再是旧的一行GELU等待模型，也不复制整块G/U到各单元；窗口深度由 `GU_CREDITS` 配置。
 
 ## 6. 数据含义、精度与尾部
 
@@ -124,7 +112,7 @@ G-U基础实现保留51行接口、最多一行GELU在途：PCore保存当前Up�
 | P_EXP function_result | 偶数行P[16] | 奇数行P[16] | 26对，末对01 |
 | vector_result | 两个qvec16 | 每个含data128+scale8 | feature轴两行，token轴两feature |
 
-矩阵输入/量化输出为MXINT8-B16，Psum INT32；DEQACC、RoPE/GELU接口、Score/P、统计、OACC、GU乘法均FP32。8bit scale是块指数，不是任意FP32比例，沿用RNE/饱和/scale规则。
+矩阵输入/量化输出为MXINT8-B16，Psum INT20（16个INT8乘积的精确和）；DEQACC、RoPE/GELU接口、Score/P、统计、OACC、GU乘法均FP32。8bit scale是块指数，不是任意FP32比例，沿用RNE/饱和/scale规则。
 
 feature-B16结果每Tile index=0..25，末对row50有效、vector_valid=01；last表示当前Tile最后一对。RoPE先返回第一个canonical Tile的26对，再返回第二个：Q为j/j+8，K为本地0/1。
 
@@ -167,7 +155,7 @@ PV54最终提交 -> SFU RECIP -> VPU AFIN_QUANT -> QOZ_O完整
 - workspace Score的index为行、整16列，写mask=ffff；统计index为首行，一次最多连续16行，尾mask只选合法行
 - Score/alpha bank等于当前命令tile奇偶；m/aa/l/recip bank=0；越权或重复写会报错
 - QK的1/sqrt(256)=1/16已由exp_fold=-4折入，VPU不要再缩放一次
-- 全mask行按TB合同处理：避免-inf-(-inf)，P/l/O为零，l=0时RECIP返回零
+- 全mask行按实际RTL边界处理：避免-inf-(-inf)，P/l/O为零，l=0时RECIP返回零
 
 ## 8. 握手、完成和取消
 
@@ -196,39 +184,30 @@ KV保留反向kv_commit，须实际落RAM后回显身份。O/Down不增加逐核
 
 ## 10. 运行与验收
 
-Vivado固定2022.2；先加载官方环境。数值TB使用O0规避已记录的XSim O2内部断言，不删除检查。以下从本目录执行：
+从Pcore目录运行，Vivado2022.2：
 
-~~~powershell
-cmd /d /c 'call "D:\Xilinx\Vivado\2022.2\settings64.bat" && call "D:\Xilinx\Vivado\2022.2\bin\xvlog.bat" -sv -f pcore_all.f "D:\Xilinx\Vivado\2022.2\data\verilog\src\glbl.v"'
-cmd /d /c 'call "D:\Xilinx\Vivado\2022.2\settings64.bat" && call "D:\Xilinx\Vivado\2022.2\bin\xelab.bat" tb_pcore_control glbl -s pcore_7job --O0 --debug typical --mt off -timescale 1ns/1ps -L unisims_ver'
-cmd /d /c 'call "D:\Xilinx\Vivado\2022.2\settings64.bat" && call "D:\Xilinx\Vivado\2022.2\bin\xsim.bat" pcore_7job -runall -log reports/pcore_7job.log'
-~~~
+```text
+python tools/prepare_compute_vectors.py --position 816
+python tools/prepare_seven_job.py
+python run_compute.py ip
+python run_compute.py test --top tb_pcore_seven_native
+```
 
-每步先检查退出码及Fatal/Error再执行下一步；最终要求tb_pcore_control PASS。默认FUNCTIONAL；PERFORMANCE/STRESS通过XSim options文件传入 `-testplusarg MODE=PERFORMANCE` 等，避免Windows等号拆参。TB的VPU32/SFU4是吞吐模型，不强制单元内部相同lane，接入后应测真实延迟。
+默认展开O3、mt off；只有已记录的工具问题才尝试 `--opt 0`，不能删检查或替换真实IP。显式PASS、数值/计数满足且前后输入哈希一致才通过，退出码0不够。完整日志/manifest在 `reports/compute/`；图表生成器不接受旧源码或不完整PASS。
 
-现有[七Job摘要](reports/packet_7job_summary.txt)、[数值日志](reports/packet_7job_baseline.log)、[源码哈希](reports/packet_7job_sources_sha256.csv)对应新包接口：
+当前完整七Job：279571拍、265408 issues、55QK/55PV、6299量化+157743FP检查。DUT内部无TB算术，TB只模拟单核外部数据、命令与接收。八核联合第1/9/18层及压力/恢复仍待服务器执行。
 
-| Job | FUNCTIONAL总周期 | Matrix issues |
-|---|---:|---:|
-| K | 3791 | 3328 |
-| V | 3659 | 3328 |
-| Q | 27143 | 26624 |
-| Attention | 49257 | 45760 |
-| O | 28318 | 26624 |
-| G-U | 107448 | 106496 |
-| Down | 54942 | 53248 |
+服务器先完成仿真，再综合一个完整PCore及GCore测资源，不综合八核、不布局布线。入口为DEA8目录的 `run_dea8.py synth --target pcore --server-heavy`；先看新资源结果，再决定八核综合。见 [服务器说明](../Server_Verification.md)。
 
-共265408 issues、110 Attention子任务。含人工背压和TB算术，不是全系统PERFORMANCE。旧25项控制签核不能代替新接口重跑。GCore[十五场景](../Gcore/README.md#仿真与证据)含真实外发/RX联调，但没有八个完整PCore。
+## 11. 文件入口与历史工具
 
-建议依次替换RoPE/V量化、GELU/GU_POST、Attention命令链，保留golden、尾mask、背压和取消检查，再测隐藏窗口；不要用ready/done常高冒充单元实现。
+- 完整顶层：`rtl/dea8_pcore_top.sv`；内部控制：`rtl/dea8_pcore_control.sv`。
+- 命令与类型：`rtl/pcore_control_pkg.sv`、`rtl/pcore_pkg.sv`。
+- 单元：`units/vpu`、`units/sfu`；来源记录：[SOURCE.md](units/SOURCE.md)。
+- Post/G-U窗口/共享统计：`dea8_pcore_post`、`dea8_gu_post_window`、`dea8_pcore_workspace`。
+- Attention：`dea8_attention_scheduler_v4`、`dea8_attention_job_adapter`。
+- 外发与协议：`dea8_pcore_output`、`dea8_tile_link_pkg`。
+- 生产RTL清单：`pcore_rtl.f`；单核验收：`tb/compute/tb_pcore_seven_native.sv`。
+- 共享侧：[GCore](../Gcore/README.md)，八核/层级互连：[control](../control/README.md)。
 
-## 11. 文件入口与旧文档
-
-- 顶层：`rtl/dea8_pcore_control.sv`；类型：`rtl/pcore_control_pkg.sv`、`rtl/pcore_pkg.sv`
-- Post/共享统计：`rtl/dea8_pcore_post.sv`、`rtl/dea8_pcore_workspace.sv`
-- Attention依赖：`rtl/dea8_attention_scheduler_v4.sv`、`rtl/dea8_attention_job_adapter.sv`
-- 外发协议：`rtl/dea8_pcore_output.sv`、`rtl/dea8_tile_link_pkg.sv`
-- 可执行并行服务示例：`tb/tb_pcore_control.sv`；包接收示例：`tb/tb_packet_decode.sv`
-- 编译入口：`pcore_all.f`；共享侧：[GCore](../Gcore/README.md)
-
-旧专项文档的52/64个“包”、独立Reduce端口、单请求RoPE或273292拍Attention是历史口径，不用于本次接线。资源方案不等于已实施；当前RTL、对应hash和验证摘要是依据。
+`pcore_all.f`、`run_control*`、旧DEQACC时序/裸基核综合脚本保留历史和兼容用途，不是完整官方IP PCore的验收或面积入口。旧TB模拟版周期/接口说明已撤下，不能以旧11级DEQACC、独立Reduce、单行GELU信用或外部VPU/SFU服务模型接入当前工程。

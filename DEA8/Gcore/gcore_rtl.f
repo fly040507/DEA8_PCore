@@ -1,6 +1,10 @@
+../Pcore/rtl/pcore_ip_config_pkg.sv
+../Pcore/rtl/dea8_compute_config_pkg.sv
 ../Pcore/rtl/pcore_pkg.sv
 ../Pcore/rtl/dea8_tile_link_pkg.sv
 ../Pcore/rtl/dea8_fp32_pkg.sv
+../Pcore/rtl/dea8_sdp_ram.sv
+../Pcore/rtl/dea8_ram_fifo.sv
 rtl/gcore_pkg.sv
 rtl/gcore_fp_pkg.sv
 rtl/dea8_gcore_fifo.sv
@@ -28,3 +32,5 @@ rtl/dea8_gcore_kv_receive.sv
 rtl/dea8_gcore_kvb.sv
 rtl/dea8_gcore_services.sv
 rtl/dea8_gcore.sv
+../Pcore/ip/generated/dea8_fpadd_ip/sim/dea8_fpadd_ip.v
+../Pcore/ip/generated/dea8_fpmul_ip/sim/dea8_fpmul_ip.v

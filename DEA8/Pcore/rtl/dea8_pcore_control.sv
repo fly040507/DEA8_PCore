@@ -77,9 +77,9 @@ module dea8_pcore_control #(
   logic [5:0] rd_tile_q;
   logic raw_valid,raw_ready,raw_request,read_pending_q,response_q;
   logic [TILE-1:0][FP_BITS-1:0] raw_even,raw_odd;
-  logic [2:0] read_pending_count_q,response_count_q;
-  logic [1:0] response_rd_q,response_wr_q;
-  logic [ROW_LANES*TILE*FP_BITS-1:0] response_mem[0:3];
+  localparam int ACC_CREDITS=8;
+  logic [$clog2(ACC_CREDITS+1)-1:0] read_pending_count_q,response_count_q;
+  logic response_in_ready;
   logic read_credit,read_fire,response_fire;
   logic fault_event;
   logic acc_read_legal,acc_write_legal,raw_write_ready,raw_xbc_ready,raw_hbm_ready,raw_kv_ready,source_enable;
@@ -93,6 +93,18 @@ module dea8_pcore_control #(
   logic rope_pending_q,rope_legal,rope_response_match,rope_credit,rope_req_fire,rope_rsp_fire;
   logic [3:0] rope_count_q;
   logic [2:0] rope_rd_q,rope_wr_q;
+  vector_ram_port_t post_ram_a,post_ram_b,work_ram_a,work_ram_b,gu_ram_a,gu_ram_b;
+  vector_ram_port_t shared_ram_a,shared_ram_b;
+  logic [TILE-1:0][FP_BITS-1:0] shared_a_data,shared_b_data;
+  always_comb begin
+    shared_ram_a=post_ram_a;shared_ram_b=post_ram_b;
+    case(active_adapter)
+      1:begin shared_ram_a=work_ram_a;shared_ram_b=work_ram_b;end
+      2:begin shared_ram_a=gu_ram_a;shared_ram_b=gu_ram_b;end
+      default:;
+    endcase
+  end
+  dea8_vector_ram vector_store(.clk,.a(shared_ram_a),.b(shared_ram_b),.a_data(shared_a_data),.b_data(shared_b_data));
   control_rope_req_t rope_requests[0:ROPE_OUTSTANDING-1];
   function automatic int v_write_slot(input control_buffer_e id);
     case(id) WORK_SCORE:return 0;WORK_M:return 1;WORK_AA:return 2;default:return 3;endcase
@@ -259,7 +271,8 @@ module dea8_pcore_control #(
   assign post_done_valid=is_reduce?rd_done_q:svc_done_valid;assign post_done=is_reduce?rd_command_q:svc_done;
   assign svc_done_ready=post_done_ready&&!is_reduce&&!fault_q;
   assign data_ready=!fault_q&&(is_reduce?(rr&&rd_armed_q&&rd_legal):svc_data_ready);
-  dea8_pcore_post post_service(.clk,.reset,.clear(clear||ejv),.job(job_q),
+  dea8_pcore_post #(.EXTERNAL_VECTOR(1)) post_service(.clk,.reset,.clear(clear||ejv),.job(job_q),
+    .ram_a(post_ram_a),.ram_b(post_ram_b),.ram_a_data(shared_a_data),.ram_b_data(shared_b_data),
     .in_cmd_valid(post_valid&&!is_reduce&&!fault_q),.in_cmd_ready(svc_ready),.in_cmd(post_job),
     .in_valid(data_valid&&!is_reduce&&!fault_q),.in_ready(svc_data_ready),.in_data(data),
     .done_valid(svc_done_valid),.done_ready(svc_done_ready),.done(svc_done),
@@ -285,7 +298,7 @@ module dea8_pcore_control #(
   assign read_pending_q=read_pending_count_q!=0;
   assign response_q=response_count_q!=0;
   assign response_fire=response_q&&acc_data_ready;
-  assign read_credit=read_pending_count_q+response_count_q<4||response_fire;
+  assign read_credit=read_pending_count_q+response_count_q<ACC_CREDITS||response_fire;
   assign raw_request=acc_rd_valid&&acc_read_legal&&read_credit&&!fault_q;
   assign acc_rd_ready=raw_ready&&acc_read_legal&&read_credit&&!fault_q;
   assign read_fire=raw_request&&raw_ready;
@@ -300,7 +313,9 @@ module dea8_pcore_control #(
       matrix_acc_write.addr=10'((acc_wr.addr%PAIRS)*QOZ_O_TILES+acc_wr.addr/PAIRS);
   end
   assign acc_data_valid=response_q;
-  assign {acc_odd,acc_even}=response_mem[response_rd_q];
+  dea8_ram_fifo #(.WIDTH(ROW_LANES*TILE*FP_BITS),.DEPTH(ACC_CREDITS)) acc_responses(
+    .clk,.reset,.clear,.in_valid(raw_valid),.in_ready(response_in_ready),.in_data({raw_odd,raw_even}),
+    .out_valid(),.out_ready(acc_data_ready),.out_data({acc_odd,acc_even}),.count(response_count_q));
   always_comb begin
     vm_legal=0;fm_legal=0;
     case(vheld_q.function_id)
@@ -334,7 +349,8 @@ module dea8_pcore_control #(
   end
   assign vector_mem_ready=vm_ready&&vm_legal&&!fault_q&&!flush_q;
   assign function_mem_ready=fm_ready&&fm_legal&&!fault_q&&!flush_q;
-  dea8_pcore_workspace workspace(.clk,.reset,.clear(clear||ejv),
+  dea8_pcore_workspace #(.EXTERNAL_VECTOR(1)) workspace(.clk,.reset,.clear(clear||ejv),
+    .ram_a(work_ram_a),.ram_b(work_ram_b),.ram_a_data(shared_a_data),.ram_b_data(shared_b_data),
     .v_valid(vector_mem_valid&&vm_legal&&!fault_q&&!flush_q),.v_ready(vm_ready),.v_req(vector_mem_req),
     .v_out_valid(vector_mem_out_valid),.v_out_ready(vector_mem_out_ready),.v_out(vector_mem_out),
     .f_valid(function_mem_valid&&fm_legal&&!fault_q&&!flush_q),.f_ready(fm_ready),.f_req(function_mem_req),
@@ -345,7 +361,8 @@ module dea8_pcore_control #(
   assign kv_ready=source_enable&&raw_kv_ready;
   assign ext_qoz_region_ready=raw_ext_region_ready&&!active_q&&!fault_q&&!flush_q;
   assign ext_qoz_wr_ready=raw_ext_write_ready&&!active_q&&!fault_q&&!flush_q;
-  dea8_pcore_exec #(.PAIRED_Q_POST(1),.COMPLETE_O_OUTPUT(1)) exec(.clk,.reset,.clear,.external_error(fault_q||se),
+  dea8_pcore_exec #(.PAIRED_Q_POST(1),.COMPLETE_O_OUTPUT(1),.EXTERNAL_VECTOR(1)) exec(.clk,.reset,.clear,.external_error(fault_q||se),
+    .ram_a(gu_ram_a),.ram_b(gu_ram_b),.ram_a_data(shared_a_data),.ram_b_data(shared_b_data),
     .job_valid(ejv),.job_ready(ejr),.job(engine_job),.job_done_valid(edv),.job_done_ready(edr),.job_done(engine_done),
     .busy(eb),.protocol_error(ee),.active_adapter,
     .xbc_valid(xbc_valid&&source_enable),.xbc_ready(raw_xbc_ready),.xbc_entry,
@@ -378,7 +395,7 @@ module dea8_pcore_control #(
       vseq_q<=0;fseq_q<=0;vb_q<=0;fb_q<=0;vheld_q<='0;fheld_q<='0;vcount_q<=0;fcount_q<=0;
       kv_sent_q<=0;reduce_sent_q<=0;afin_tile_q<=0;afin_pair_q<=0;
       rd_armed_q<=0;rd_done_q<=0;rd_pair_q<=0;rd_tile_q<=0;rd_command_q<='0;
-      read_pending_count_q<=0;response_count_q<=0;response_rd_q<=0;response_wr_q<=0;
+      read_pending_count_q<=0;
       acc_written_q<=0;
       rope_count_q<=0;rope_rd_q<=0;rope_wr_q<=0;
       for(int i=0;i<4;i++)v_written_q[i]<=0;
@@ -387,7 +404,7 @@ module dea8_pcore_control #(
       if(!clear_q)generation_q<=generation_q+1'b1;
       clear_q<=1;flush_q<=1;flush_acks_q<=0;active_q<=0;complete_q<=0;fault_q<=0;
       vb_q<=0;fb_q<=0;rd_armed_q<=0;rd_done_q<=0;
-      read_pending_count_q<=0;response_count_q<=0;response_rd_q<=0;response_wr_q<=0;region_context_q<=0;
+      read_pending_count_q<=0;region_context_q<=0;
       acc_written_q<=0;
       rope_count_q<=0;rope_rd_q<=0;rope_wr_q<=0;
       for(int i=0;i<4;i++)v_written_q[i]<=0;
@@ -455,13 +472,6 @@ module dea8_pcore_control #(
         2'b01:read_pending_count_q<=read_pending_count_q-1'b1;
         default:;
       endcase
-      case({raw_valid,response_fire})
-        2'b10:response_count_q<=response_count_q+1'b1;
-        2'b01:response_count_q<=response_count_q-1'b1;
-        default:;
-      endcase
-      if(raw_valid)begin response_mem[response_wr_q]<={raw_odd,raw_even};response_wr_q<=response_wr_q+1'b1;end
-      if(response_fire)response_rd_q<=response_rd_q+1'b1;
       if(edv&&edr)begin
         active_q<=0;complete_q<=1;
         if((is_reduce&&reduce_sent_q!=output_tiles(job_q.header.op)*ROWS)||
@@ -477,4 +487,10 @@ module dea8_pcore_control #(
       end
     end
   end
+  // synthesis translate_off
+  always @(posedge clk)if(!reset&&!clear)begin
+    if(raw_valid&&!response_in_ready)$fatal(1,"PCore ACC response overflow");
+    if(read_pending_count_q+response_count_q>ACC_CREDITS)$fatal(1,"PCore ACC total credit overflow");
+  end
+  // synthesis translate_on
 endmodule

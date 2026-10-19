@@ -14,10 +14,10 @@ module dea8_mxu_2row (
   logic [1:0][7:0] stream_q[0:STAGES-1]; logic [TILE-1:0][7:0] stat_q[0:STAGES-1];
   pair_meta_t meta_q[0:STAGES-1];
   logic signed [PSUM_BITS-1:0] psum_reg[0:1][0:TILE-1];
-  wire signed [15:0] product[0:1][0:TILE-1][0:TILE-1];
-  logic signed [16:0] l1[0:1][0:TILE-1][0:7];
-  logic signed [17:0] l2[0:1][0:TILE-1][0:3];
-  logic signed [18:0] l3[0:1][0:TILE-1][0:1];
+  wire signed [PRODUCT_BITS-1:0] product[0:1][0:TILE-1][0:TILE-1];
+  (* use_dsp="no" *) logic signed [PRODUCT_BITS:0] l1[0:1][0:TILE-1][0:TILE/2-1];
+  (* use_dsp="no" *) logic signed [PRODUCT_BITS+1:0] l2[0:1][0:TILE-1][0:TILE/4-1];
+  (* use_dsp="no" *) logic signed [PRODUCT_BITS+2:0] l3[0:1][0:TILE-1][0:TILE/8-1];
   for(genvar k=0;k<TILE;k++) for(genvar n=0;n<TILE;n++) begin: g_pe
     dea8_pe_2row pe(.clk,.reset,.clear,.mul_en(valid_q[0]),.active_bank(bank_q),
       .load_we(load_valid&&load_column==n),.load_bank,
@@ -49,9 +49,9 @@ module dea8_mxu_2row (
         if(valid_q[s-1]) begin mask_q[s]<=mask_q[s-1];stream_q[s]<=stream_q[s-1];stat_q[s]<=stat_q[s-1];meta_q[s]<=meta_q[s-1];end
       end
       for(int r=0;r<2;r++) for(int n=0;n<TILE;n++) begin
-        if(valid_q[2]) for(int k=0;k<8;k++) l1[r][n][k]<=$signed({product[r][2*k][n][15],product[r][2*k][n]})+$signed({product[r][2*k+1][n][15],product[r][2*k+1][n]});
-        if(valid_q[3]) for(int k=0;k<4;k++) l2[r][n][k]<=$signed({l1[r][n][2*k][16],l1[r][n][2*k]})+$signed({l1[r][n][2*k+1][16],l1[r][n][2*k+1]});
-        if(valid_q[4]) for(int k=0;k<2;k++) l3[r][n][k]<=$signed({l2[r][n][2*k][17],l2[r][n][2*k]})+$signed({l2[r][n][2*k+1][17],l2[r][n][2*k+1]});
+        if(valid_q[2]) for(int k=0;k<TILE/2;k++) l1[r][n][k]<=$signed({product[r][2*k][n][PRODUCT_BITS-1],product[r][2*k][n]})+$signed({product[r][2*k+1][n][PRODUCT_BITS-1],product[r][2*k+1][n]});
+        if(valid_q[3]) for(int k=0;k<TILE/4;k++) l2[r][n][k]<=$signed({l1[r][n][2*k][PRODUCT_BITS],l1[r][n][2*k]})+$signed({l1[r][n][2*k+1][PRODUCT_BITS],l1[r][n][2*k+1]});
+        if(valid_q[4]) for(int k=0;k<TILE/8;k++) l3[r][n][k]<=$signed({l2[r][n][2*k][PRODUCT_BITS+1],l2[r][n][2*k]})+$signed({l2[r][n][2*k+1][PRODUCT_BITS+1],l2[r][n][2*k+1]});
         if(valid_q[5]) psum_reg[r][n]<=PSUM_BITS'($signed(l3[r][n][0]))+PSUM_BITS'($signed(l3[r][n][1]));
       end
     end

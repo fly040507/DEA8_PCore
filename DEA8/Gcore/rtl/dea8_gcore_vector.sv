@@ -13,7 +13,7 @@ module dea8_gcore_vector (
 );
   import gcore_pkg::*;
   import gcore_fp_pkg::*;
-  localparam int ADD_LAT=4, BF_STAGE=ADD_LAT+1, MUL_LAT=3;
+  localparam int ADD_LAT=ADD_LATENCY, BF_STAGE=ADD_LAT+1, MUL_LAT=MUL_LATENCY;
   localparam int MUL_STAGE=BF_STAGE+MUL_LAT, SUM_LEVELS=$clog2(TILE);
   localparam int SUM_STAGE=MUL_STAGE+SUM_LEVELS*ADD_LAT, OUT_STAGE=SUM_STAGE+ADD_LAT;
   localparam int QUANT_LAT=3, QUANT_STAGE=MUL_STAGE+QUANT_LAT+1;
@@ -87,22 +87,22 @@ module dea8_gcore_vector (
     assign b=meta_q[0].mode==VECTOR_RESIDUAL?input_delta[32*lane+:32]:32'b0;
     assign mult_b=meta_q[BF_STAGE].mode==VECTOR_APPLY?inverse_q[BF_STAGE]:
       {bf_delay[0][16*lane+:16],16'b0};
-    dea8_gcore_fp_add add_lane(.clk,.advance,.a,.b,.result(add_result[lane]));
-    dea8_gcore_fp_mul multiply_lane(.clk,.advance,
+    dea8_gcore_fp_add add_lane(.clk,.reset,.clear,.advance,.a,.b,.result(add_result[lane]));
+    dea8_gcore_fp_mul multiply_lane(.clk,.reset,.clear,.advance,
       .a({bf_delay[0][16*lane+:16],16'b0}),.b(mult_b),.result(mul_result[lane]));
   end
   for(genvar level=0;level<SUM_LEVELS;level++) begin: tree_levels
     for(genvar node=0;node<(TILE>>(level+1));node++) begin: nodes
       if(level==0) begin: first
-        dea8_gcore_fp_add add_node(.clk,.advance,.a(mul_result[2*node]),
+        dea8_gcore_fp_add add_node(.clk,.reset,.clear,.advance,.a(mul_result[2*node]),
           .b(mul_result[2*node+1]),.result(sum_result[level][node]));
       end else begin: later
-        dea8_gcore_fp_add add_node(.clk,.advance,.a(sum_result[level-1][2*node]),
+        dea8_gcore_fp_add add_node(.clk,.reset,.clear,.advance,.a(sum_result[level-1][2*node]),
           .b(sum_result[level-1][2*node+1]),.result(sum_result[level][node]));
       end
     end
   end
-  dea8_gcore_fp_add row_accumulator(.clk,.advance,.a(sq_old),
+  dea8_gcore_fp_add row_accumulator(.clk,.reset,.clear,.advance,.a(sq_old),
     .b(sum_result[SUM_LEVELS-1][0]),.result(sq_result));
 
   always_ff @(posedge clk) begin

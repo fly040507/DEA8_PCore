@@ -52,7 +52,7 @@ module dea8_gcore_norm (
   logic clear_vector,clear_sq_q,abort_q,active_reads,work_good,response_good;
   logic [5:0] sq_row0,sq_row1,rsqrt_pair_q;
   logic [31:0] sq_value0,sq_value1,u0,u1;
-  localparam int U_ADD_LATENCY=4, HIDDEN_LOG2=$clog2(HIDDEN);
+  localparam int U_ADD_LATENCY=ADD_LATENCY, HIDDEN_LOG2=$clog2(HIDDEN);
   logic [U_ADD_LATENCY:0] u_valid_q;
   rsqrt_packet_t u_meta_q[U_ADD_LATENCY+1];
   logic [31:0] scaled_sq0,scaled_sq1;
@@ -123,9 +123,9 @@ module dea8_gcore_norm (
   assign sq_row0=6'(rsqrt_issue_pair_q*2);
   assign sq_row1=sq_row0+1'b1;
   assign u_advance=!u_valid_q[U_ADD_LATENCY]||rsqrt_ready;
-  dea8_gcore_fp_add epsilon_add0(.clk,.advance(u_advance),.a(scaled_sq0),
+  dea8_gcore_fp_add epsilon_add0(.clk,.reset,.clear,.advance(u_advance),.a(scaled_sq0),
     .b(command_q.epsilon_fp32),.result(u0));
-  dea8_gcore_fp_add epsilon_add1(.clk,.advance(u_advance),.a(scaled_sq1),
+  dea8_gcore_fp_add epsilon_add1(.clk,.reset,.clear,.advance(u_advance),.a(scaled_sq1),
     .b(command_q.epsilon_fp32),.result(u1));
   always_comb begin
     rsqrt_request=u_meta_q[U_ADD_LATENCY];
