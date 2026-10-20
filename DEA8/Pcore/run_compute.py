@@ -41,8 +41,13 @@ def main():
     parser.add_argument("--top", default="tb_compute_math")
     parser.add_argument("--opt", default="3", choices=["0", "1", "2", "3"])
     parser.add_argument("--arg", action="append", default=[])
+    parser.add_argument("--report-tag", help="Save an independent run under reports/compute/<tag>")
     args = parser.parse_args()
     report = ROOT / "reports/compute"
+    if args.report_tag:
+        if not re.fullmatch(r"[A-Za-z0-9_-]+", args.report_tag):
+            parser.error("--report-tag must contain only letters, numbers, underscores or hyphens")
+        report = report / args.report_tag
     report.mkdir(parents=True, exist_ok=True)
     if args.stage == "ip":
         run(args.vivado, "vivado", ["-mode", "batch", "-nojournal", "-nolog", "-source", ROOT / "ip/generate_compute_ip.tcl", "-tclargs", ROOT], report / "ip.log")
@@ -100,7 +105,7 @@ def main():
             "time": datetime.datetime.now().astimezone().isoformat(), "args": args.arg,
             "compile_manifest_sha256": manifest_hash,
             "internal_tb_models": False, "synthesis": False}, indent=2), encoding="utf-8")
-        print("\n".join(line for line in text.splitlines() if any(s in line for s in [" PASS", "PERF ", "TOTAL ", "HIDING "])), flush=True)
+        print("\n".join(line for line in text.splitlines() if any(s in line for s in [" PASS", "PERF ", "TOTAL ", "HIDING ", "ACTIVITY_"])), flush=True)
 
 
 if __name__ == "__main__":

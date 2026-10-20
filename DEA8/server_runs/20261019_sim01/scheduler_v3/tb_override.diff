@@ -1,0 +1,15 @@
+--- /home/zhaofei/DEA8/tb/tb_dea8_layers_native.sv
++++ /home/zhaofei/eda_runs/DEA8_panda/20261019_sim01/scheduler_v3/overrides/tb_dea8_layers_native.sv
+@@ -182,7 +182,11 @@
+           (op==OP_DOWN_PROJ&&(cancel_at=="Down"||cancel_at=="Final")))negative_cancel();
+       end
+     join
+-    wait(all_pc_done(id));if(wait_gcore)wait(gc_complete[id]);
++    // XSim wait sensitivity does not include globals read inside all_pc_done.
++    // Identical completion condition, made explicit; no checks are bypassed.
++    wait(pc_complete[0][id]&&pc_complete[1][id]&&pc_complete[2][id]&&pc_complete[3][id]&&
++      pc_complete[4][id]&&pc_complete[5][id]&&pc_complete[6][id]&&pc_complete[7][id]);
++    if(wait_gcore)wait(gc_complete[id]);
+     $display("LAYER_PERF layer=%0d phase=%0d cycles=%0d",layer_number,id,cycle-begin_cycle);
+   endtask
+   // HBM gamma is an external transaction, not an ersatz Norm/SFU service.
