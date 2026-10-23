@@ -1,6 +1,6 @@
 # 仿真与综合复现
 
-更新：2026-10-23。当前单PCore七Job已通过，285942拍；[原始证据](../Pcore/reports/compute/optimized7_banked/Summary.md)。八核联合仍待服务器验收。
+更新：2026-10-23。无代价优化后单PCore七Job通过，285942拍；[原始证据](../Pcore/reports/compute/nocost_final7/Summary.md)。八核联合仍待服务器验收。
 
 ## 环境与重建
 
@@ -41,6 +41,8 @@ python run_compute.py test --top tb_oacc_pages --report-tag review_oacc
 python run_compute.py test --top tb_p_stream_shared --report-tag review_p_stream
 python run_compute.py test --top tb_p_history_shared --report-tag review_history
 python run_compute.py test --top tb_rope_rom_native --report-tag review_rope
+python run_compute.py test --top tb_qk_max_order --report-tag review_qk_order
+python run_compute.py test --top tb_deq_format_nocost --report-tag review_deq_format
 ```
 
 在`DEA8_VPU`：
@@ -55,6 +57,8 @@ python run_dea8.py simulate --top tb_gcore_norm_native --arg IMPORT_FIRST
 ```
 
 标准七Job不等于额外STRESS验收。TB只提供本核外部数据、命令、commit和接收。显式PASS、数值/协议检查满足、输入哈希绑定一致才通过；退出码0不足。源码、runner、IP、ROM或gold变更后重编译/展开，不复用旧snapshot。默认O3、mt off；工具问题才考虑`--opt 0`。
+
+新增定向检查：QK256pair，独立shortreal比较oracle，覆盖signed-zero/subnormal/非法数/mask/背压；DEQACC384pair、12288lane检查，独立整数商/余数RNE oracle，核对INT20全范围边界、subnormal/溢出/bad scale及16拍延迟。当前12项定向/邻接PASS见[证据索引](../reports/README.md)。
 
 ## 八核服务器验收
 

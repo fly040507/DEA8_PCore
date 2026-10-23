@@ -1,4 +1,5 @@
-// Seven VOPs share official FP32 IPs and bounded RAM-backed response stores.
+// Foreground VOPs share official FP32 IPs. OACC_SCALE is owned exclusively by
+// dea8_vpu_top_shared; it never enters this module's command handshake.
 module dea8_vpu_foreground(
  input logic clk,reset,clear,flush_valid, output logic vpu_flush_ack,
  input logic vector_valid, output logic vector_ready,
@@ -37,20 +38,20 @@ module dea8_vpu_foreground(
  import pcore_pkg::*;import pcore_control_pkg::*;import dea8_vpu_math_pkg::*;
  import dea8_compute_config_pkg::*;
   localparam int MUL_LAT=FP_MUL_LATENCY+2,ADD_LAT=FP_ADD_LATENCY+2;
- typedef enum logic [5:0] {IDLE,MREQ,MRSP,AREQ,ARSP,PDATA,QIN,QOUT,CALC,
- SCORE0,SCORE1,WM,WAA,WL,AW,RESULT,NEXT,DONE,STREAM,XDATA,RREQ,RRSP,RMUL0,RMUL1,RSAVE,XSAVE,XRESULT,SDRAIN,MW0,MW1,GWAIT,PSTREAM,PDRAIN,GSTREAM,GDRAIN,RADD,VQWAIT,XQDRAIN,QSTREAM,QDRAIN} state_t;
+  typedef enum logic [4:0] {IDLE,MREQ,MRSP,WM,WAA,WL,DONE,STREAM,XDATA,
+  RREQ,RRSP,RMUL0,RMUL1,XRESULT,SDRAIN,PSTREAM,PDRAIN,GSTREAM,GDRAIN,
+  RADD,VQWAIT,XQDRAIN,QSTREAM,QDRAIN} state_t;
  (* extract_enable = "no" *) state_t state;control_command_t cmd;
- logic error_q,read_second;logic [4:0] pair_q;logic [5:0] tile_q,base_q;
- logic factor_valid;logic [5:0] factor_tile;control_job_t factor_job;
+  logic error_q,read_second;logic [5:0] base_q;
  localparam int STAT_WORDS=(ROWS+TILE-1)/TILE;
  logic [3:0] stat_requests,stat_responses,stat_total;
  logic stat_loading,stat_response;
  logic [1:0] flush_count;logic [2:0] warmup;
  logic [15:0] state_mask_q,action_mask_q;
- logic [31:0] hist[51],factor[51],updated_stat[51],aa[51];
- pair_fp_t data_q,scaled,norm;scalars_t factors,oldls,lvalue,rowsums;
- pair_int8_t pq,aq;logic [1:0][7:0] ps,as;logic [1:0] pe,ae,se;
- logic [1:0] rv;logic enabled;
+  logic [31:0] hist[2][PAIRS],factor[2][PAIRS],updated_stat[51],aa[51];
+  pair_fp_t data_q;
+  pair_int8_t pq,aq;logic [1:0][7:0] ps,as;
+  logic enabled;
  typedef struct packed {logic [9:0] ordinal,index;logic [5:0] tile;
   logic [1:0] rv;logic [15:0] token_mask;logic last,terminal;} quant_tag_t;
   quant_tag_t quant_tag_in,quant_tags[8];
@@ -78,17 +79,6 @@ module dea8_vpu_foreground(
  assign stat_loading=state==MREQ||state==MRSP;
  assign stat_response=stat_loading&&vector_mem_out_valid&&vector_mem_out_ready;
  assign stat_total=4'(cmd.function_id==VECTOR_P_POST?2*STAT_WORDS:STAT_WORDS);
- // P_POST and its following OACC_SCALE consume the same alpha generation.
- // QK_POST only updates m/aa and must not invalidate this cached alpha.
- always_ff @(posedge clk)begin
-  if(reset||clear||flush_valid)begin factor_valid<=0;factor_tile<=0;factor_job<='0;end
-  else if(stat_response&&vector_mem_out.token==cmd.token&&stat_responses==stat_total-1&&
-    (cmd.function_id==VECTOR_P_POST||cmd.function_id==VECTOR_OACC_SCALE))begin
-    factor_valid<=1;factor_tile<=cmd.tile;factor_job<=cmd.job;
-  end else if(state==IDLE&&vector_valid&&vector_ready&&vector_cmd.function_id==VECTOR_AFIN_QUANT)
-    factor_valid<=0;
- end
- assign rv=row_mask(pair_q);
 
  // A single physical 2x16 multiplier expression bank, shared by all multiply VOPs.
  pair_fp_t mul_a,mul_b,mul_y,quant_x;
@@ -163,8 +153,8 @@ module dea8_vpu_foreground(
  always_comb begin
   factor_read='0;hist_read='0;
   for(int r=0;r<2;r++)begin
-   if(2*factor_read_index+r<ROWS)factor_read[r]=factor[2*5'(factor_read_index)+r];
-   if(2*hist_read_index+r<ROWS)hist_read[r]=hist[2*5'(hist_read_index)+r];
+    if(2*factor_read_index+r<ROWS)factor_read[r]=factor[r][5'(factor_read_index)];
+    if(2*hist_read_index+r<ROWS)hist_read[r]=hist[r][5'(hist_read_index)];
   end
  end
   logic mul_in,mul_out,mul_ready,p_in,p_out,g_in;
@@ -190,7 +180,7 @@ module dea8_vpu_foreground(
  assign p_in=state==PSTREAM&&vector_data_valid&&vector_data_ready;
  assign p_x={vector_data.second,vector_data.first};
  assign g_in=state==GSTREAM&&vector_data_valid&&vector_data_ready;
-  assign mul_in=(stream_rsp||p_in||g_in||state==RMUL0||state==RMUL1||state==XSAVE)&&enabled&&mul_ready;
+   assign mul_in=(stream_rsp||p_in||g_in||state==RMUL0||state==RMUL1)&&enabled&&mul_ready;
  always_ff @(posedge clk)begin
   mul_index[0]<=received;
   for(int i=1;i<MUL_LAT;i++)mul_index[i]<=mul_index[i-1];
@@ -211,7 +201,7 @@ module dea8_vpu_foreground(
    .guest_ready(guest_add_ready),.guest_out_valid(guest_add_out_valid),.guest_y(guest_add_y));
  always_comb begin
   mul_a='0;mul_b='0;
-  calc_pair=state==STREAM?receive_pair:pair_q;
+   calc_pair=receive_pair;
   if(state==STREAM)begin
    mul_a={acc_odd,acc_even};
    for(int r=0;r<2;r++)for(int j=0;j<16;j++)
@@ -222,8 +212,8 @@ module dea8_vpu_foreground(
    mul_a[0]=state==GSTREAM?vector_data.first:data_q[0];mul_b[0]=state==GSTREAM?vector_data.second:data_q[1];
   end else if(cmd.function_id==VECTOR_ROPE_QUANT)begin
    mul_a[0]=data_q[0];mul_a[1]=data_q[1];
-   mul_b[0]=(state==RMUL0||state==MW0)?cosine_q:sine_q;
-   mul_b[1]=(state==RMUL0||state==MW0)?sine_q:cosine_q;
+    mul_b[0]=state==RMUL0?cosine_q:sine_q;
+    mul_b[1]=state==RMUL0?sine_q:cosine_q;
   end
  end
  always_comb begin
@@ -282,18 +272,23 @@ module dea8_vpu_foreground(
      2'b01:quant_tag_count<=quant_tag_count-1'b1;
      default:;
     endcase
-    if(quant_take)for(int i=0;i<7;i++)quant_tags[i]<=quant_tags[i+1];
-    if(quant_launch)quant_tags[quant_tag_count-4'(quant_take)]<=quant_tag_in;
-   end
- end
- assign pq=stream_head_quant;assign ps=stream_head_scale;assign scaled=mul_y;assign norm=mul_y;
- assign se=mul_error;assign ae=mul_error|quant_error;
+    end
+  end
+  // Fixed destinations preserve pop-then-append priority without a variable
+  // write index into a wide packed transaction array.
+  for(genvar slot=0;slot<8;slot++)begin: quant_metadata
+    always_ff @(posedge clk)if(!reset&&!clear&&!flush_valid)begin
+      if(quant_launch&&quant_tag_count-4'(quant_take)==slot)quant_tags[slot]<=quant_tag_in;
+      else if(quant_take&&slot<7)quant_tags[slot]<=quant_tags[(slot+1)%8];
+    end
+  end
+  assign pq=stream_head_quant;assign ps=stream_head_scale;
  assign stream_read=state==STREAM&&acc_rd_valid&&acc_rd_ready;
  assign stream_rsp=state==STREAM&&acc_data_valid&&acc_data_ready;
  // Compare both retirement bounds in parallel; no serial min selection.
  assign stream_retire_available=result_head_valid&&(retired<completed)&&((state!=SDRAIN)||(retired<drain_results));
- assign stream_pop=(state==STREAM||state==SDRAIN)&&((cmd.function_id==VECTOR_OACC_SCALE&&acc_wr_valid&&acc_wr_ready)||
-  (cmd.function_id==VECTOR_AFIN_QUANT&&vector_result_valid&&vector_result_ready));
+  assign stream_pop=(state==STREAM||state==SDRAIN)&&
+   cmd.function_id==VECTOR_AFIN_QUANT&&vector_result_valid&&vector_result_ready;
  // Decouple ordered ACC responses from QK and from score-memory writeback.
   assign qk_acc_ready=!qk_acc_valid||(qr&&score_capture_ready);
   assign qi=qk_acc_valid&&(state==QSTREAM||state==QDRAIN)&&enabled&&score_capture_ready;
@@ -339,20 +334,16 @@ module dea8_vpu_foreground(
   vector_ready=state==IDLE&&enabled;
   vector_done_valid=state==DONE&&enabled;vector_done.command=cmd;vector_done.error=error_q;
    vector_data_ready=((state==XDATA&&(cmd.function_id!=VECTOR_V_QUANT||quant_ready[0]))||(state==GSTREAM&&issued<ROWS&&mul_ready)||(state==PSTREAM&&issued<PAIRS&&issued-retired<STREAM_DEPTH&&mul_ready))&&enabled;
-   vector_mem_valid=((stat_loading&&stat_requests<stat_total)||state==SCORE0||state==SCORE1||state==WM||state==WAA||state==WL||((state==QSTREAM||state==QDRAIN)&&score_held_valid&&retired<(state==QDRAIN?drain_results:PAIRS)))&&enabled;
+    vector_mem_valid=((stat_loading&&stat_requests<stat_total)||state==WM||state==WAA||state==WL||((state==QSTREAM||state==QDRAIN)&&score_held_valid&&retired<(state==QDRAIN?drain_results:PAIRS)))&&enabled;
   vector_mem_out_ready=stat_loading&&enabled;
-  acc_rd_valid=(state==AREQ||(state==QSTREAM&&issued<PAIRS)||(state==QDRAIN&&drain_request)||(state==STREAM&&issued<STREAM_BEATS&&issued-retired<STREAM_DEPTH)||(state==SDRAIN&&drain_request))&&enabled;
-   acc_data_ready=(state==ARSP||(state==QSTREAM&&received<issued&&qk_acc_ready)||(state==QDRAIN&&received<issued)||((state==STREAM||state==SDRAIN)&&received<issued&&mul_ready))&&enabled;
+   acc_rd_valid=((state==QSTREAM&&issued<PAIRS)||(state==QDRAIN&&drain_request)||(state==STREAM&&issued<STREAM_BEATS&&issued-retired<STREAM_DEPTH)||(state==SDRAIN&&drain_request))&&enabled;
+    acc_data_ready=((state==QSTREAM&&received<issued&&qk_acc_ready)||(state==QDRAIN&&received<issued)||((state==STREAM||state==SDRAIN)&&received<issued&&mul_ready))&&enabled;
   acc_rd_sel=cmd.function_id==VECTOR_QK_POST?(cmd.attention_vpu.facc_bank?ACC_FACC_B:ACC_FACC_A):ACC_OACC;
-  acc_rd_addr=(state==STREAM||state==SDRAIN||state==QSTREAM||state==QDRAIN)?10'(issued):10'(tile_q*PAIRS+pair_q);acc_token=cmd.token;
-  acc_wr_valid=(state==AW||((state==STREAM||state==SDRAIN)&&cmd.function_id==VECTOR_OACC_SCALE&&stream_retire_available))&&enabled;acc_wr='0;acc_wr.sel=ACC_OACC;
-  acc_wr.addr=(state==STREAM||state==SDRAIN)?10'(retired):acc_rd_addr;acc_wr.row_valid=(state==STREAM||state==SDRAIN)?row_mask(retire_pair):rv;
-  acc_wr.data=(state==STREAM||state==SDRAIN)?stream_head_data:scaled;
-  vector_result_valid=(((state==PSTREAM||state==PDRAIN)&&result_head_valid&&retired<completed&&retired<p_limit)||state==RESULT||(quant_direct&&quant_valid[0]&&quant_eligible)||((state==STREAM||state==SDRAIN)&&cmd.function_id==VECTOR_AFIN_QUANT&&stream_retire_available))&&enabled;vector_result='0;
+   acc_rd_addr=10'(issued);acc_token=cmd.token;
+   acc_wr_valid=0;acc_wr='0;
+   vector_result_valid=(((state==PSTREAM||state==PDRAIN)&&result_head_valid&&retired<completed&&retired<p_limit)||(quant_direct&&quant_valid[0]&&quant_eligible)||((state==STREAM||state==SDRAIN)&&cmd.function_id==VECTOR_AFIN_QUANT&&stream_retire_available))&&enabled;vector_result='0;
   vector_result.token=cmd.token;vector_result.quant_axis=QUANT_FEATURE_B16;
-  vector_result.tile=cmd.function_id==VECTOR_P_POST?cmd.tile:6'(tile_q);
-  vector_result.index=10'(pair_q);vector_result.vector_valid=rv;vector_result.token_mask='1;
-  vector_result.last=pair_q==PAIRS-1;
+   vector_result.tile=cmd.tile;vector_result.token_mask='1;
   for(int r=0;r<2;r++)begin
    vector_result.vector_data[r].data=cmd.function_id==VECTOR_P_POST?pq[r]:aq[r];
    vector_result.vector_data[r].scale=cmd.function_id==VECTOR_P_POST?ps[r]:as[r];
@@ -386,21 +377,16 @@ module dea8_vpu_foreground(
    case(cmd.function_id)
     VECTOR_QK_POST:vector_mem_req.buffer_id=WORK_M;
     VECTOR_P_POST:vector_mem_req.buffer_id=stat_requests>=STAT_WORDS?WORK_ALPHA:WORK_L;
-    VECTOR_OACC_SCALE:vector_mem_req.buffer_id=WORK_ALPHA;
     default:vector_mem_req.buffer_id=WORK_RECIP;
    endcase
   end else begin
    vector_mem_req.write=1;
    case(state)
-    SCORE0,SCORE1:begin
-     vector_mem_req.buffer_id=WORK_SCORE;vector_mem_req.index=6'(2*pair_q+(state==SCORE1));
-     vector_mem_req.mask='1;vector_mem_req.data=qs[state==SCORE1];
-    end
     WM:vector_mem_req.buffer_id=WORK_M;
     WAA:vector_mem_req.buffer_id=WORK_AA;
     default:vector_mem_req.buffer_id=WORK_L;
    endcase
-   if(state!=SCORE0&&state!=SCORE1)case(base_q[5:4])
+    case(base_q[5:4])
     2'd0:for(int i=0;i<TILE;i++)if(0+i<ROWS)begin
      vector_mem_req.mask[i]=1;
      vector_mem_req.data[i]=state==WM?updated_stat[0+i]:(state==WAA?aa[0+i]:updated_stat[0+i]);
@@ -441,11 +427,11 @@ module dea8_vpu_foreground(
  // Single writer per scalar row; no variable-address multiport memory inference.
  for(genvar row=0;row<ROWS;row++)begin: scalar_rows
   always_ff @(posedge clk)begin
-   if(reset||clear||flush_valid)begin updated_stat[row]<=0;aa[row]<=0;hist[row]<=0;factor[row]<=0;end
+   if(reset||clear||flush_valid)begin updated_stat[row]<=0;aa[row]<=0;hist[row%2][row/2]<=0;factor[row%2][row/2]<=0;end
    else begin
     if(stat_response&&vector_mem_out.token==cmd.token&&stat_responses%STAT_WORDS==row/TILE)begin
-     if(cmd.function_id==VECTOR_QK_POST||(cmd.function_id==VECTOR_P_POST&&stat_responses<STAT_WORDS))hist[row]<=vector_mem_out.data[row%16];
-     else factor[row]<=vector_mem_out.data[row%16];
+      if(cmd.function_id==VECTOR_QK_POST||(cmd.function_id==VECTOR_P_POST&&stat_responses<STAT_WORDS))hist[row%2][row/2]<=vector_mem_out.data[row%16];
+      else factor[row%2][row/2]<=vector_mem_out.data[row%16];
     end
    if(stat_write_qk&&qk_out_pair==row/2)aa[row]<=qaa[row%2];
    if(stat_write_valid&&stat_write_pair==row/2)updated_stat[row]<=stat_write_value[row%2];
@@ -453,15 +439,13 @@ module dea8_vpu_foreground(
   end
  end
  // Mutually exclusive write/read phases share one true-dual-port block RAM.
- logic save_lo_valid,save_gu_stream,save_gu_wait;
+  logic save_lo_valid,save_gu_stream;
  logic [5:0] save_lo_row;logic [15:0][31:0] save_lo_data;
  assign save_gu_stream=(state==GSTREAM||state==GDRAIN)&&mul_out&&!(|mul_error)&&!error_q;
- assign save_gu_wait=state==GWAIT&&mul_out&&!(|mul_error);
  always_comb begin
   save_lo_valid=0;save_lo_row=0;save_lo_data='0;
   if(rope_add_out)begin save_lo_valid=1;save_lo_row=rope_tag[ADD_LAT-1];save_lo_data=rope_add_y[0];end
   if(save_gu_stream)begin save_lo_valid=1;save_lo_row=6'(completed);save_lo_data=mul_y[0];end
-  if(save_gu_wait)begin save_lo_valid=1;save_lo_row=input_idx;save_lo_data=mul_y[0];end
  end
   dea8_vpu_saved_ram saved_ram(.clk,.reset,.clear(clear||flush_valid),.ram_a,.ram_b,.ram_data,
   .lo_we(enabled&&save_lo_valid),.lo_row(save_lo_row),.lo_data(save_lo_data),
@@ -489,7 +473,7 @@ module dea8_vpu_foreground(
  ap_rope_req_hold: assert property (@(posedge clk) disable iff(reset||clear||flush_valid)
   rope_req_valid&&!rope_req_ready |=> rope_req_valid&&$stable(rope_req));
  ap_saved_write_exclusive: assert property (@(posedge clk) disable iff(reset||clear||flush_valid)
-  $onehot0({rope_add_out,save_gu_stream,save_gu_wait}));
+   $onehot0({rope_add_out,save_gu_stream}));
  ap_done_hold: assert property (@(posedge clk) disable iff(reset||clear||flush_valid)
   vector_done_valid&&!vector_done_ready |=> vector_done_valid&&$stable(vector_done));
   ap_qk_capacity:assert property(@(posedge clk) disable iff(reset||clear||flush_valid)
@@ -509,7 +493,7 @@ module dea8_vpu_foreground(
    quant_launched<=0;quant_finished<=0;quant_limit<=STREAM_BEATS;x_issue_pair<=0;x_issue_half<=0;
    qk_launched<=0;qk_finished<=0;qk_score_half<=0;
    rope_launched<=0;rope_finished<=0;
-   state<=IDLE;cmd<='0;error_q<=0;pair_q<=0;tile_q<=0;base_q<=0;read_second<=0;stat_requests<=0;stat_responses<=0;
+    state<=IDLE;cmd<='0;error_q<=0;base_q<=0;read_second<=0;stat_requests<=0;stat_responses<=0;
    data_q<='0;state_mask_q<=0;action_mask_q<=0;issued<=0;received<=0;retired<=0;completed<=0;mul_launched<=0;mul_finished<=0;p_limit<=PAIRS;drain_results<=0;drain_request<=0;input_idx<=0;output_half<=0;token_mask_q<='0;cosine_q<='0;sine_q<='0;rope_ac<='0;rope_as<='0;
    // Scalar payload reset is owned by scalar_rows.
   end else begin
@@ -535,12 +519,11 @@ module dea8_vpu_foreground(
    quant_launched<=0;quant_finished<=0;quant_limit<=STREAM_BEATS;x_issue_pair<=0;x_issue_half<=0;
    qk_launched<=0;qk_finished<=0;qk_score_half<=0;
    rope_launched<=0;rope_finished<=0;
-     cmd<=vector_cmd;error_q<=0;pair_q<=0;tile_q<=0;base_q<=0;read_second<=0;stat_requests<=0;stat_responses<=0;
+      cmd<=vector_cmd;error_q<=0;base_q<=0;read_second<=0;stat_requests<=0;stat_responses<=0;
      state_mask_q<=mask_state;action_mask_q<=mask_action;issued<=0;received<=0;retired<=0;completed<=0;mul_launched<=0;mul_finished<=0;p_limit<=PAIRS;drain_results<=0;drain_request<=0;input_idx<=0;output_half<=0;
      case(vector_cmd.function_id)
       VECTOR_QK_POST:if(!mask_config_valid)begin error_q<=1;state<=DONE;end else state<=MREQ;
       VECTOR_P_POST,VECTOR_AFIN_QUANT:state<=MREQ;
-      VECTOR_OACC_SCALE:state<=factor_valid&&factor_job==vector_cmd.job&&factor_tile==vector_cmd.tile?STREAM:MREQ;
       VECTOR_ROPE_QUANT,VECTOR_V_QUANT:state<=XDATA;
       VECTOR_GU_POST:state<=GSTREAM;
       default:begin error_q<=1;state<=DONE;end
@@ -564,10 +547,6 @@ module dea8_vpu_foreground(
      if(stream_read)issued<=issued+1;
      if(stream_rsp)received<=received+1;
      if(mul_out)begin
-      if(cmd.function_id==VECTOR_OACC_SCALE)begin
-       completed<=completed+1;
-
-      end
       if(|mul_error)begin error_q<=1;drain_results<=mul_index[MUL_LAT-1];drain_request<=acc_rd_valid&&!acc_rd_ready;state<=SDRAIN;end
      end
      if(stream_pop)begin retired<=retired+1;if(retired==STREAM_BEATS-1)state<=DONE;end
@@ -611,7 +590,7 @@ module dea8_vpu_foreground(
       if(|mul_error)begin error_q<=1;state<=GDRAIN;end
       else if(!error_q)begin
 
-       if(completed==ROWS-1)begin pair_q<=0;state<=XRESULT;end
+        if(completed==ROWS-1)state<=XRESULT;
       end
      end
      if(state==GDRAIN&&completed==issued)state<=DONE;
@@ -626,7 +605,7 @@ module dea8_vpu_foreground(
         vector_data.vector_valid!=(cmd.function_id==VECTOR_GU_POST?2'b01:2'b11)||
         vector_data.token_mask!=(cmd.function_id==VECTOR_V_QUANT&&input_idx>=24?16'h0007:16'hffff))begin error_q<=1;state<=cmd.function_id==VECTOR_ROPE_QUANT?RADD:DONE;end
      else begin data_q<={vector_data.second,vector_data.first};token_mask_q<=vector_data.token_mask;
-      state<=cmd.function_id==VECTOR_ROPE_QUANT?RREQ:(cmd.function_id==VECTOR_GU_POST?XSAVE:RSAVE);end
+       state<=RREQ;end
     end
     RREQ:if(rope_req_ready)state<=RRSP;
     RRSP:if(rope_out_valid)begin
@@ -641,24 +620,13 @@ module dea8_vpu_foreground(
     end
     RADD:if(mul_finished==mul_launched&&rope_finished==rope_launched)begin
      if(error_q)state<=DONE;
-     else if(rope_finished==ROWS)begin pair_q<=0;state<=XRESULT;end
+      else if(rope_finished==ROWS)state<=XRESULT;
     end
-    XSAVE:state<=GWAIT;
-    GWAIT:if(mul_out)begin
-     if(|mul_error)begin error_q<=1;state<=DONE;end
-     else begin
-      if(input_idx==ROWS-1)begin pair_q<=0;state<=XRESULT;end
-      else begin input_idx<=input_idx+1;state<=XDATA;end
-     end
-    end
-    RSAVE:begin if(|quant_error)begin error_q<=1;state<=DONE;end else state<=RESULT;end
     XRESULT:if(saved_read_request)begin
      if(x_issue_pair==PAIRS-1)begin x_issue_pair<=0;x_issue_half<=1;end
      else x_issue_pair<=x_issue_pair+1;
     end
     XQDRAIN,VQWAIT:if(error_q&&quant_finished==quant_launched)state<=DONE;
-    AREQ:if(acc_rd_ready)state<=ARSP;
-    ARSP:if(acc_data_valid)begin data_q[0]<=acc_even;data_q[1]<=acc_odd;state<=cmd.function_id==VECTOR_QK_POST?QIN:CALC;end
     PSTREAM,PDRAIN:begin
      if(p_in)begin
       // Validate accepted input before allowing its result to retire.
@@ -681,33 +649,6 @@ module dea8_vpu_foreground(
       if(retired==PAIRS-1&&!error_q)begin base_q<=0;state<=WL;end
      end
      if(state==PDRAIN&&completed==issued&&retired==p_limit&&quant_finished==quant_launched)state<=DONE;
-    end
-    QIN:if(qr)state<=QOUT;
-    QOUT:if(qo)begin
-     if(|qe)begin error_q<=1;state<=DONE;end
-     else begin
-      // Per-row write enables are decoded below.
-      state<=SCORE0;
-     end
-    end
-    SCORE0:if(vector_mem_ready)state<=rv[1]?SCORE1:NEXT;
-    SCORE1:if(vector_mem_ready)state<=NEXT;
-    CALC:begin
-     if(cmd.function_id==VECTOR_OACC_SCALE)begin
-      if(|se)begin error_q<=1;state<=DONE;end else state<=AW;
-     end else begin if(|ae)begin error_q<=1;state<=DONE;end else state<=RESULT;end
-    end
-    AW:if(acc_wr_ready)state<=NEXT;
-    RESULT:if(vector_result_ready)begin
-     if(cmd.function_id==VECTOR_V_QUANT)begin
-      if(input_idx==V_PACKETS_PER_TILE-1)state<=DONE;
-      else begin input_idx<=input_idx+1;state<=XDATA;end
-     end else state<=NEXT;
-    end
-    NEXT:begin
-     if(pair_q+1<PAIRS)begin pair_q<=pair_q+1;state<=cmd.function_id==VECTOR_P_POST?PSTREAM:AREQ;end
-     else if((cmd.function_id==VECTOR_OACC_SCALE||cmd.function_id==VECTOR_AFIN_QUANT)&&tile_q+1<QOZ_O_TILES)begin tile_q<=tile_q+1;pair_q<=0;state<=AREQ;end
-     else begin base_q<=0;state<=cmd.function_id==VECTOR_QK_POST?WM:(cmd.function_id==VECTOR_P_POST?WL:DONE);end
     end
     WM:if(vector_mem_ready)state<=WAA;
     WAA:if(vector_mem_ready)begin if(base_q+TILE<ROWS)begin base_q<=base_q+TILE;state<=WM;end else state<=DONE;end

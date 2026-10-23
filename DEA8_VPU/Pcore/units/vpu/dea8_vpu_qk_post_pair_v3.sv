@@ -43,14 +43,19 @@ module dea8_vpu_qk_post_pair_v3 #(parameter int ROW_UNITS=2)(
     return (&x[30:23]) && (|x[22:0]);
   endfunction
 
-  // FP32 comparison by sign and magnitude, after rejecting NaN.
-  // Raw unsigned/integer comparison alone would order negative floats wrongly.
-  function automatic logic [31:0] max_fp(input logic [31:0] a,b);
-    if ((a[30:0]==0) && (b[30:0]==0)) return POS_ZERO;
-    if (a[31]!=b[31]) return a[31]?b:a;
-    // One magnitude comparator shared by both signs. Equal magnitudes have
-    // identical encodings here; signed-zero canonicalization stays above.
-    return ((a[30:0]>=b[30:0]) ^ a[31])?a:b;
+  // Convert once at the leaves, carry ordered keys through the whole MAX tree,
+  // then decode at its output. Negative floats sort in reversed magnitude.
+  function automatic logic [31:0] order_key(input logic [31:0] value);
+    return value[31]?~value:{1'b1,value[30:0]};
+  endfunction
+  function automatic logic [31:0] from_key(input logic [31:0] key);
+    return key[31]?{1'b0,key[30:0]}:~key;
+  endfunction
+  function automatic logic [31:0] max_key(input logic [31:0] a,b);
+    // Both -0 inputs must become +0, exactly as in the previous MAX. Mixed
+    // signed zeros already choose +0 by unsigned key order.
+    if(a==32'h7fffffff&&b==32'h7fffffff)return 32'h80000000;
+    return a>=b?a:b;
   endfunction
 
 
@@ -75,8 +80,9 @@ module dea8_vpu_qk_post_pair_v3 #(parameter int ROW_UNITS=2)(
         s0_d.initial_row[r]=!s0_d.empty_row[r]&&!s0_d.error[r]&&in_m_old[r]==NEG_INF;
         s0_d.bypass_aa[r]=s0_d.initial_row[r]?NEG_INF:0;
         s0_d.bypass[r]=s0_d.empty_row[r]||s0_d.error[r]||s0_d.initial_row[r];
-        for(int g=0;g<4;g++)group_d[r][g]=max_fp(
-          max_fp(leaf[r][4*g],leaf[r][4*g+1]),max_fp(leaf[r][4*g+2],leaf[r][4*g+3]));
+        for(int g=0;g<4;g++)group_d[r][g]=max_key(
+          max_key(order_key(leaf[r][4*g]),order_key(leaf[r][4*g+1])),
+          max_key(order_key(leaf[r][4*g+2]),order_key(leaf[r][4*g+3])));
       end
     end
   end
@@ -85,8 +91,9 @@ module dea8_vpu_qk_post_pair_v3 #(parameter int ROW_UNITS=2)(
     s1_d=c[0];
     for(int r=0;r<ROW_UNITS;r++)begin
       if(c[0].rv[r])begin
-        s1_d.row_max[r]=max_fp(max_fp(group_q[r][0],group_q[r][1]),max_fp(group_q[r][2],group_q[r][3]));
-        s1_d.new_m[r]=(c[0].empty_row[r]||c[0].error[r])?c[0].old_m[r]:max_fp(c[0].old_m[r],s1_d.row_max[r]);
+        s1_d.row_max[r]=from_key(max_key(max_key(group_q[r][0],group_q[r][1]),max_key(group_q[r][2],group_q[r][3])));
+        s1_d.new_m[r]=(c[0].empty_row[r]||c[0].error[r])?c[0].old_m[r]:
+          from_key(max_key(order_key(c[0].old_m[r]),order_key(s1_d.row_max[r])));
       end else s1_d.bypass[r]=1;
 
     end

@@ -10,15 +10,13 @@ module dea8_matrix_job_dispatch(
   output logic protocol_error
 );
   matrix_service_req_t req;matrix_service_rsp_t rsp;
+  logic [2:0] selected;
+  for(genvar i=0;i<3;i++)assign selected[i]=owner==i;
   always_comb begin
-    case(owner)
-      0:req=requests[0];
-      1:req=requests[1];
-      2:req=requests[2];
-      default:req='0;
-    endcase
+    req='0;
+    for(int i=0;i<3;i++)req|=requests[i]&{$bits(matrix_service_req_t){selected[i]}};
   end
-  for(genvar i=0;i<3;i++)assign responses[i]=(owner==i)?rsp:matrix_service_rsp_t'('0);
+  for(genvar i=0;i<3;i++)assign responses[i]=rsp&{$bits(matrix_service_rsp_t){selected[i]}};
   assign protocol_error=rsp.a_error||rsp.b_error;
   dea8_matrix #(.SHARED_MODE(1)) matrix(
     .clk,.reset,.clear,.runtime_local_a(req.a_source==A_LOCAL),.runtime_streaming(req.a_streaming),

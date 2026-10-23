@@ -92,6 +92,9 @@ module dea8_pcore_control #(
   acc_write_t matrix_acc_write;
   logic vm_legal,fm_legal,vm_ready,fm_ready;
   logic [ROWS-1:0] v_written_q[0:3],f_written_q[0:1];
+  logic [ROWS-1:0] v_write_mask,f_write_mask;
+  logic [1:0] v_write_object;
+  logic f_write_object;
   logic [9:0] acc_written_q;
   logic v_writes_complete,f_writes_complete,raw_ext_region_ready,raw_ext_write_ready;
   localparam int ROPE_OUTSTANDING=8;
@@ -118,7 +121,7 @@ module dea8_pcore_control #(
     if(|vpu_ram_b.en)shared_ram_b=vpu_ram_b;
   end
   assign vpu_ram_data=shared_b_data;
-  dea8_vector_ram vector_store(.clk,.a(shared_ram_a),.b(shared_ram_b),.a_data(shared_a_data),.b_data(shared_b_data));
+  dea8_vector_ram #(.ROUTED_SDP(1)) vector_store(.clk,.a(shared_ram_a),.b(shared_ram_b),.a_data(shared_a_data),.b_data(shared_b_data));
   control_rope_req_t rope_requests[0:ROPE_OUTSTANDING-1];
   function automatic int v_write_slot(input control_buffer_e id);
     case(id) WORK_SCORE:return 0;WORK_M:return 1;WORK_AA:return 2;default:return 3;endcase
@@ -132,6 +135,12 @@ module dea8_pcore_control #(
     end
     return good;
   endfunction
+  // Decode the written row range once, rather than reading/updating the flag
+  // array independently through sixteen variable row indices.
+  assign v_write_object=2'(v_write_slot(vector_mem_req.buffer_id));
+  assign f_write_object=function_mem_req.buffer_id!=WORK_ALPHA;
+  assign v_write_mask=(vector_mem_req.buffer_id==WORK_SCORE?ROWS'(1):ROWS'(vector_mem_req.mask))<<vector_mem_req.index;
+  assign f_write_mask=ROWS'(function_mem_req.mask)<<function_mem_req.index;
 
   assign engine_job='{header:job.header};
   assign is_reduce=job_q.header.op==OP_O_PROJ||job_q.header.op==OP_DOWN_PROJ;
@@ -362,12 +371,9 @@ module dea8_pcore_control #(
     fm_legal&=fb_q&&active_adapter==1&&function_mem_req.token==fheld_q.token&&range_legal(function_mem_req)&&
       function_mem_req.bank==((function_mem_req.buffer_id==WORK_ALPHA||function_mem_req.buffer_id==WORK_SCORE)?fheld_q.tile[0]:1'b0);
     if(vector_mem_req.write)begin
-      if(vector_mem_req.buffer_id==WORK_SCORE)vm_legal&=!v_written_q[0][vector_mem_req.index];
-      else for(int i=0;i<TILE;i++)if(vector_mem_req.mask[i]&&vector_mem_req.index+i<ROWS)
-        vm_legal&=!v_written_q[v_write_slot(vector_mem_req.buffer_id)][vector_mem_req.index+i];
+      vm_legal&=!(|(v_written_q[v_write_object]&v_write_mask));
     end
-    if(function_mem_req.write)for(int i=0;i<TILE;i++)if(function_mem_req.mask[i]&&function_mem_req.index+i<ROWS)
-      fm_legal&=!f_written_q[function_mem_req.buffer_id==WORK_ALPHA?0:1][function_mem_req.index+i];
+    if(function_mem_req.write)fm_legal&=!(|(f_written_q[f_write_object]&f_write_mask));
   end
   assign vector_mem_ready=vm_ready&&vm_legal&&!fault_q&&!flush_q;
   assign function_mem_ready=fm_ready&&fm_legal&&!fault_q&&!flush_q;
@@ -469,13 +475,12 @@ module dea8_pcore_control #(
       end
       if(acc_wr_valid&&acc_wr_ready)scale_written_q<=scale_written_q+1'b1;
       if(vector_mem_valid&&vector_mem_ready&&vector_mem_req.write)begin
-        if(vector_mem_req.buffer_id==WORK_SCORE)v_written_q[0][vector_mem_req.index]<=1;
-        else for(int i=0;i<TILE;i++)if(vector_mem_req.mask[i]&&vector_mem_req.index+i<ROWS)
-          v_written_q[v_write_slot(vector_mem_req.buffer_id)][vector_mem_req.index+i]<=1;
+        for(int object_id=0;object_id<4;object_id++)if(v_write_object==object_id)
+          v_written_q[object_id]<=v_written_q[object_id]|v_write_mask;
       end
       if(function_mem_valid&&function_mem_ready&&function_mem_req.write)
-        for(int i=0;i<TILE;i++)if(function_mem_req.mask[i]&&function_mem_req.index+i<ROWS)
-          f_written_q[function_mem_req.buffer_id==WORK_ALPHA?0:1][function_mem_req.index+i]<=1;
+        for(int object_id=0;object_id<2;object_id++)if(f_write_object==object_id)
+          f_written_q[object_id]<=f_written_q[object_id]|f_write_mask;
       if(vector_done_valid&&vector_done_ready)begin
         if(scale_done_match)scale_busy_q<=0;else vb_q<=0;
       end

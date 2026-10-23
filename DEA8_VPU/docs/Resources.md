@@ -6,18 +6,19 @@
 
 | 资源 | 当前PCore | GCore基线 | GCore＋8×PCore | U50容量 | 占比 |
 |---|---:|---:|---:|---:|---:|
-| LUT | 116270 | 29782 | 959942 | 871680 | 110.13% |
-| FF | 142773 | 33198 | 1175382 | 1743360 | 67.42% |
+| LUT | 104422 | 29782 | 865158 | 871680 | 99.25% |
+| FF | 142551 | 33198 | 1173606 | 1743360 | 67.32% |
 | DSP | 398 | 109 | 3293 | 5952 | 55.33% |
 | BRAM36等效 | 71.5 | 79 | 651 | 1344 | 48.44% |
 | URAM | 40 | 24 | 344 | 640 | 53.75% |
 
 - PCore：2026-10-23实测；61 RAMB36＋21 RAMB18，blackbox=0
 - GCore：2026-10-19 RAM映射基线；77 RAMB36＋4 RAMB18，blackbox=0
-- LUT尚未达标，优化留待下一轮；本页记录实测，不是新的LUT优化方案
+- 本轮无代价优化：116270→104422 LUT，净降11848（10.19%）；FF减少222，DSP/BRAM/URAM不变；七Job总周期及逐Job周期不变
+- 本轮不强求系统LUT降至70%；当前外推距该目标仍差254982 LUT，后续另行决定资源交换或架构措施
 - 外推不含平台shell、HBM/PCIe物理控制器及跨核互连开销；不等于八核联合综合或可布通结论
 
-原始证据：[PCore](../reports/resource_synth/pcore_banked_20261023/utilization.rpt)、[层次表](../reports/resource_synth/pcore_banked_20261023/utilization_hier.rpt)、[RAM表](../reports/resource_synth/pcore_banked_20261023/ram.rpt)、[GCore基线](../reports/resource_synth/gcore_ram_remap_20261019/Summary.md)。
+原始证据：[PCore](../reports/resource_synth/pcore_nocost_r2/utilization.rpt)、[层次表](../reports/resource_synth/pcore_nocost_r2/utilization_hier.rpt)、[RAM表](../reports/resource_synth/pcore_nocost_r2/ram.rpt)、[试验对比](../reports/resource_synth/pcore_nocost_r2/Summary.md)、[GCore基线](../reports/resource_synth/gcore_ram_remap_20261019/Summary.md)。GCore生产清单37项与优化前字节一致，沿用面积基线，没有重新测GCore。
 
 ## 算术与存储核对
 
@@ -38,4 +39,5 @@
 
 - 只执行`synth_design -mode out_of_context`；4ns为测量约束，不是250MHz签核
 - `resource_preview=true`、`simulation_gate_passed=false`表示综合没有执行完整八核仿真准入，不否定另行完成的单核七Job
-- 保留原始报告、PASS、输入哈希和日志；DCP和`ip_work`为可重建产物，清理后不随工程上传
+- 保留原始报告、PASS、输入哈希和日志；本轮DCP和`ip_work`暂留用于归因，属于可重建产物
+- 层次LUT包含跨模块共享/吸收，不能把父子节点混加，也不能把`ctrl`层次缩小当作单独可兑现收益；以完整PCore总表为准

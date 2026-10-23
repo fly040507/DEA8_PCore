@@ -4,10 +4,10 @@
 
 ## 当前停点
 
-- 当前完整单PCore七Job已通过，285942拍；[结果与哈希](../Pcore/reports/compute/optimized7_banked/Summary.md)
-- RTL保持在该验证版本；本次整理只清理产物、更新文档，不开展LUT优化
-- 已有单核面积116270 LUT、142773 FF、398 DSP、71.5 BRAM36等效、40 URAM
-- 八核第1/9/18层、压力与组级恢复未验收；当前LUT外推仍超U50，下一轮统一处理
+- 无代价优化后完整单PCore七Job通过，285942拍，七个Job周期逐项与优化前相同；[结果与哈希](../Pcore/reports/compute/nocost_final7/Summary.md)
+- RTL保持在该验证版本；SFU/VPU/宽MUX/FF转置/QK/DEQACC外围优化已实施
+- 当前单核104422 LUT、142551 FF、398 DSP、71.5 BRAM36等效、40 URAM；LUT净降11848（10.19%）
+- 八核第1/9/18层、压力与组级恢复未验收；当前系统LUT外推99.25%，本轮不强求70%
 
 ## 固定架构与精度
 

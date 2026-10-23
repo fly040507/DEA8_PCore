@@ -48,7 +48,9 @@ module DEQACC_3_3ns(
     magnitude_t t;
     t='0;t.sign_bit=value[PSUM_BITS-1];
     t.mag=t.sign_bit?(~value+PSUM_BITS'(1)):value;
-    for(int i=0;i<PSUM_BITS;i++)if(t.mag[i])t.lead=LEAD_BITS'(i);
+    // Balanced priority tree; the original per-bit override chain selected the
+    // same highest set bit, but left a long priority cone in each of 32 lanes.
+    t.lead=LEAD_BITS'(lead32(32'(t.mag)));
     t.is_zero=t.mag==0;t.bad=(&a)||(&b);t.base=base+$signed({3'b0,b});return t;
   endfunction
   function automatic logic [31:0] pack_partial(input normalized_t p);

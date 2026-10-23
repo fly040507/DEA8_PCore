@@ -34,11 +34,16 @@ module dea8_acc_bank #(
       .wr_data,.rd_data(data_q),.dbg_addr(dbg_addr[AW-1:0]),.dbg_data(debug_word));
   end
   always_ff @(posedge clk) begin
-    if(reset||clear) begin valid_q<='0;initialized_q<='0;end
+    if(reset||clear)initialized_q<='0;
     else begin
       initialized_q[0]<=ren?valid_q[rd_addr[AW-1:0]]:1'b0;
       for(int i=1;i<ACC_READ_LATENCY;i++)initialized_q[i]<=initialized_q[i-1];
-      if(wen)valid_q[wr_addr[AW-1:0]]<=1;
+    end
+  end
+  for(genvar address=0;address<DEPTH;address++)begin: validity
+    always_ff @(posedge clk)begin
+      if(reset||clear)valid_q[address]<=0;
+      else if(wen&&wr_addr[AW-1:0]==address)valid_q[address]<=1;
     end
   end
   assign rd_data=initialized_q[ACC_READ_LATENCY-1]?data_q:'0;
@@ -121,15 +126,22 @@ module dea8_acc_store #(
     if(matrix_needs_scaled)for(int pair=0;pair<26;pair++)
       matrix_tile_ready&=scaled_valid[pair*16+matrix_tile];
   end
-  always_ff @(posedge clk)begin
-    if(reset||clear)begin scaled_valid<=0;raw_valid<=0;end
-    else begin
-      if(raw_begin)begin
-        if(raw_page)raw_valid[831:416]<=0;else raw_valid[415:0]<=0;
-      end
-      if(wr_valid&&wr_sel==ACC_OACC)raw_valid[wr_addr]<=1;
-      if(vpu_wr_valid&&vpu_wr_ready&&vpu_wr.sel==ACC_OACC)scaled_valid[vpu_wr.addr]<=1;
-      if(rd_valid&&rd_sel==ACC_OACC)scaled_valid[rd_addr]<=0;
+  // Fixed flag destinations keep address decode out of a wide read/modify/
+  // write cone. Preserve same-edge priority: raw write beats page invalidation;
+  // a scaled read consumes its flag even if a same-address write is present.
+  for(genvar address=0;address<832;address++)begin: raw_validity
+    always_ff @(posedge clk)begin
+      if(reset||clear)raw_valid[address]<=0;
+      else if(wr_valid&&wr_sel==ACC_OACC&&wr_addr==address)raw_valid[address]<=1;
+      else if(raw_begin&&raw_page==(address/416))raw_valid[address]<=0;
+    end
+  end
+  for(genvar address=0;address<416;address++)begin: scaled_validity
+    always_ff @(posedge clk)begin
+      if(reset||clear)scaled_valid[address]<=0;
+      else if(rd_valid&&rd_sel==ACC_OACC&&rd_addr==address)scaled_valid[address]<=0;
+      else if(vpu_wr_valid&&vpu_wr_ready&&vpu_wr.sel==ACC_OACC&&vpu_wr.addr==address)
+        scaled_valid[address]<=1;
     end
   end
   for(genvar p=0;p<2;p++)begin: oacc

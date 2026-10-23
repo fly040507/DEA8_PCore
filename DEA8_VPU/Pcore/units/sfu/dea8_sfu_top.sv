@@ -66,6 +66,23 @@ module dea8_sfu_top #(
   wire packet_take=packet_full&&running&&
     ((mode==0||mode==3)?(function_mem_valid&&function_mem_ready):function_result_ready);
 
+  // Decode the narrow destination once. A variable part-select write into a
+  // 1024-bit word otherwise builds payload-wide shift/merge logic.
+  for(genvar slot=0;slot<2;slot++)begin: packet_storage
+    for(genvar word_idx=0;word_idx<8;word_idx++)begin: words
+      always_ff @(posedge clk)if(!reset&&!flush&&group_pending&&
+        pending_slot==slot&&pending_word==word_idx)
+        packet_slots[slot][word_idx*128+:128]<=group_read_data;
+    end
+  end
+  for(genvar lane=0;lane<4;lane++)begin: scalar_storage
+    always_ff @(posedge clk)begin
+      if(reset||flush)scalar_pack[lane*32+:32]<=0;
+      else if(running&&math_out&&scalar_mode&&returned[1:0]==lane)
+        scalar_pack[lane*32+:32]<=math_y[0];
+    end
+  end
+
   always_ff @(posedge clk)begin
     if(reset||flush)warmup<=0;else warmup<={warmup[2:0],1'b1};
     if(reset||!flush)flush_count<=0;else if(flush_count!=3)flush_count<=flush_count+1;
@@ -87,15 +104,14 @@ module dea8_sfu_top #(
    assign guest_mode=active&&mode==2;
   always_comb begin
     math_a='0;math_b='0;
-    for(int j=0;j<4;j++)begin
-      if(mode==0)math_a[j]=stat_hold[(int'(emitted%16)+j)*32+:32];
-      if(mode==1)begin
-        math_a[j]=score_hold[(int'(emitted%16)+j)*32+:32];
-        math_b[j]=stat_hold[(int'((emitted/16)%16))*32+:32];
-      end
+    // Four-lane modes always issue aligned groups; scalar modes use one lane.
+    if(mode==0)math_a=stat_hold[emitted[3:2]*128+:128];
+    if(mode==1)begin
+      math_a=score_hold[emitted[3:2]*128+:128];
+      for(int j=0;j<4;j++)math_b[j]=stat_hold[emitted[7:4]*32+:32];
     end
-    if(mode==2)math_a[0]=gelu_hold[int'(emitted%16)*32+:32];
-    if(mode==3)math_a[0]=stat_hold[int'(emitted%16)*32+:32];
+    if(mode==2)math_a[0]=gelu_hold[emitted[3:0]*32+:32];
+    if(mode==3)math_a[0]=stat_hold[emitted[3:0]*32+:32];
   end
   dea8_sfu_arithmetic #(.EXTERNAL_ARITHMETIC(EXTERNAL_ARITHMETIC)) arithmetic(
     .clk,.active,.mode,.in_valid(math_take),.a(math_a),.b(math_b),
@@ -120,8 +136,8 @@ module dea8_sfu_top #(
   always_comb begin
     group_write_data=math_y;
     if(scalar_mode)begin
-      group_write_data=scalar_pack;
-      group_write_data[(returned%4)*32+:32]=math_y[0];
+      for(int j=0;j<4;j++)group_write_data[j*32+:32]=
+        returned[1:0]==j?math_y[0]:scalar_pack[j*32+:32];
     end
   end
   assign group_we=running&&math_out&&(!scalar_mode||returned%4==3||returned+1==limit);
@@ -180,7 +196,7 @@ module dea8_sfu_top #(
       emitted<=0;returned<=0;produced_groups<=0;read_groups<=0;output_packet<=0;
       packet_full_q<=0;group_pending<=0;reader_slot<=0;reader_packet<=0;reader_word<=0;
       pending_slot<=0;pending_word<=0;pending_last<=0;
-      gelu_full<=0;score_early<=0;scalar_pack<=0;
+      gelu_full<=0;score_early<=0;
     end else begin
       group_pending<=group_rd;
       if(function_valid&&function_ready)begin
@@ -241,7 +257,6 @@ module dea8_sfu_top #(
       end
       if(running&&math_out)begin
         returned<=returned+(scalar_mode?1:4);
-        if(scalar_mode)scalar_pack[(returned%4)*32+:32]<=math_y[0];
         for(int j=0;j<4;j++)if((!scalar_mode||j==0)&&(&math_y[j][30:23]))begin error_q<=1;state<=DONE;end
       end
       if(group_we)produced_groups<=produced_groups+1;
@@ -254,7 +269,6 @@ module dea8_sfu_top #(
         end else reader_word<=reader_word+1;
       end
       if(group_pending)begin
-        packet_slots[pending_slot][pending_word*128+:128]<=group_read_data;
         if(pending_last)packet_full_q[pending_slot]<=1;
       end
       if(packet_take)begin packet_full_q[output_packet[0]]<=0;output_packet<=output_packet+1;end
@@ -268,6 +282,7 @@ module dea8_sfu_top #(
   always @(posedge clk)if(active&&state!=IDLE)begin
     assert(int'(produced_groups)-int'(read_groups)<=64)else $fatal(1,"SFU output credit overflow");
     assert(score_received<=score_issued)else $fatal(1,"SFU unordered Score response");
+    if(math_take&&!scalar_mode)assert(emitted[1:0]==0)else $fatal(1,"SFU group alignment");
   end
   // synthesis translate_on
 endmodule

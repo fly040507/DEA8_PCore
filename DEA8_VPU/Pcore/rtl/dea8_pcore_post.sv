@@ -50,8 +50,9 @@ module dea8_pcore_post #(parameter bit EXTERNAL_VECTOR=0)(
   wire v_read=state_q==SEND&&vquant&&!v_full&&v_issued<16;
   for(genvar token=0;token<16;token++)begin: transpose_window
     always_ff @(posedge clk)if(!reset&&!clear)begin
-      if(vquant&&vector_data_valid&&vector_data_ready)transpose_rows[token]<=transpose_rows[token]>>64;
-      else if(v_read_pending&&v_read_index==token)
+      // Keep the loaded row stationary. Only the narrow column address moves;
+      // all sixteen token lanes still expose two feature columns per transfer.
+      if(v_read_pending&&v_read_index==token)
         transpose_rows[token]<=(v_group!=3||token<3)?a_data:512'b0;
     end
   end
@@ -127,7 +128,8 @@ module dea8_pcore_post #(parameter bit EXTERNAL_VECTOR=0)(
       if(vquant)begin
         vector_data.token_mask=v_group==3?16'h0007:16'hffff;
         for(int token=0;token<16;token++)begin
-          vector_data.first[token]=transpose_rows[token][31:0];vector_data.second[token]=transpose_rows[token][63:32];
+          vector_data.first[token]=transpose_rows[token][v_column*64+:32];
+          vector_data.second[token]=transpose_rows[token][v_column*64+32+:32];
         end
       end
     end else begin

@@ -26,8 +26,9 @@ module dea8_vpu_top(
  control_command_t scale_cmd;
  logic scale_busy,scale_done,scale_error;
  logic [2:0] stat_issued,stat_received;
- logic [31:0] alpha[51];
- logic [9:0] reads,mul_issued,writes;
+  logic [31:0] alpha[2][PAIRS];
+  logic [9:0] reads,mul_issued,writes;
+  logic [PAIR_BITS-1:0] scale_pair,mul_pair[ML];
  logic fg_ready,fg_done_valid,fg_done_ready,fg_mv,fg_mr,fg_mout_ready;
  control_unit_done_t fg_done;
  control_memory_req_t fg_mreq;
@@ -51,7 +52,12 @@ module dea8_vpu_top(
  wire take_bg=bg_mul&&mul_ready&&!fg_mul_valid;
  wire read_fire=acc_rd_valid&&acc_rd_ready;
  wire response_fire=acc_data_valid&&acc_data_ready;
- wire write_fire=acc_wr_valid&&acc_wr_ready;
+  wire write_fire=acc_wr_valid&&acc_wr_ready;
+  for(genvar row=0;row<ROWS;row++)begin: alpha_rows
+    always_ff @(posedge clk)if(!reset&&!clear&&!flush_valid&&
+      vector_mem_out_valid&&vector_mem_out_ready&&mem_bg_response&&stat_received==row/16)
+      alpha[row%2][row/2]<=vector_mem_out.data[row%16];
+  end
  assign vector_ready=is_scale?!scale_busy&&!scale_done:fg_ready;
  assign vector_done_valid=fg_done_valid||scale_done;
  assign vector_done=fg_done_valid?fg_done:control_unit_done_t'('{command:scale_cmd,error:scale_error});
@@ -76,9 +82,9 @@ module dea8_vpu_top(
  assign mul_valid=fg_mul_valid||bg_mul;
  assign mul_a=fg_mul_valid?fg_a:{acc_odd,acc_even};
  always_comb begin
-   mul_b=fg_b;
-   if(!fg_mul_valid)for(int r=0;r<2;r++)for(int lane=0;lane<16;lane++)
-     mul_b[r][lane]=(2*(mul_issued%26)+r<51)?alpha[2*(mul_issued%26)+r]:32'b0;
+    mul_b=fg_b;
+    if(!fg_mul_valid)for(int r=0;r<2;r++)for(int lane=0;lane<16;lane++)
+      mul_b[r][lane]=(r==0||scale_pair!=PAIRS-1)?alpha[r][scale_pair]:32'b0;
  end
  assign acc_wr_valid=fg_wr||scale_write_valid;
  assign acc_wr=fg_wr?fg_write:scale_write;
@@ -109,18 +115,16 @@ module dea8_vpu_top(
  always_ff @(posedge clk)begin
    if(reset||clear||flush_valid)begin
      scale_busy<=0;scale_done<=0;stat_issued<=0;stat_received<=0;reads<=0;writes<=0;mul_issued<=0;
-     mul_bg<=0;scale_write_valid<=0;response_count<=0;response_kind<=0;scale_error<=0;
+      mul_bg<=0;scale_pair<=0;scale_write_valid<=0;response_count<=0;response_kind<=0;scale_error<=0;
    end else begin
      if(vector_valid&&vector_ready&&is_scale)begin
        scale_cmd<=vector_cmd;scale_busy<=1;scale_done<=0;stat_issued<=0;stat_received<=0;
-       reads<=0;writes<=0;mul_issued<=0;scale_error<=0;
+        reads<=0;writes<=0;mul_issued<=0;scale_pair<=0;scale_error<=0;
      end
      if(scale_done&&vector_done_ready&&!fg_done_valid)scale_done<=0;
      if(vector_mem_valid&&vector_mem_ready&&!fg_mv)stat_issued<=stat_issued+1'b1;
-     if(vector_mem_out_valid&&vector_mem_out_ready&&mem_bg_response)begin
-       for(int lane=0;lane<16;lane++)if(stat_received*16+lane<51)
-         alpha[stat_received*16+lane]<=vector_mem_out.data[lane];
-       stat_received<=stat_received+1'b1;
+      if(vector_mem_out_valid&&vector_mem_out_ready&&mem_bg_response)begin
+        stat_received<=stat_received+1'b1;
      end
      if(read_fire&&!fg_rd)reads<=reads+1'b1;
      case({read_fire,response_fire})
@@ -130,17 +134,22 @@ module dea8_vpu_top(
      endcase
      if(response_fire)response_kind<=response_kind>>1;
      if(read_fire)response_kind[response_count-4'(response_fire)]<=!fg_rd;
-     mul_bg<={mul_bg[ML-2:0],take_bg};
-     mul_address[0]<=mul_issued;
-     for(int i=1;i<ML;i++)mul_address[i]<=mul_address[i-1];
-     if(take_bg)mul_issued<=mul_issued+1'b1;
+      mul_bg<={mul_bg[ML-2:0],take_bg};
+      mul_address[0]<=mul_issued;
+      mul_pair[0]<=scale_pair;
+      for(int i=1;i<ML;i++)mul_address[i]<=mul_address[i-1];
+      for(int i=1;i<ML;i++)mul_pair[i]<=mul_pair[i-1];
+      if(take_bg)begin
+        mul_issued<=mul_issued+1'b1;
+        scale_pair<=scale_pair==PAIRS-1?0:scale_pair+1'b1;
+      end
      if(write_fire&&!fg_wr)begin
        scale_write_valid<=0;writes<=writes+1'b1;
        if(writes==415)begin scale_busy<=0;scale_done<=1;end
      end
      if(mul_out&&mul_bg[ML-1])begin
        scale_write_valid<=1;scale_write.sel<=ACC_OACC;scale_write.addr<=mul_address[ML-1];
-       scale_write.row_valid<=row_mask(mul_address[ML-1]%26);scale_write.data<=mul_y;
+        scale_write.row_valid<=row_mask(mul_pair[ML-1]);scale_write.data<=mul_y;
        if(|mul_error)scale_error<=1;
      end
    end
@@ -148,7 +157,8 @@ module dea8_vpu_top(
  // synthesis translate_off
  always @(posedge clk)if(!reset&&!clear&&!flush_valid)begin
    if(scale_write_valid&&!acc_wr_ready)$fatal(1,"OACC scale write unexpectedly blocked address=%0d writes=%0d tile=%0d token=%h",scale_write.addr,writes,scale_cmd.tile,acc_token);
-   if(response_count>8)$fatal(1,"VPU ACC tag credit overflow");
+    if(response_count>8)$fatal(1,"VPU ACC tag credit overflow");
+    if(take_bg&&scale_pair!=mul_issued%PAIRS)$fatal(1,"OACC scale pair/address alignment");
  end
  // synthesis translate_on
 endmodule

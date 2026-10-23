@@ -9,11 +9,12 @@
 - 总周期 **285942**，比 DEA8 旧基线增加 **2.2788%**
 - Matrix issues **265408**，55 QK / 55 PV
 - **6299** 项量化、**157743** 项 FP 检查通过；DUT 内无 TB 算术代算
-- 单核 OOC 综合：**116270 LUT、142773 FF、398 DSP、71.5 BRAM36 等效、40 URAM**
+- 无代价优化后单核 OOC：**104422 LUT、142551 FF、398 DSP、71.5 BRAM36 等效、40 URAM**
+- 相比本轮116270 LUT基线，减少**11848 LUT（10.19%）**；七个Job的周期逐项完全不变
 
-[七 Job逐项结果与原始证据](Pcore/reports/compute/optimized7_banked/Summary.md) · [当前资源口径](docs/Resources.md)
+[七 Job逐项结果与原始证据](Pcore/reports/compute/nocost_final7/Summary.md) · [当前资源口径](docs/Resources.md)
 
-**RTL停在该仿真通过版本，等待用户检查；LUT优化留待下一轮。** LUT尚未达标；单核仿真和资源预览不代表八核联合、布局布线或板级频率通过。
+**本轮无代价优化与完整七Job验证已完成，RTL停在该版本。** 既定候选覆盖SFU、VPU、宽MUX、静态FF转置、QK及DEQACC/ACC外围；没有用新增DSP/BRAM换LUT。系统70%不是本轮验收要求；单核仿真和资源预览不代表八核联合、布局布线或板级频率通过。
 
 ## 目录入口
 
@@ -48,6 +49,6 @@
 
 ## 清理与复现
 
-本目录仅保留最新完整七Job、当前共享SFU回归、当前单核面积及GCore外推基线。被替代的运行、旧方案报告、快照、波形、DCP、`ip_work`和服务器临时目录已移除。旧DEA8基线数字在结果表中保留。
+前一轮已清理被替代产物。本轮新增`nocost_final7`、`nocost_r2_modules`、邻接回归和`pcore_nocost_r2`证据；此前`optimized7_banked`/`pcore_banked_20261023`保留为优化前基线，不能代表当前RTL。综合试验和消融见[证据索引](reports/README.md)。旧DEA8基线数字在结果表中保留。
 
-IP目录仅保留XCI及小型仿真封装，便于核对已验收输入；完整vendor生成产品从Tcl重建。原始PASS与manifest未改写。综合时的输入清单快照保留在`output/pcore_synth_sources.f`，只是原始测量输入，不是编译入口。详见[复现说明](docs/Verification.md)。
+本轮已从Tcl重建IP；配置、gold与原始PASS未改写。新综合DCP和`ip_work`暂留供定位跨层归属，发布前可清理。`output/pcore_synth_sources.f`为runner生成的综合输入清单，不是编译入口。详见[复现说明](docs/Verification.md)。

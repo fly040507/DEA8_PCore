@@ -1,0 +1,43 @@
+
+****** Vivado v2022.2 (64-bit)
+  **** SW Build 3671981 on Fri Oct 14 05:00:03 MDT 2022
+  **** IP Build 3669848 on Fri Oct 14 08:30:02 MDT 2022
+    ** Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.
+
+source Gcore/ip/create_rsqrt.tcl
+# set here [file dirname [file normalize [info script]]]
+# create_project -in_memory -part xcu50-fsvh2104-2-e
+# file mkdir [file join $here generated]
+# if {[file exists [file join $here generated gcore_rsqrt_ip gcore_rsqrt_ip.xci]]} {
+#     read_ip [file join $here generated gcore_rsqrt_ip gcore_rsqrt_ip.xci]
+# } else {
+#     create_ip -name floating_point -vendor xilinx.com -library ip -version 7.1 \
+#         -module_name gcore_rsqrt_ip -dir [file join $here generated]
+# }
+INFO: [IP_Flow 19-234] Refreshing IP repositories
+INFO: [IP_Flow 19-1704] No user IP repositories specified
+INFO: [IP_Flow 19-2313] Loaded Vivado IP repository 'D:/Xilinx/Vivado/2022.2/data/ip'.
+WARNING: [Vivado 12-13650] The IP file 'C:/Users/fly04/Desktop/VLA/DEA8_VPU/Gcore/ip/generated/gcore_rsqrt_ip/gcore_rsqrt_ip.xci' has been moved from its original location, as a result the outputs for this IP will now be generated in 'c:/Users/fly04/Desktop/VLA/DEA8_VPU/Gcore/ip/generated/gcore_rsqrt_ip'. Alternatively a copy of the IP can be imported into the project using one of the 'import_ip' or 'import_files' commands.
+# set_property -dict [list CONFIG.Operation_Type {Rec_Square_Root} \
+#     CONFIG.A_Precision_Type {Single} CONFIG.Result_Precision_Type {Single} \
+#     CONFIG.C_Mult_Usage {Full_Usage} CONFIG.Flow_Control {NonBlocking} \
+#     CONFIG.Has_ACLKEN {true} CONFIG.Has_ARESETn {true} \
+#     CONFIG.Maximum_Latency {true} CONFIG.C_Rate {1}] [get_ips gcore_rsqrt_ip]
+# generate_target all [get_ips gcore_rsqrt_ip]
+INFO: [IP_Flow 19-1686] Generating 'Instantiation Template' target for IP 'gcore_rsqrt_ip'...
+INFO: [IP_Flow 19-1686] Generating 'Synthesis' target for IP 'gcore_rsqrt_ip'...
+INFO: [IP_Flow 19-1686] Generating 'Simulation' target for IP 'gcore_rsqrt_ip'...
+INFO: [IP_Flow 19-1686] Generating 'C Simulation' target for IP 'gcore_rsqrt_ip'...
+INFO: [IP_Flow 19-1686] Generating 'Test Bench' target for IP 'gcore_rsqrt_ip'...
+INFO: [IP_Flow 19-1686] Generating 'Change Log' target for IP 'gcore_rsqrt_ip'...
+# if {[get_property CONFIG.C_Latency [get_ips gcore_rsqrt_ip]] != 32} {
+#     error "rsqrt wrapper expects the frozen 32-cycle IP configuration"
+# }
+# set f [open [file join $here rsqrt_config.txt] w]
+# foreach p {CONFIG.Operation_Type CONFIG.C_Latency CONFIG.C_Rate CONFIG.C_Mult_Usage CONFIG.Has_ACLKEN CONFIG.Has_ARESETn} {
+#     puts $f "$p=[get_property $p [get_ips gcore_rsqrt_ip]]"
+# }
+# close $f
+# puts "GCORE_RSQRT_IP_READY [get_property CONFIG.C_Latency [get_ips gcore_rsqrt_ip]]"
+GCORE_RSQRT_IP_READY 32
+INFO: [Common 17-206] Exiting Vivado at Fri Oct 23 16:32:53 2026...

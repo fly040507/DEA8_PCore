@@ -25,9 +25,13 @@ module dea8_pcore_workspace #(parameter bit EXTERNAL_VECTOR=0)(
   assign v_out_valid=full[0]&&!reset&&!clear;assign f_out_valid=full[1]&&!reset&&!clear;
   logic [2:0] physical_id[2],logical_id[2];
   logic [511:0] scalar_read[2];
+  logic [19:0] scalar_select[2];
   for(genvar p=0;p<2;p++)begin: scalar_addresses
     assign physical_id[p]=3'(physical_object(req[p]));
     assign logical_id[p]=3'(object_id(req[p]));
+    for(genvar obj=0;obj<5;obj++)for(genvar chunk=0;chunk<4;chunk++)begin: selects
+      assign scalar_select[p][obj*4+chunk]=physical_id[p]==obj&&req[p].index[5:4]==chunk;
+    end
   end
   // Each lane has its own fixed 32-bit input. A dynamic row write into one
   // monolithic array otherwise builds a 16-to-1 payload mux for EVERY word.
@@ -45,7 +49,12 @@ module dea8_pcore_workspace #(parameter bit EXTERNAL_VECTOR=0)(
       end
     end
     for(genvar p=0;p<2;p++)begin: read_ports
-      assign scalar_read[p][32*lane+:32]=words[physical_id[p]][req[p].index[5:4]];
+      // Share a narrow object/chunk decoder across all 32-bit lane payloads.
+      always_comb begin
+        scalar_read[p][32*lane+:32]=0;
+        for(int obj=0;obj<5;obj++)for(int chunk=0;chunk<4;chunk++)
+          scalar_read[p][32*lane+:32]|=words[obj][chunk]&{32{scalar_select[p][obj*4+chunk]}};
+      end
     end
   end
   for(genvar obj=0;obj<6;obj++)for(genvar row=0;row<51;row++)begin: scalar_valid

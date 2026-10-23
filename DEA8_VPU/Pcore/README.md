@@ -201,11 +201,11 @@ python run_compute.py test --top tb_pcore_seven_native
 
 默认展开O3、mt off；只有已记录的工具问题才尝试 `--opt 0`，不能删检查或替换真实IP。显式PASS、数值/计数满足且前后输入哈希一致才通过，退出码0不够。完整日志/manifest在 `reports/compute/`；图表生成器不接受旧源码或不完整PASS。
 
-当前完整七Job：285942拍、265408 issues、55QK/55PV、6299量化+157743FP检查。DUT内部无TB算术，TB只模拟单核外部数据、命令与接收。八核联合第1/9/18层及压力/恢复仍待服务器执行。
+当前完整七Job：285942拍、265408 issues、55QK/55PV、6299量化+157743FP检查；无代价优化前后逐Job周期完全一致，证据在`reports/compute/nocost_final7/`。DUT内部无TB算术，TB只模拟单核外部数据、命令与接收。八核联合第1/9/18层及压力/恢复仍待服务器执行。
 
 服务器先完成仿真，再综合一个完整PCore及GCore测资源，不综合八核、不布局布线。入口为DEA8_VPU目录的 `run_dea8.py synth --target pcore --server-heavy`。见[验证说明](../docs/Verification.md)。
 
-当前单核面积预览为398DSP、71.5BRAM36等效、40URAM；报告在`../reports/resource_synth/pcore_banked_20261023/`。RoPE映射已在完整PCore综合网表确认；全地址回归TB为`tb/compute/tb_rope_rom_native.sv`。LUT仍未达标，留待下一轮。
+当前单核面积预览为104422LUT、142551FF、398DSP、71.5BRAM36等效、40URAM；报告在`../reports/resource_synth/pcore_nocost_r2/`。比本轮基线净降11848LUT且不增周期/专用资源。本轮不强求系统70%；RoPE全地址回归TB为`tb/compute/tb_rope_rom_native.sv`。
 
 ## 11. 文件入口与历史工具
 
